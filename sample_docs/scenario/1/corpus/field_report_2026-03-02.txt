@@ -1,0 +1,29 @@
+TELEMETRY GATEWAY TGX-9 FIELD INCIDENT REPORT
+
+Date: 2026-03-02
+Site: North Ridge Relay Station
+Author: J. Okafor, Field Engineering
+
+Summary
+On 2026-03-02 the TGX-9 telemetry gateway at North Ridge dropped 34 percent of
+inbound sensor packets over a four hour window. Packet loss began at 02:14 local
+and recovered after a manual power cycle at 06:31 local.
+
+Observations
+- Buffer occupancy alarm fired at 02:11, three minutes before packet loss began.
+- Firmware version 4.2.1 was running on the affected unit.
+- Ambient temperature in the equipment cabinet reached 41 C during the event.
+- No upstream network faults were recorded by the carrier during this window.
+
+Immediate Actions
+- Manual power cycle restored normal throughput.
+- Affected unit flagged for firmware review.
+- Cabinet cooling fan scheduled for inspection.
+
+Figures
+- packet_loss_vs_temp.png: Packet loss versus cabinet temperature during the event.
+- site_network_topology.png: Relay station network topology for North Ridge.
+
+Preliminary Assessment
+The event correlates with elevated cabinet temperature and a buffer occupancy
+alarm. Firmware 4.2.1 buffer management is a suspected contributing factor.

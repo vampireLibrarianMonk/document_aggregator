@@ -1,0 +1,20 @@
+{
+  "note": "Lab safety feedback; includes a conflicting severity pair.",
+  "corrections": [
+    { "id": "corr_swver", "kind": "email", "author": "biomed.eng@example.com", "subject": "wrong software version",
+      "target": "contributing_factors.software_version", "operation": "replace", "old_value": "7.2.0", "new_value": "7.1.2",
+      "body": "The affected analyzer ran control-software 7.1.2, not 7.2.0. Analyzers on 7.2.0 halt aspiration correctly." },
+    { "id": "corr_duration", "kind": "comment", "author": "qa_reviewer", "subject": "duration + blank actions",
+      "target": "description.duration", "operation": "replace", "old_value": "one hour", "new_value": "three hour",
+      "body": "The halt was three hours (08:20 to 11:20), and Corrective Actions is blank." },
+    { "id": "corr_sev_high", "kind": "email", "author": "lab.director@example.com", "subject": "severity too low",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Minor", "new_value": "Major",
+      "body": "A reagent spill contaminating patient samples is Major, not Minor." },
+    { "id": "corr_sev_mod", "kind": "comment", "author": "qa_reviewer", "subject": "severity assessment",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Minor", "new_value": "Moderate",
+      "body": "Contained with no confirmed patient impact beyond one tray, so Moderate per the matrix." },
+    { "id": "corr_figure", "kind": "comment", "author": "qa_reviewer", "subject": "wrong figure",
+      "target": "timeline.graphic", "operation": "relabel_graphic", "old_value": "figureA.png", "new_value": "spill_containment_zone.png",
+      "body": "The Timeline figure reference is wrong; it should be the spill containment zone." }
+  ]
+}

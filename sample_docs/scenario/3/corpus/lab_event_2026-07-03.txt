@@ -1,0 +1,31 @@
+CLINICAL LABORATORY SAFETY EVENT REPORT
+
+Date: 2026-07-03
+System: Automated Chemistry Analyzer Bay 2
+Author: R. Delgado, Laboratory Safety Officer
+
+Summary
+On 2026-07-03 a reagent spill on the Bay 2 chemistry analyzer contaminated a
+sample tray and forced a halt to processing over a three hour window. The spill
+was detected at 08:20 local and processing resumed after decontamination at
+11:20 local.
+
+Observations
+- Reagent-level warning fired at 08:12 local, eight minutes before the spill.
+- The affected analyzer was running control-software version 7.1.2.
+- Ambient bench temperature was within normal range during the event.
+- No patient samples were reported as compromised beyond the affected tray.
+
+Immediate Actions
+- Bay 2 analyzer taken offline and decontaminated per protocol.
+- Affected reagent lot quarantined pending review.
+- Sample tray discarded and re-drawn where required.
+
+Figures
+- spill_containment_zone.png: Containment zone around the Bay 2 analyzer.
+- sample_tray_layout.png: Sample tray layout showing the contaminated wells.
+
+Preliminary Assessment
+The event correlates with a worn reagent seal and a missing secondary catch
+tray. Control-software 7.1.2 did not halt aspiration on the reagent-level
+warning and is a suspected contributing factor.

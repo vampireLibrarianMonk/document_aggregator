@@ -1,0 +1,39 @@
+{
+  "artifact_kind": "draft",
+  "title": "Bay 2 Reagent Spill Report",
+  "sections": [
+    { "key": "identifiers", "heading": "1. Identifiers",
+      "fields": { "site": "Chemistry Analyzer Bay 2", "incident_date": "2026-07-03", "severity": "Minor" } },
+    { "key": "description", "heading": "2. Description",
+      "body": "A reagent spill on the Bay 2 analyzer halted processing over a one hour window. See Figure 2 for the tray layout.",
+      "graphics": [ { "ref_name": "reagent_seal_cross_section.png", "caption": "Reagent seal" } ] },
+    { "key": "timeline", "heading": "3. Timeline",
+      "body": "Reagent-level warning at 08:12; spill detected 08:20; resumed after decontamination at 11:20.",
+      "graphics": [ { "ref_name": "figureA.png", "caption": "" } ] },
+    { "key": "contributing_factors", "heading": "4. Contributing Factors",
+      "body": "Control-software 7.2.0 was running on the affected analyzer. A secondary catch tray was absent.",
+      "graphics": [] },
+    { "key": "corrective_actions", "heading": "5. Corrective Actions",
+      "body": "",
+      "table": { "title": "", "font": "Times New Roman", "header_style": "body-text",
+                 "columns": ["Due Date", "Action"], "rows": [] } },
+    { "key": "approvals", "heading": "6. Approvals",
+      "fields": { "reviewer": "", "signoff_date": "" } }
+  ],
+  "furniture": { "header": { "text": "Lab Safety Event Report" }, "footer": { "text": "" }, "page_numbers": false, "classification": "" },
+  "cross_references": [
+    { "id": "xref_1", "in_section": "description", "text": "Figure 2", "points_to_graphic": "gfx_tray" }
+  ],
+  "_seeded_defects": [
+    "value: software_version 7.2.0 (should be 7.1.2 affected)",
+    "value: duration one hour (should be three hour)",
+    "value: severity Minor (challenged -> conflict)",
+    "value: corrective_actions blank",
+    "graphic: timeline figure 'figureA.png' (relabel -> spill_containment_zone.png)",
+    "graphic: reagent_seal misplaced in description (move -> contributing_factors)",
+    "graphic: sample_tray_layout.png missing (insert -> description)",
+    "table: columns [Due Date,Action] wrong order + missing Owner/Verification",
+    "table: font Times New Roman + body-text header",
+    "furniture: xref dangling; footer empty; no page numbers/classification; no table title"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "id": "4",
+  "title": "Injection Molding Line Defect Event",
+  "domain": "manufacturing quality / defect analysis",
+  "note": "Manufacturing scenario. Same generic engine, different corpus/queries/facts.",
+
+  "corpus_docs": ["qc_report_2026-08-09.txt", "rca_review_2026-08-19.md"],
+
+  "fields": [
+    { "key": "site", "label": "System", "section": "identifiers", "extract": "line", "hint": "System:" },
+    { "key": "incident_date", "label": "Event Date", "section": "identifiers", "extract": "date", "hint": "Date:" },
+    { "key": "severity", "label": "Severity", "section": "identifiers", "extract": "none" },
+    { "key": "firmware", "label": "Mold-Controller Firmware", "section": "contributing_factors", "extract": "version", "hint": "was running" },
+    { "key": "duration", "label": "Production Pause Duration", "section": "description", "extract": "duration", "hint": "window" }
+  ],
+
+  "section_bodies": {
+    "description": { "query": "summary hairline crack defect production run", "block_anchor": "Summary" },
+    "timeline": { "query": "observations cavity pressure alarm fired melt temperature", "block_anchor": "Observations" },
+    "contributing_factors": { "query": "preliminary assessment melt temperature pressure compensation firmware", "block_anchor": "Assessment" }
+  },
+
+  "table": {
+    "key": "corrective_actions_table",
+    "section": "corrective_actions",
+    "query": "corrective action assignments owner due date",
+    "row_marker": "Action:",
+    "cell_queries": { "Action": "corrective action", "Owner": "who owns the action", "Due": "due date" },
+    "column_source": { "Action": "Action", "Owner": "Owner", "Due Date": "Due" }
+  }
+}

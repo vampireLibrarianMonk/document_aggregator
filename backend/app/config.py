@@ -1,0 +1,61 @@
+"""Central configuration for the document aggregation platform.
+
+Local-first defaults. Everything runs offline on CPU with no proprietary
+services. Cloud swaps (S3 / OpenSearch / hosted embeddings) would be adapters
+behind the same interfaces, but are intentionally not required here.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+
+class Settings:
+    APP_ENV: str = os.getenv("APP_ENV", "development")
+
+    # Data root: immutable originals, canonical docs, artifacts, indexes.
+    DATA_DIR: Path = Path(os.getenv("DATA_DIR", str(Path(__file__).resolve().parents[2] / "data")))
+
+    # Feature flags mirroring the reference spec. Baseline works with all off.
+    OCR_ENABLED: bool = os.getenv("OCR_ENABLED", "false").lower() == "true"
+    VISION_ENABLED: bool = os.getenv("VISION_ENABLED", "false").lower() == "true"
+    LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() == "true"
+    EMBEDDINGS_ENABLED: bool = os.getenv("EMBEDDINGS_ENABLED", "true").lower() == "true"
+
+    # Embedding backend selection. Both run locally / offline:
+    #   "sentence-transformers" -> real open-weight model (default when installed)
+    #   "hashing"               -> zero-dependency deterministic fallback
+    #   "auto"                  -> sentence-transformers if importable, else hashing
+    # Swappable behind the EmbeddingProvider interface; no model is load-bearing.
+    EMBEDDING_BACKEND: str = os.getenv("EMBEDDING_BACKEND", "auto")
+
+    # Real local model (Apache-2.0, CPU-friendly, air-gap after first pull).
+    EMBEDDING_ST_MODEL: str = os.getenv("EMBEDDING_ST_MODEL", "all-MiniLM-L6-v2")
+
+    # Hashing fallback identity.
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "local-hashing-embedder")
+    EMBEDDING_REVISION: str = os.getenv("EMBEDDING_REVISION", "v1")
+    EMBEDDING_DIM: int = int(os.getenv("EMBEDDING_DIM", "256"))
+
+    MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "50"))
+
+    # Optional Bedrock interpreter: turns freeform feedback into constrained
+    # correction operations via tool-use. Off by default; the pipeline works
+    # fully without it (structured ops path). Never writes final state.
+    BEDROCK_ENABLED: bool = os.getenv("BEDROCK_ENABLED", "false").lower() == "true"
+    BEDROCK_REGION: str = os.getenv("BEDROCK_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+    # Use a cross-region inference profile ID (required for on-demand newer models).
+    BEDROCK_MODEL: str = os.getenv("BEDROCK_MODEL", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+
+    PIPELINE_VERSION: str = "0.1.0"
+    SCHEMA_VERSION: str = "1.0"
+
+    def project_dir(self, project_id: str) -> Path:
+        return self.DATA_DIR / "projects" / project_id
+
+    def ensure_dirs(self) -> None:
+        self.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        (self.DATA_DIR / "projects").mkdir(parents=True, exist_ok=True)
+
+
+settings = Settings()

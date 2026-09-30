@@ -1,0 +1,20 @@
+{
+  "note": "Manufacturing defect feedback; includes a conflicting severity pair.",
+  "corrections": [
+    { "id": "corr_fw", "kind": "email", "author": "mfg.eng@example.com", "subject": "wrong firmware version",
+      "target": "contributing_factors.firmware", "operation": "replace", "old_value": "2.1.1", "new_value": "2.0.5",
+      "body": "The affected line ran mold-controller firmware 2.0.5, not 2.1.1. Lines on 2.1.1 did not reproduce the defect." },
+    { "id": "corr_duration", "kind": "comment", "author": "qc_reviewer", "subject": "duration + blank actions",
+      "target": "description.duration", "operation": "replace", "old_value": "two hour", "new_value": "five hour",
+      "body": "The affected run was five hours (06:40 to 11:40), and Corrective Actions is blank." },
+    { "id": "corr_sev_high", "kind": "email", "author": "plant.manager@example.com", "subject": "severity too low",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Cosmetic", "new_value": "Critical",
+      "body": "A structural hairline crack is Critical, not Cosmetic." },
+    { "id": "corr_sev_maj", "kind": "comment", "author": "qc_reviewer", "subject": "severity assessment",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Cosmetic", "new_value": "Major",
+      "body": "Contained on hold with nothing shipped, so Major per the matrix, not Critical." },
+    { "id": "corr_figure", "kind": "comment", "author": "qc_reviewer", "subject": "wrong figure",
+      "target": "timeline.graphic", "operation": "relabel_graphic", "old_value": "trace.png", "new_value": "cavity_pressure_trace.png",
+      "body": "The Timeline figure reference is wrong; it should be the cavity pressure trace." }
+  ]
+}

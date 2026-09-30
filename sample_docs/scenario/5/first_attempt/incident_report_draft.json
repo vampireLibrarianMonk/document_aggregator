@@ -1,0 +1,39 @@
+{
+  "artifact_kind": "draft",
+  "title": "Tail 512 Hydraulic Discrepancy Report",
+  "sections": [
+    { "key": "identifiers", "heading": "1. Identifiers",
+      "fields": { "site": "Tail 512 Hydraulic System B", "incident_date": "2026-09-06", "severity": "Routine" } },
+    { "key": "description", "heading": "2. Description",
+      "body": "Hydraulic System B on tail 512 showed slow pressure decay grounding the aircraft over a three hour window. See Figure 2 for the schematic.",
+      "graphics": [ { "ref_name": "seal_wear_comparison.png", "caption": "Seal wear" } ] },
+    { "key": "timeline", "heading": "3. Timeline",
+      "body": "Hydraulic low advisory at 05:41; discrepancy logged 05:50; returned to service after seal replacement at 12:50.",
+      "graphics": [ { "ref_name": "plot.png", "caption": "" } ] },
+    { "key": "contributing_factors", "heading": "4. Contributing Factors",
+      "body": "Actuator-controller software B2.5 was running on the affected unit. The actuator seal was degraded.",
+      "graphics": [] },
+    { "key": "corrective_actions", "heading": "5. Corrective Actions",
+      "body": "",
+      "table": { "title": "", "font": "Verdana", "header_style": "body-text",
+                 "columns": ["Action", "Owner"], "rows": [] } },
+    { "key": "approvals", "heading": "6. Approvals",
+      "fields": { "reviewer": "", "signoff_date": "" } }
+  ],
+  "furniture": { "header": { "text": "Maintenance Discrepancy Report" }, "footer": { "text": "" }, "page_numbers": false, "classification": "" },
+  "cross_references": [
+    { "id": "xref_1", "in_section": "description", "text": "Figure 2", "points_to_graphic": "gfx_schematic" }
+  ],
+  "_seeded_defects": [
+    "value: software_version B2.5 (should be B2.3 affected)",
+    "value: duration three hour (should be seven hour)",
+    "value: severity Routine (challenged -> conflict)",
+    "value: corrective_actions blank",
+    "graphic: timeline figure 'plot.png' (relabel -> pressure_decay_plot.png)",
+    "graphic: seal_wear_comparison misplaced in description (move -> contributing_factors)",
+    "graphic: hydraulic_schematic_system_b.png missing (insert -> description)",
+    "table: columns [Action,Owner] missing Due Date/Verification",
+    "table: font Verdana + body-text header",
+    "furniture: xref dangling; footer empty; no page numbers/classification; no table title"
+  ]
+}

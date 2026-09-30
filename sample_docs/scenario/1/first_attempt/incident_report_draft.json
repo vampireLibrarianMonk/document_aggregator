@@ -1,0 +1,89 @@
+{
+  "artifact_kind": "draft",
+  "title": "TGX-9 North Ridge Incident Report",
+  "note": "First attempt at the deliverable. Looks finished but carries 16 seeded defects across value / graphic / table / furniture classes. Judged against the template rubric plus reviewer comments.",
+
+  "sections": [
+    {
+      "key": "identifiers",
+      "heading": "1. Identifiers",
+      "fields": {
+        "site": "North Ridge Relay Station",
+        "incident_date": "2026-03-02",
+        "severity": "Low"
+      }
+    },
+    {
+      "key": "description",
+      "heading": "2. Description",
+      "body": "The TGX-9 gateway at North Ridge dropped 34 percent of inbound sensor packets over a two hour window. See Figure 2 for the network topology.",
+      "graphics": [
+        { "ref_name": "cabinet_thermal_layout.png", "caption": "Cabinet thermal layout", "title": "Cabinet Thermal Layout", "title_centered": true, "width": 640 }
+      ]
+    },
+    {
+      "key": "timeline",
+      "heading": "3. Timeline",
+      "body": "Buffer occupancy alarm at 02:11; packet loss 02:14; recovery after manual power cycle at 06:31.",
+      "graphics": [
+        { "ref_name": "figure1.png", "caption": "", "title": "", "title_centered": false, "width": 320 }
+      ]
+    },
+    {
+      "key": "contributing_factors",
+      "heading": "4. Contributing Factors",
+      "body": "Firmware 4.2.0 was running on the affected unit. Cabinet temperature was elevated during the event.",
+      "graphics": []
+    },
+    {
+      "key": "corrective_actions",
+      "heading": "5. Corrective Actions",
+      "body": "",
+      "table": {
+        "title": "",
+        "font": "Comic Sans MS",
+        "header_style": "body-text",
+        "columns": ["Owner", "Action", "Due Date"],
+        "rows": []
+      }
+    },
+    {
+      "key": "approvals",
+      "heading": "6. Approvals",
+      "fields": {
+        "reviewer": "",
+        "signoff_date": ""
+      }
+    }
+  ],
+
+  "furniture": {
+    "header": { "text": "TGX-9 Incident Report" },
+    "footer": { "text": "" },
+    "page_numbers": false,
+    "classification": ""
+  },
+
+  "cross_references": [
+    { "id": "xref_1", "in_section": "description", "text": "Figure 2", "points_to_graphic": "gfx_topology" }
+  ],
+
+  "_seeded_defects": [
+    "1  value: firmware 4.2.0 (should be 4.2.1)",
+    "2  value: duration 'two hour' (should be four hour)",
+    "3  value/fill: corrective_actions body + table rows empty",
+    "4  value: severity 'Low' (challenged; correct value unknown -> needs_review/conflict)",
+    "5  graphic: timeline figure named 'figure1.png' (should be packet_loss_vs_temp.png) -> relabel",
+    "6  graphic: cabinet_thermal_layout.png placed in description (belongs in contributing_factors) -> move",
+    "7  graphic: site_network_topology.png missing from description entirely -> insert",
+    "8  table: column order Owner|Action|Due Date (should lead with Action)",
+    "9  table: missing 'Verification' column required by template",
+    "10 table: font Comic Sans + body-text header style (template mandates Arial + table-header)",
+    "11 furniture: cross-reference 'Figure 2' in description points to a graphic that isn't placed there -> dangling",
+    "12 furniture: timeline figure caption empty (template requires caption)",
+    "13 furniture: figure numbers not assigned/stale (derived numbering must run)",
+    "14 furniture: corrective_actions table has no title (template requires table title)",
+    "15 furniture: footer empty -> missing page numbers + classification marking",
+    "16 value conflict: severity flagged by two comments with different values (High vs Medium)"
+  ]
+}

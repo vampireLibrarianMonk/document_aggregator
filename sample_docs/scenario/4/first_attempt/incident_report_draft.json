@@ -1,0 +1,39 @@
+{
+  "artifact_kind": "draft",
+  "title": "Line 3 Housing Defect Report",
+  "sections": [
+    { "key": "identifiers", "heading": "1. Identifiers",
+      "fields": { "site": "Injection Molding Line 3", "incident_date": "2026-08-09", "severity": "Cosmetic" } },
+    { "key": "description", "heading": "2. Description",
+      "body": "Line 3 produced housings with a hairline crack over a two hour window. See Figure 2 for the crack micrograph.",
+      "graphics": [ { "ref_name": "pressure_compensation_curve.png", "caption": "Compensation curve" } ] },
+    { "key": "timeline", "heading": "3. Timeline",
+      "body": "Cavity pressure deviation alarm at 06:31; first flagged part 06:40; production paused after hold at 11:40.",
+      "graphics": [ { "ref_name": "trace.png", "caption": "" } ] },
+    { "key": "contributing_factors", "heading": "4. Contributing Factors",
+      "body": "Mold-controller firmware 2.1.1 was running on the affected line. Melt temperature drifted high.",
+      "graphics": [] },
+    { "key": "corrective_actions", "heading": "5. Corrective Actions",
+      "body": "",
+      "table": { "title": "", "font": "Comic Sans MS", "header_style": "body-text",
+                 "columns": ["Owner", "Due Date", "Action"], "rows": [] } },
+    { "key": "approvals", "heading": "6. Approvals",
+      "fields": { "reviewer": "", "signoff_date": "" } }
+  ],
+  "furniture": { "header": { "text": "Manufacturing Defect Report" }, "footer": { "text": "" }, "page_numbers": false, "classification": "" },
+  "cross_references": [
+    { "id": "xref_1", "in_section": "description", "text": "Figure 2", "points_to_graphic": "gfx_micrograph" }
+  ],
+  "_seeded_defects": [
+    "value: firmware 2.1.1 (should be 2.0.5 affected)",
+    "value: duration two hour (should be five hour)",
+    "value: severity Cosmetic (challenged -> conflict)",
+    "value: corrective_actions blank",
+    "graphic: timeline figure 'trace.png' (relabel -> cavity_pressure_trace.png)",
+    "graphic: pressure_compensation_curve misplaced in description (move -> contributing_factors)",
+    "graphic: crack_defect_micrograph.png missing (insert -> description)",
+    "table: columns [Owner,Due Date,Action] wrong order + missing Verification",
+    "table: font Comic Sans + body-text header",
+    "furniture: xref dangling; footer empty; no page numbers/classification; no table title"
+  ]
+}

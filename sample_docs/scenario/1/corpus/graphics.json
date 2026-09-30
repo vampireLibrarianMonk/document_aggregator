@@ -1,0 +1,41 @@
+{
+  "note": "Real PNG figures live under corpus/figures/. Each carries a managed name, a centered title baked into the image, and a controlled width/height/alignment that the pipeline tracks and inspects across template, draft, and final output.",
+  "graphics": [
+    {
+      "graphic_id": "gfx_packet_loss",
+      "name": "packet_loss_vs_temp.png",
+      "title": "Packet Loss vs Cabinet Temperature",
+      "caption": "Packet loss versus cabinet temperature",
+      "source_doc": "field_report_2026-03-02.txt",
+      "belongs_in_section": "timeline",
+      "file": "figures/packet_loss_vs_temp.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_cabinet",
+      "name": "cabinet_thermal_layout.png",
+      "title": "Cabinet Thermal Layout",
+      "caption": "Cabinet thermal layout",
+      "source_doc": "root_cause_notes_2026-03-15.md",
+      "belongs_in_section": "contributing_factors",
+      "file": "figures/cabinet_thermal_layout.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_topology",
+      "name": "site_network_topology.png",
+      "title": "Relay Station Network Topology",
+      "caption": "Relay station network topology",
+      "source_doc": "field_report_2026-03-02.txt",
+      "belongs_in_section": "description",
+      "file": "figures/site_network_topology.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    }
+  ]
+}

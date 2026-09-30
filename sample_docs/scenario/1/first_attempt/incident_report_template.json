@@ -1,0 +1,43 @@
+{
+  "artifact_kind": "template",
+  "title": "Standard Incident Report Template",
+  "note": "Grounded in the widely-used incident-report structure (identifiers, timeline, description, contributing factors, corrective actions, approvals) consolidated from public incident-report guidance. This template is a machine-readable rubric: the pipeline fills it from the corpus and judges structure/formatting/furniture against it. Content rephrased for licensing compliance.",
+  "source_reference": "https://www.accountablehq.com/post/incident-report-writing-a-step-by-step-guide-with-examples-and-templates",
+
+  "build_discipline": { "profile": "gov_standard" },
+
+  "required_sections": [
+    { "key": "identifiers", "heading": "1. Identifiers", "fields": ["site", "incident_date", "severity"] },
+    { "key": "description", "heading": "2. Description", "requires_graphic": "gfx_topology" },
+    { "key": "timeline", "heading": "3. Timeline", "requires_graphic": "gfx_packet_loss" },
+    { "key": "contributing_factors", "heading": "4. Contributing Factors", "requires_graphic": "gfx_cabinet" },
+    { "key": "corrective_actions", "heading": "5. Corrective Actions", "requires_table": "corrective_actions_table" },
+    { "key": "approvals", "heading": "6. Approvals", "fields": ["reviewer", "signoff_date"] }
+  ],
+
+  "table_specs": {
+    "corrective_actions_table": {
+      "title_required": true,
+      "title": "Table {n}: Corrective Actions",
+      "columns": ["Action", "Owner", "Due Date", "Verification"],
+      "font": "Arial",
+      "header_style": "table-header"
+    }
+  },
+
+  "furniture": {
+    "header": { "required": true, "must_contain": ["report_title"] },
+    "footer": { "required": true, "must_contain": ["page_number", "classification"] },
+    "figures": {
+      "caption_required": true,
+      "numbering": "sequential",
+      "caption_format": "Figure {n}: {caption}"
+    },
+    "tables": {
+      "title_required": true,
+      "title_position": "above",
+      "numbering": "sequential"
+    },
+    "cross_references": { "must_resolve": true }
+  }
+}

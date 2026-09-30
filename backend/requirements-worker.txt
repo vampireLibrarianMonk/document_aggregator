@@ -1,0 +1,8 @@
+# Worker service dependencies — the api set plus the local embedding stack.
+# The worker does the heavy processing (render/geometry/reconcile) and is the
+# only service that needs the embedding model.
+
+-r requirements-api.txt
+
+# Local embedding model (Apache-2.0, CPU, air-gap after first pull).
+sentence-transformers>=3.0,<7.0

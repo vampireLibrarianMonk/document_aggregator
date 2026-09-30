@@ -1,0 +1,17 @@
+# Frontend service — build the React app, serve static files with nginx (UBI).
+# Two-stage: Node build stage, then a minimal UBI nginx runtime.
+
+FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS build
+USER 0
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+FROM registry.access.redhat.com/ubi9/nginx-124:latest
+# Static assets
+COPY --from=build /app/frontend/dist /opt/app-root/src
+COPY deploy/docker/nginx.conf /etc/nginx/nginx.conf
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]

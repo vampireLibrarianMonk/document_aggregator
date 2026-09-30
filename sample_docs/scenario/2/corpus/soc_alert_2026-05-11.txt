@@ -1,0 +1,31 @@
+SECURITY OPERATIONS CENTER ALERT SUMMARY
+
+Date: 2026-05-11
+System: Customer Portal (web-tier)
+Author: A. Nwosu, SOC Analyst
+
+Summary
+On 2026-05-11 the SOC detected credential-stuffing traffic against the customer
+portal that resulted in 1,240 unauthorized login attempts over a six hour window.
+The attack began at 23:05 UTC and was contained after WAF rate-limiting was
+enabled at 05:10 UTC the following morning.
+
+Observations
+- Anomalous login volume alarm fired at 22:58 UTC, seven minutes before the surge.
+- The affected service was running auth-gateway version 3.4.0.
+- Source traffic originated from a distributed botnet across 40 countries.
+- No successful account takeovers were confirmed during this window.
+
+Immediate Actions
+- WAF rate-limiting rule deployed to blunt the attack.
+- Affected auth-gateway flagged for version review.
+- Impacted customer accounts queued for forced password reset.
+
+Figures
+- login_volume_timeline.png: Login attempt volume over the attack window.
+- botnet_geo_distribution.png: Geographic distribution of source traffic.
+
+Preliminary Assessment
+The event correlates with an exposed legacy login endpoint and missing rate
+limiting. Auth-gateway 3.4.0 lacks adaptive throttling and is a suspected
+contributing factor.

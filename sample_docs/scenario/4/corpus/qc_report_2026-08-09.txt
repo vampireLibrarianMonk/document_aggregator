@@ -1,0 +1,32 @@
+MANUFACTURING QUALITY DEFECT REPORT
+
+Date: 2026-08-09
+System: Injection Molding Line 3
+Author: T. Halvorsen, Quality Control Lead
+
+Summary
+On 2026-08-09 Line 3 produced housings with a recurring hairline crack defect
+that affected 4.2 percent of a production run over a five hour window. The
+defect was first flagged at 06:40 local and production was paused after the
+root-cause hold at 11:40 local.
+
+Observations
+- Cavity pressure deviation alarm fired at 06:31 local, nine minutes before the
+  first flagged part.
+- The affected line was running mold-controller firmware 2.0.5.
+- Melt temperature drifted above the specified band during the run.
+- No defective housings were shipped to customers from the held lot.
+
+Immediate Actions
+- Line 3 paused and the affected lot placed on quality hold.
+- Mold-controller flagged for firmware review.
+- Cavity pressure sensor scheduled for recalibration.
+
+Figures
+- crack_defect_micrograph.png: Micrograph of the hairline crack defect.
+- cavity_pressure_trace.png: Cavity pressure trace over the affected run.
+
+Preliminary Assessment
+The event correlates with melt-temperature drift and delayed pressure
+compensation. Mold-controller firmware 2.0.5 compensates too slowly for
+pressure deviation and is a suspected contributing factor.

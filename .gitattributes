@@ -1,0 +1,15 @@
+# Normalize text line endings, protect binary assets from corruption.
+* text=auto eol=lf
+
+# Binary scenario/sample assets — never convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.docx binary
+*.pptx binary
+*.xlsx binary
+*.ico binary
+*.woff binary
+*.woff2 binary

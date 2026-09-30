@@ -1,0 +1,41 @@
+{
+  "note": "Real PNG figures live under corpus/figures/. Each carries a managed name, a centered title baked into the image, and a controlled width/height/alignment that the pipeline tracks and inspects across template, draft, and final output.",
+  "graphics": [
+    {
+      "graphic_id": "gfx_login_volume",
+      "name": "login_volume_timeline.png",
+      "title": "Login Attempt Volume",
+      "caption": "Login attempt volume over the attack window",
+      "source_doc": "soc_alert_2026-05-11.txt",
+      "belongs_in_section": "timeline",
+      "file": "figures/login_volume_timeline.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_auth_flow",
+      "name": "auth_flow_diagram.png",
+      "title": "Authentication Flow",
+      "caption": "Authentication flow showing the exposed legacy endpoint",
+      "source_doc": "incident_review_2026-05-20.md",
+      "belongs_in_section": "contributing_factors",
+      "file": "figures/auth_flow_diagram.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_botnet_geo",
+      "name": "botnet_geo_distribution.png",
+      "title": "Geographic Distribution of Source Traffic",
+      "caption": "Geographic distribution of source traffic",
+      "source_doc": "soc_alert_2026-05-11.txt",
+      "belongs_in_section": "description",
+      "file": "figures/botnet_geo_distribution.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    }
+  ]
+}

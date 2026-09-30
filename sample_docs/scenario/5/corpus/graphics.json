@@ -1,0 +1,41 @@
+{
+  "note": "Real PNG figures live under corpus/figures/. Each carries a managed name, a centered title baked into the image, and a controlled width/height/alignment that the pipeline tracks and inspects across template, draft, and final output.",
+  "graphics": [
+    {
+      "graphic_id": "gfx_decay_plot",
+      "name": "pressure_decay_plot.png",
+      "title": "Pressure Decay Plot",
+      "caption": "Pressure decay plot over the affected window",
+      "source_doc": "maintenance_log_2026-09-06.txt",
+      "belongs_in_section": "timeline",
+      "file": "figures/pressure_decay_plot.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_seal_wear",
+      "name": "seal_wear_comparison.png",
+      "title": "Comparison of Worn Versus New Actuator Seal",
+      "caption": "Comparison of worn versus new actuator seal",
+      "source_doc": "reliability_review_2026-09-16.md",
+      "belongs_in_section": "contributing_factors",
+      "file": "figures/seal_wear_comparison.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_schematic",
+      "name": "hydraulic_schematic_system_b.png",
+      "title": "Schematic of Hydraulic System B",
+      "caption": "Schematic of Hydraulic System B",
+      "source_doc": "maintenance_log_2026-09-06.txt",
+      "belongs_in_section": "description",
+      "file": "figures/hydraulic_schematic_system_b.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "note": "Multi-round feedback demonstrating convergence with last-good-wins. Round 0 is the initial review; later rounds mix accurate desires and mishaps. A later round supersedes earlier rounds for the same target.",
+  "corrections": [
+    { "id": "r0_firmware", "round": 0, "kind": "email", "author": "reliability.lead@example.com", "subject": "firmware version is wrong",
+      "target": "contributing_factors.firmware", "operation": "replace", "old_value": "4.2.0", "new_value": "4.2.1",
+      "body": "The affected version is firmware 4.2.1, not 4.2.0." },
+    { "id": "r0_duration", "round": 0, "kind": "comment", "author": "qa_reviewer", "subject": "duration wrong",
+      "target": "description.duration", "operation": "replace", "old_value": "two hour", "new_value": "four hour",
+      "body": "The outage duration was four hours." },
+    { "id": "r0_figure", "round": 0, "kind": "comment", "author": "qa_reviewer", "subject": "wrong figure",
+      "target": "timeline.graphic", "operation": "relabel_graphic", "old_value": "figure1.png", "new_value": "packet_loss_vs_temp.png",
+      "body": "Timeline figure reference is wrong." },
+
+    { "id": "r1_sev_high", "round": 1, "kind": "email", "author": "regional.director@example.com", "subject": "severity",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Low", "new_value": "High",
+      "body": "This should be High." },
+    { "id": "r1_sev_med", "round": 1, "kind": "comment", "author": "qa_reviewer", "subject": "severity",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Low", "new_value": "Medium",
+      "body": "Medium per the matrix." },
+    { "id": "r1_reviewer_bad", "round": 1, "kind": "comment", "author": "intern", "subject": "reviewer guess",
+      "target": "approvals.reviewer", "operation": "replace", "old_value": "", "new_value": "TBD",
+      "body": "MISHAP: placeholder reviewer, not a real sign-off." },
+
+    { "id": "r2_sev_resolved", "round": 2, "kind": "email", "author": "incident.owner@example.com", "subject": "severity resolved",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Low", "new_value": "High",
+      "body": "Severity board agreed: High. This supersedes the earlier disagreement." },
+    { "id": "r2_reviewer", "round": 2, "kind": "email", "author": "incident.owner@example.com", "subject": "reviewer",
+      "target": "approvals.reviewer", "operation": "replace", "old_value": "TBD", "new_value": "D. Reyes, Reliability Manager",
+      "body": "Approving reviewer is D. Reyes. Supersedes the earlier placeholder." },
+    { "id": "r2_classification", "round": 2, "kind": "email", "author": "security.officer@example.com", "subject": "classification",
+      "target": "furniture.classification", "operation": "replace", "old_value": "", "new_value": "Internal Use Only",
+      "body": "Mark the footer Internal Use Only." },
+
+    { "id": "r3_signoff", "round": 3, "kind": "email", "author": "incident.owner@example.com", "subject": "sign-off date",
+      "target": "approvals.signoff_date", "operation": "replace", "old_value": "", "new_value": "2026-03-22",
+      "body": "Signed off 2026-03-22." }
+  ]
+}

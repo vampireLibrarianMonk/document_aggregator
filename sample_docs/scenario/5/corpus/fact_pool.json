@@ -1,0 +1,77 @@
+{
+  "note": "Compact, withdrawable fact pool seeded from real public-domain NTSB aviation reports. NTSB (US government) works are public domain; only non-copyrightable facts are extracted, paraphrased for compliance. Each 'record' funds one generated page of distinct ground truth; page generation is capped at the number of records (page limit = original document capacity).",
+  "sources": [
+    "NTSB Aviation report ENG20LA031 (data.ntsb.gov) — hydraulic system component failure findings",
+    "NTSB Systems Group Chairman Factual Reports (data.ntsb.gov) — three-system hydraulic architecture, 3000 psi"
+  ],
+  "domain": "aviation maintenance / reliability",
+  "records": [
+    {
+      "site": "Regional Jet Tail 512 Hydraulic System B",
+      "incident_date": "2026-09-06",
+      "software_version": "B2.3",
+      "fix_version": "B2.5",
+      "duration": "seven hour",
+      "description_body": "Hydraulic System B on tail 512 showed a slow pressure decay that grounded the aircraft over a seven hour window; the discrepancy was logged at 05:50 and cleared after a seal replacement at 12:50.",
+      "timeline_body": "A hydraulic pressure low advisory triggered at 05:41, nine minutes before the discrepancy was logged; the system was isolated and the actuator seal replaced.",
+      "contributing_body": "Actuator-controller software B2.3 does not annunciate slow decay promptly; the actuator seal was degraded past its service life.",
+      "action": "Upgrade to actuator-controller software B2.5 across the fleet, or shorten the seal inspection interval on B2.3.",
+      "owner": "Fleet Engineering",
+      "due": "2026-09-23"
+    },
+    {
+      "site": "Regional Jet Tail 519 Green Hydraulic System",
+      "incident_date": "2026-09-11",
+      "software_version": "B2.3",
+      "fix_version": "B2.5",
+      "duration": "four hour",
+      "description_body": "The Green hydraulic system on tail 519 lost pressure at the main power users over a four hour window; the crew followed the hydraulic overheat checklist and returned the aircraft to service after a pump replacement.",
+      "timeline_body": "A green-system low-pressure caution set during taxi; maintenance isolated the affected pump and confirmed 3000 psi restored after replacement.",
+      "contributing_body": "A skewed pulley bearing installation produced abnormal loads and premature bearing failure in the affected hydraulic circuit.",
+      "action": "Inspect pulley bearing installation torque on all Green-system aircraft and replace skewed bearings.",
+      "owner": "Line Maintenance",
+      "due": "2026-09-25"
+    },
+    {
+      "site": "Regional Jet Tail 527 Yellow Hydraulic System",
+      "incident_date": "2026-09-18",
+      "software_version": "B2.4",
+      "fix_version": "B2.5",
+      "duration": "three hour",
+      "description_body": "The Yellow hydraulic system on tail 527 showed fluid leaking in the nose wheel well over a three hour window; the landing gear retract actuator beam assembly showed damage.",
+      "timeline_body": "A post-flight examination revealed hydraulic fluid leaking and damage to the lower chord of the nose landing gear retract actuator beam.",
+      "contributing_body": "Improper maintenance of the landing gear system resulted in a hydraulic fluid leak and insufficient pressure to extend and lock the gear.",
+      "action": "Re-inspect nose landing gear retract actuator beam assemblies fleet-wide and correct maintenance procedures.",
+      "owner": "Structures Engineering",
+      "due": "2026-09-30"
+    },
+    {
+      "site": "Regional Jet Tail 533 Blue Hydraulic System",
+      "incident_date": "2026-09-24",
+      "software_version": "B2.4",
+      "fix_version": "B2.6",
+      "duration": "five hour",
+      "description_body": "The Blue hydraulic system on tail 533 experienced a hand-pump shaft wear finding over a five hour inspection window; the leak was assessed as not significant enough to deplete the system.",
+      "timeline_body": "Wear marks were identified on the hand-pump shaft during inspection but did not result in a failure of the hydraulic supply.",
+      "contributing_body": "Hand-pump shaft wear was observed; the leak was minor and the system retained pressure, but the component was flagged for monitoring.",
+      "action": "Add hand-pump shaft wear checks to the recurring hydraulic inspection baseline.",
+      "owner": "Avionics Team",
+      "due": "2026-10-04"
+    },
+    { "site": "Regional Jet Tail 540 Green Hydraulic System", "incident_date": "2026-10-01", "software_version": "B2.3", "fix_version": "B2.5", "duration": "six hour",
+      "description_body": "The Green hydraulic system on tail 540 showed reservoir level decay over a six hour window that grounded the aircraft.",
+      "timeline_body": "A reservoir low advisory triggered during preflight; a fitting was found weeping and replaced.",
+      "contributing_body": "A loose return-line fitting on software B2.3 allowed a slow reservoir decay.",
+      "action": "Torque-check return-line fittings fleet-wide and upgrade to B2.5.", "owner": "Line Maintenance", "due": "2026-10-11" },
+    { "site": "Regional Jet Tail 547 Yellow Hydraulic System", "incident_date": "2026-10-08", "software_version": "B2.4", "fix_version": "B2.6", "duration": "two hour",
+      "description_body": "The Yellow hydraulic system on tail 547 logged a brake-accumulator precharge fault over a two hour window.",
+      "timeline_body": "A precharge low reading was found during inspection; the accumulator was recharged to spec.",
+      "contributing_body": "A slow nitrogen leak in the brake accumulator on software B2.4 lowered the precharge.",
+      "action": "Add accumulator precharge checks to the transit inspection and update to B2.6.", "owner": "Fleet Engineering", "due": "2026-10-18" },
+    { "site": "Regional Jet Tail 553 Blue Hydraulic System", "incident_date": "2026-10-15", "software_version": "B2.5", "fix_version": "B2.6", "duration": "three hour",
+      "description_body": "The Blue hydraulic system on tail 553 showed a filter bypass indication over a three hour window.",
+      "timeline_body": "A filter differential-pressure warning set; the filter element was replaced and the indication cleared.",
+      "contributing_body": "A clogged filter element on software B2.5 tripped the bypass indication.",
+      "action": "Shorten the filter replacement interval and update to B2.6.", "owner": "Avionics Team", "due": "2026-10-25" }
+  ]
+}

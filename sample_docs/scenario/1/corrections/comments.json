@@ -1,0 +1,60 @@
+{
+  "note": "Comments and email exports. In draft mode these are the judge for value defects. Each targets a section/field; some carry an explicit corrected value, some only flag (needs_review), and the two severity comments disagree (conflict).",
+  "corrections": [
+    {
+      "id": "corr_firmware",
+      "kind": "email",
+      "author": "reliability.lead@example.com",
+      "subject": "firmware version is wrong",
+      "target": "contributing_factors.firmware",
+      "operation": "replace",
+      "old_value": "4.2.0",
+      "new_value": "4.2.1",
+      "body": "The affected version is firmware 4.2.1, not 4.2.0. Sites on 4.1.8 were not affected."
+    },
+    {
+      "id": "corr_duration",
+      "kind": "comment",
+      "author": "qa_reviewer",
+      "subject": "duration and blank section",
+      "target": "description.duration",
+      "operation": "replace",
+      "old_value": "two hour",
+      "new_value": "four hour",
+      "body": "The outage duration is wrong (it was four hours, 02:14 to 06:31), and the Corrective Actions section is completely blank."
+    },
+    {
+      "id": "corr_severity_high",
+      "kind": "email",
+      "author": "regional.director@example.com",
+      "subject": "This is unacceptable",
+      "target": "identifiers.severity",
+      "operation": "replace",
+      "old_value": "Low",
+      "new_value": "High",
+      "body": "Severity 'Low' is unacceptable for a four hour data loss event. This should be High."
+    },
+    {
+      "id": "corr_severity_medium",
+      "kind": "comment",
+      "author": "qa_reviewer",
+      "subject": "severity assessment",
+      "target": "identifiers.severity",
+      "operation": "replace",
+      "old_value": "Low",
+      "new_value": "Medium",
+      "body": "Per the severity matrix a recoverable four hour degradation is Medium at most, not High."
+    },
+    {
+      "id": "corr_figure",
+      "kind": "comment",
+      "author": "qa_reviewer",
+      "subject": "wrong figure",
+      "target": "timeline.graphic",
+      "operation": "relabel_graphic",
+      "old_value": "figure1.png",
+      "new_value": "packet_loss_vs_temp.png",
+      "body": "The chart in the Timeline section is the wrong image reference. It should be the packet-loss-versus-temperature figure."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+AIRCRAFT MAINTENANCE DISCREPANCY REPORT
+
+Date: 2026-09-06
+System: Regional Jet Tail 512 Hydraulic System B
+Author: M. Farooqi, Line Maintenance Technician
+
+Summary
+On 2026-09-06 Hydraulic System B on tail 512 showed a slow pressure decay that
+grounded the aircraft over a seven hour window. The discrepancy was logged at
+05:50 local and the aircraft returned to service after a seal replacement at
+12:50 local.
+
+Observations
+- Hydraulic pressure low advisory triggered at 05:41 local, nine minutes before
+  the discrepancy was logged.
+- The affected unit was running actuator-controller software B2.3.
+- Ambient ramp temperature was within normal range during the inspection.
+- No in-flight events were associated with this discrepancy.
+
+Immediate Actions
+- Tail 512 grounded and Hydraulic System B isolated.
+- Actuator-controller flagged for software review.
+- Suspect actuator seal replaced from bonded stores.
+
+Figures
+- hydraulic_schematic_system_b.png: Schematic of Hydraulic System B.
+- pressure_decay_plot.png: Pressure decay plot over the affected window.
+
+Preliminary Assessment
+The event correlates with a degraded actuator seal and delayed leak detection.
+Actuator-controller software B2.3 does not annunciate slow decay promptly and is
+a suspected contributing factor.

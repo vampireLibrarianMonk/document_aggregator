@@ -1,0 +1,20 @@
+{
+  "note": "Security incident feedback; includes a conflicting severity pair.",
+  "corrections": [
+    { "id": "corr_authver", "kind": "email", "author": "sec.eng@example.com", "subject": "wrong gateway version",
+      "target": "contributing_factors.auth_version", "operation": "replace", "old_value": "3.5.2", "new_value": "3.4.0",
+      "body": "The affected service was on auth-gateway 3.4.0, not 3.5.2. Portals on 3.5.2 were not hit." },
+    { "id": "corr_duration", "kind": "comment", "author": "soc_reviewer", "subject": "duration + blank actions",
+      "target": "description.duration", "operation": "replace", "old_value": "two hour", "new_value": "six hour",
+      "body": "Attack window was six hours (23:05 to 05:10 UTC), and Corrective Actions is blank." },
+    { "id": "corr_sev_high", "kind": "email", "author": "ciso@example.com", "subject": "severity too low",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Informational", "new_value": "High",
+      "body": "1,240 unauthorized attempts against production is High, not Informational." },
+    { "id": "corr_sev_med", "kind": "comment", "author": "soc_reviewer", "subject": "severity assessment",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Informational", "new_value": "Medium",
+      "body": "No confirmed takeovers, so Medium per the matrix, not High." },
+    { "id": "corr_figure", "kind": "comment", "author": "soc_reviewer", "subject": "wrong figure",
+      "target": "timeline.graphic", "operation": "relabel_graphic", "old_value": "chart.png", "new_value": "login_volume_timeline.png",
+      "body": "The Timeline figure reference is wrong; it should be the login-volume timeline." }
+  ]
+}

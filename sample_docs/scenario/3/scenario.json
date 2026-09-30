@@ -1,0 +1,31 @@
+{
+  "id": "3",
+  "title": "Clinical Lab Reagent Spill Safety Event",
+  "domain": "clinical laboratory / safety",
+  "note": "Healthcare-lab scenario. Same generic engine, different corpus/queries/facts.",
+
+  "corpus_docs": ["lab_event_2026-07-03.txt", "safety_review_2026-07-14.md"],
+
+  "fields": [
+    { "key": "site", "label": "System", "section": "identifiers", "extract": "line", "hint": "System:" },
+    { "key": "incident_date", "label": "Event Date", "section": "identifiers", "extract": "date", "hint": "Date:" },
+    { "key": "severity", "label": "Severity", "section": "identifiers", "extract": "none" },
+    { "key": "software_version", "label": "Control-Software Version", "section": "contributing_factors", "extract": "version", "hint": "was running" },
+    { "key": "duration", "label": "Processing Halt Duration", "section": "description", "extract": "duration", "hint": "window" }
+  ],
+
+  "section_bodies": {
+    "description": { "query": "summary reagent spill contaminated sample tray halt", "block_anchor": "Summary" },
+    "timeline": { "query": "observations reagent warning fired temperature", "block_anchor": "Observations" },
+    "contributing_factors": { "query": "preliminary assessment worn seal catch tray aspiration", "block_anchor": "Assessment" }
+  },
+
+  "table": {
+    "key": "corrective_actions_table",
+    "section": "corrective_actions",
+    "query": "corrective action assignments owner due date",
+    "row_marker": "Action:",
+    "cell_queries": { "Action": "corrective action", "Owner": "who owns the action", "Due": "due date" },
+    "column_source": { "Action": "Action", "Owner": "Owner", "Due Date": "Due" }
+  }
+}

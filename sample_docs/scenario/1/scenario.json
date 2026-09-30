@@ -1,0 +1,36 @@
+{
+  "id": "1",
+  "title": "TGX-9 Telemetry Gateway Incident",
+  "domain": "hardware reliability / incident response",
+  "note": "Everything scenario-specific lives here so the reconciliation engine stays generic. The engine locates values by semantic retrieval over the indexed corpus using each field's `query`, never by hardcoded regex.",
+
+  "corpus_docs": ["field_report_2026-03-02.txt", "root_cause_notes_2026-03-15.md"],
+
+  "fields": [
+    { "key": "site", "label": "Site", "section": "identifiers", "extract": "line", "hint": "Site:" },
+    { "key": "incident_date", "label": "Incident Date", "section": "identifiers", "extract": "date", "hint": "Date:" },
+    { "key": "severity", "label": "Severity", "section": "identifiers", "extract": "none" },
+    { "key": "firmware", "label": "Firmware Version", "section": "contributing_factors", "extract": "version", "hint": "was running" },
+    { "key": "duration", "label": "Outage Duration", "section": "description", "extract": "duration", "hint": "window" }
+  ],
+  "_note_query": "Field `query` is optional: auto-derived from label+section when absent (see try_hints.py). `hint` disambiguates.",
+
+  "section_bodies": {
+    "description": { "query": "incident summary what happened packet loss dropped", "block_anchor": "Summary" },
+    "timeline": { "query": "observations alarm fired temperature reached", "block_anchor": "Observations" },
+    "contributing_factors": { "query": "preliminary assessment suspected contributing factor", "block_anchor": "Assessment" }
+  },
+
+  "table": {
+    "key": "corrective_actions_table",
+    "section": "corrective_actions",
+    "query": "corrective action assignments owner due date",
+    "row_marker": "Action:",
+    "cell_queries": {
+      "Action": "corrective action to take",
+      "Owner": "who owns the action",
+      "Due": "due date for the action"
+    },
+    "column_source": { "Action": "Action", "Owner": "Owner", "Due Date": "Due" }
+  }
+}

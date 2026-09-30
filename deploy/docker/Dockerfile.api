@@ -1,0 +1,32 @@
+# API service — lean RHEL/UBI image (no LibreOffice).
+# Serves the FastAPI app; enqueues jobs for the worker. The heavy rendering
+# dependency lives only in the worker image (modular per endpoint).
+
+FROM registry.access.redhat.com/ubi9/python-312:latest
+
+USER 0
+WORKDIR /app
+
+COPY backend/requirements-api.txt /app/backend/requirements-api.txt
+# Enclave: pip install --no-index --find-links=/wheels -r backend/requirements-api.txt
+RUN pip install --no-cache-dir -r /app/backend/requirements-api.txt
+
+COPY backend /app/backend
+COPY sample_docs /app/sample_docs
+
+# Writable data dir owned by group 0 (OpenShift runs as an arbitrary UID in
+# group 0, so group-write is the portable pattern).
+RUN useradd -u 10001 -r -g 0 appuser || true \
+    && mkdir -p /data \
+    && chgrp -R 0 /data /app \
+    && chmod -R g=u /data /app
+USER 10001
+
+ENV APP_ENV=production \
+    DATA_DIR=/data \
+    EMBEDDING_BACKEND=auto \
+    BEDROCK_ENABLED=false \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "backend"]

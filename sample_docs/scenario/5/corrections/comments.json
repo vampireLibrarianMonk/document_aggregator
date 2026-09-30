@@ -1,0 +1,20 @@
+{
+  "note": "Aviation maintenance feedback; includes a conflicting severity pair.",
+  "corrections": [
+    { "id": "corr_swver", "kind": "email", "author": "fleet.eng@example.com", "subject": "wrong software version",
+      "target": "contributing_factors.software_version", "operation": "replace", "old_value": "B2.5", "new_value": "B2.3",
+      "body": "The affected unit ran actuator-controller software B2.3, not B2.5. Aircraft on B2.5 annunciated decay promptly." },
+    { "id": "corr_duration", "kind": "comment", "author": "maint_reviewer", "subject": "duration + blank actions",
+      "target": "description.duration", "operation": "replace", "old_value": "three hour", "new_value": "seven hour",
+      "body": "Ground time was seven hours (05:50 to 12:50), and Corrective Actions is blank." },
+    { "id": "corr_sev_high", "kind": "email", "author": "director.maint@example.com", "subject": "severity too low",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Routine", "new_value": "Critical",
+      "body": "A hydraulic system decay that grounds an aircraft is Critical, not Routine." },
+    { "id": "corr_sev_maj", "kind": "comment", "author": "maint_reviewer", "subject": "severity assessment",
+      "target": "identifiers.severity", "operation": "replace", "old_value": "Routine", "new_value": "Major",
+      "body": "Caught on the ground with no in-flight event, so Major per the matrix, not Critical." },
+    { "id": "corr_figure", "kind": "comment", "author": "maint_reviewer", "subject": "wrong figure",
+      "target": "timeline.graphic", "operation": "relabel_graphic", "old_value": "plot.png", "new_value": "pressure_decay_plot.png",
+      "body": "The Timeline figure reference is wrong; it should be the pressure decay plot." }
+  ]
+}

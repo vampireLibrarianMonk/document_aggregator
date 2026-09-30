@@ -1,0 +1,31 @@
+{
+  "id": "2",
+  "title": "Customer Portal Credential-Stuffing Incident",
+  "domain": "IT security / incident response",
+  "note": "Security-domain scenario. Same generic engine, different corpus/queries/facts.",
+
+  "corpus_docs": ["soc_alert_2026-05-11.txt", "incident_review_2026-05-20.md"],
+
+  "fields": [
+    { "key": "site", "label": "System", "section": "identifiers", "extract": "line", "hint": "System:" },
+    { "key": "incident_date", "label": "Incident Date", "section": "identifiers", "extract": "date", "hint": "Date:" },
+    { "key": "severity", "label": "Severity", "section": "identifiers", "extract": "none" },
+    { "key": "auth_version", "label": "Auth-Gateway Version", "section": "contributing_factors", "extract": "version", "hint": "was running" },
+    { "key": "duration", "label": "Attack Duration", "section": "description", "extract": "duration", "hint": "window" }
+  ],
+
+  "section_bodies": {
+    "description": { "query": "summary credential stuffing unauthorized login attempts", "block_anchor": "Summary" },
+    "timeline": { "query": "observations alarm fired login volume", "block_anchor": "Observations" },
+    "contributing_factors": { "query": "preliminary assessment exposed endpoint rate limiting", "block_anchor": "Assessment" }
+  },
+
+  "table": {
+    "key": "corrective_actions_table",
+    "section": "corrective_actions",
+    "query": "remediation assignments owner due date",
+    "row_marker": "Action:",
+    "cell_queries": { "Action": "remediation action", "Owner": "who owns the action", "Due": "due date" },
+    "column_source": { "Action": "Action", "Owner": "Owner", "Due Date": "Due" }
+  }
+}

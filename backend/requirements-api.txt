@@ -1,0 +1,17 @@
+# API service dependencies — lean, no ML embedding stack.
+# The api never embeds (only the worker does), so it runs on the zero-dependency
+# hashing embedder. This keeps the api image small.
+
+# Core API
+fastapi==0.115.2
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+python-multipart==0.0.12
+
+# Document parsers/exporters + vector-layout geometry (all light)
+python-docx==1.1.2
+python-pptx==1.0.2
+pypdf==5.0.1
+reportlab==4.2.2
+Pillow>=10.4.0
+pdfplumber==0.11.10

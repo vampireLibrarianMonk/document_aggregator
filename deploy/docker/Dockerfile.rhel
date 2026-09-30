@@ -1,0 +1,72 @@
+# WORKER service — RHEL/UBI image with the isolated heavy dependency.
+#
+# Base: Red Hat Universal Base Image (freely redistributable, mirror-able into
+# an enclave without a RHEL subscription). This is the government-standard base.
+#
+# This image carries LibreOffice headless (DOCX -> PDF for the vector-layout
+# tier) + the PINNED metric-compatible font set. The heavy dependency lives ONLY
+# here, isolated from the lean api image (modular per endpoint). Runs the
+# templated worker loop against the shared job queue.
+
+FROM registry.access.redhat.com/ubi9/python-312:latest
+
+USER 0
+
+# --- Fonts + LibreOffice headless (dnf, not apt) -----------------------------
+# The pinned font set is the reproducibility anchor: the Liberation family (SIL
+# OFL) is metric-compatible with Arial/Times New Roman/Courier New, and
+# Carlito/Caladea with Calibri/Cambria. Because glyph metrics match, a document
+# specifying a proprietary font renders to the SAME box geometry.
+#
+# Stock UBI AppStream carries only a subset (liberation-mono, common). The full
+# Liberation set + Carlito/Caladea + LibreOffice live in the RHEL AppStream,
+# which the enclave mirrors internally. So:
+#   - install whatever fonts the active repos provide (best-effort, no fail);
+#   - attempt LibreOffice; if the repo lacks it (stock UBI), continue — the
+#     worker still runs (structural inspection); the geometry tier is gated on
+#     soffice and activates automatically once LibreOffice is present.
+# In the enclave, point dnf at the internal mirror (full RHEL AppStream) and
+# these all install; set REQUIRE_LIBREOFFICE=1 to hard-fail if missing.
+ARG REQUIRE_LIBREOFFICE=0
+RUN dnf install -y --setopt=install_weak_deps=False \
+        liberation-fonts-common liberation-mono-fonts \
+      || true \
+    && dnf install -y --setopt=install_weak_deps=False \
+        liberation-sans-fonts liberation-serif-fonts \
+        google-carlito-fonts google-crosextra-caladea-fonts \
+      || echo "[build] full font set not in active repos (enclave mirror provides it)" \
+    && dnf install -y --setopt=install_weak_deps=False \
+        libreoffice-headless libreoffice-writer libreoffice-calc \
+      || echo "[build] LibreOffice not in active repos (enclave mirror provides it)" \
+    && dnf clean all && rm -rf /var/cache/dnf \
+    && if [ "$REQUIRE_LIBREOFFICE" = "1" ]; then \
+         command -v soffice >/dev/null 2>&1 || (echo "soffice required but missing" && exit 1); \
+       fi
+
+# --- Application ------------------------------------------------------------
+WORKDIR /app
+COPY backend/requirements-api.txt /app/backend/requirements-api.txt
+COPY backend/requirements-worker.txt /app/backend/requirements-worker.txt
+# CPU-ONLY torch first (this is a CPU/air-gap worker; the default torch wheel
+# drags in ~2.5GB of CUDA/cuDNN we never use). The CPU index gives a small
+# wheel. In an enclave, point at the mirrored CPU wheelhouse instead.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install --no-cache-dir -r /app/backend/requirements-worker.txt
+
+COPY backend /app/backend
+COPY sample_docs /app/sample_docs
+
+# Non-root, OpenShift-compatible: writable data dir owned by group 0.
+RUN useradd -u 10001 -r -g 0 appuser || true \
+    && mkdir -p /data \
+    && chgrp -R 0 /data /app \
+    && chmod -R g=u /data /app
+USER 10001
+
+ENV APP_ENV=production \
+    DATA_DIR=/data \
+    EMBEDDING_BACKEND=auto \
+    BEDROCK_ENABLED=false
+
+ENV WORKER_CONCURRENCY=2
+CMD ["python", "backend/worker_main.py"]

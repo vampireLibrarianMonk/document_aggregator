@@ -1,0 +1,32 @@
+[
+  {
+    "kind": "email",
+    "author": "regional.director@example.com",
+    "subject": "This is unacceptable",
+    "body": "I am furious. This is the third TGX-9 outage this quarter and the last report had the wrong tables. North Ridge lost data for four hours and nobody escalated. I want a corrected aggregated report by Friday with every event in order and nothing dropped."
+  },
+  {
+    "kind": "email",
+    "author": "carrier.noc@example.com",
+    "subject": "Re: outage window confirmation",
+    "body": "We reviewed our logs for 2026-03-02 between 02:00 and 07:00 local and found no upstream faults on our side during that window. The problem appears to be on the gateway."
+  },
+  {
+    "kind": "comment",
+    "author": "qa_reviewer",
+    "subject": "table correctness",
+    "body": "The timeline table in the previous generation merged two sites into one row. That is wrong. Each event needs its own row with the correct source document."
+  },
+  {
+    "kind": "interview_note",
+    "author": "field_tech_interview",
+    "subject": "verbal account from site visit",
+    "body": "Technician confirmed the cabinet fan was audibly struggling before the event and that a power cycle has become a routine workaround at three sites. This was never written down until now."
+  },
+  {
+    "kind": "correction",
+    "author": "reliability_lead",
+    "subject": "firmware version correction",
+    "body": "Please note firmware 4.2.1 is the affected version, not 4.2.0 as stated in an earlier draft. Sites on 4.1.8 were not affected."
+  }
+]

@@ -1,0 +1,5 @@
+# Full development dependency set (= worker set, which includes the api set).
+# Split sets for containers live in requirements-api.txt (lean, no embeddings)
+# and requirements-worker.txt (adds the embedding model). Local dev/tests use
+# this full set.
+-r requirements-worker.txt

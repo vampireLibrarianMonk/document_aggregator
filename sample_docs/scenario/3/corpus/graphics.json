@@ -1,0 +1,41 @@
+{
+  "note": "Real PNG figures live under corpus/figures/. Each carries a managed name, a centered title baked into the image, and a controlled width/height/alignment that the pipeline tracks and inspects across template, draft, and final output.",
+  "graphics": [
+    {
+      "graphic_id": "gfx_spill_zone",
+      "name": "spill_containment_zone.png",
+      "title": "Containment Zone",
+      "caption": "Containment zone around the Bay 2 analyzer",
+      "source_doc": "lab_event_2026-07-03.txt",
+      "belongs_in_section": "timeline",
+      "file": "figures/spill_containment_zone.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_seal",
+      "name": "reagent_seal_cross_section.png",
+      "title": "Cross-section of the Worn Reagent Seal",
+      "caption": "Cross-section of the worn reagent seal",
+      "source_doc": "safety_review_2026-07-14.md",
+      "belongs_in_section": "contributing_factors",
+      "file": "figures/reagent_seal_cross_section.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_tray",
+      "name": "sample_tray_layout.png",
+      "title": "Sample Tray Layout",
+      "caption": "Sample tray layout showing the contaminated wells",
+      "source_doc": "lab_event_2026-07-03.txt",
+      "belongs_in_section": "description",
+      "file": "figures/sample_tray_layout.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "gov_standard",
+  "title": "US Government Report Standard (reproducible, air-gap)",
+  "note": "Pinned font + format assumption for deterministic rendering and geometry. Fonts are the redistributable, metric-compatible Liberation family (SIL OFL) that match the metrics of the proprietary Office fonts glyph-for-glyph, so a document specifying Arial/Times/Courier renders to the SAME box geometry whether or not the proprietary fonts are present. This is the reproducibility anchor.",
+  "sources": [
+    "US GPO Style Manual (govinfo.gov/GPO-STYLEMANUAL-2016) — federal typesetting conventions",
+    "Liberation Fonts (Red Hat; SIL OFL) — metric-compatible with Arial/Times New Roman/Courier New (github.com/liberationfonts/liberation-fonts)",
+    "Carlito/Caladea — metric-compatible substitutes for Calibri/Cambria"
+  ],
+
+  "fonts": {
+    "serif": "Liberation Serif",
+    "sans": "Liberation Sans",
+    "mono": "Liberation Mono"
+  },
+
+  "images": { "caption_required": true, "caption_format": "Figure {n}: {caption}", "caption_position": "below" },
+  "tables": { "title_required": true, "title_format": "Table {n}: {title}", "title_position": "above", "header_style": "table-header" },
+  "header": { "required": true, "must_contain": ["report_title"] },
+  "footer": { "required": true, "must_contain": ["page_number", "classification"] },
+  "page_numbers": { "required": true, "position": "footer" },
+  "cross_references_must_resolve": true,
+
+  "text_format": {
+    "heading": { "font": "Liberation Sans", "size_pt": 14, "weight": "bold", "casing": "title", "source": "declared" },
+    "body": { "font": "Liberation Serif", "size_pt": 12, "weight": "normal", "casing": "sentence", "source": "declared" },
+    "caption": { "font": "Liberation Serif", "size_pt": 10, "weight": "normal", "casing": "sentence", "source": "declared" },
+    "table_header": { "font": "Liberation Sans", "size_pt": 12, "weight": "bold", "casing": "title", "source": "declared" },
+    "field_label": { "font": "Liberation Sans", "size_pt": 12, "weight": "bold", "casing": "title", "source": "declared" }
+  },
+
+  "layout": {
+    "caption_position": "below",
+    "caption_align_tol": 0.15,
+    "table_title_position": "above",
+    "header_band": 0.12,
+    "footer_band": 0.12,
+    "page_number_region": "footer-center"
+  },
+
+  "margins_inch": 1.0,
+  "line_spacing": 1.15
+}

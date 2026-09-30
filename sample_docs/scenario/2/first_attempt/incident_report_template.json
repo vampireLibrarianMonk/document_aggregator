@@ -1,0 +1,29 @@
+{
+  "artifact_kind": "template",
+  "title": "Standard Incident Report Template",
+  "note": "Reusable incident-report rubric. Graphic slots reference this scenario's graphics.",
+  "required_sections": [
+    { "key": "identifiers", "heading": "1. Identifiers", "fields": ["site", "incident_date", "severity"] },
+    { "key": "description", "heading": "2. Description", "requires_graphic": "gfx_botnet_geo" },
+    { "key": "timeline", "heading": "3. Timeline", "requires_graphic": "gfx_login_volume" },
+    { "key": "contributing_factors", "heading": "4. Contributing Factors", "requires_graphic": "gfx_auth_flow" },
+    { "key": "corrective_actions", "heading": "5. Corrective Actions", "requires_table": "corrective_actions_table" },
+    { "key": "approvals", "heading": "6. Approvals", "fields": ["reviewer", "signoff_date"] }
+  ],
+  "table_specs": {
+    "corrective_actions_table": {
+      "title_required": true,
+      "title": "Table {n}: Remediation Actions",
+      "columns": ["Action", "Owner", "Due Date", "Verification"],
+      "font": "Arial",
+      "header_style": "table-header"
+    }
+  },
+  "furniture": {
+    "header": { "required": true, "must_contain": ["report_title"] },
+    "footer": { "required": true, "must_contain": ["page_number", "classification"] },
+    "figures": { "caption_required": true, "numbering": "sequential", "caption_format": "Figure {n}: {caption}" },
+    "tables": { "title_required": true, "title_position": "above", "numbering": "sequential" },
+    "cross_references": { "must_resolve": true }
+  }
+}

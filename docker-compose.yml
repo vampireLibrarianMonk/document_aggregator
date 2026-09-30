@@ -1,0 +1,78 @@
+# Document Aggregation Platform — modular RHEL/UBI stack.
+#
+# Four concerns, four images (modular per software endpoint):
+#   api       lean FastAPI (no LibreOffice); serves HTTP, enqueues jobs
+#   worker    heavy image (LibreOffice + pinned fonts), runs the templated
+#             worker loop against the shared job queue
+#   frontend  nginx (UBI) serving the built React app, proxies /api -> api
+#   data      a shared named volume for DATA_DIR (jobs.db, projects, indexes)
+#
+# JSON/SQLite store now; a PostgreSQL service is stubbed below for the upgrade.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.api
+    environment:
+      DATA_DIR: /data
+      # The api image has no embedding stack, so it runs on the hashing embedder
+      # regardless; set it explicitly and guard the network for parity.
+      EMBEDDING_BACKEND: hashing
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      BEDROCK_ENABLED: "false"
+    volumes:
+      - data:/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.rhel
+    environment:
+      DATA_DIR: /data
+      # Air-gap default: the deterministic hashing embedder (no network, always
+      # available). The worker image ships sentence-transformers, but its weights
+      # are NOT baked in, so we must not attempt a live model download. To use
+      # the real model in the enclave, bake/mount the weights and set
+      # EMBEDDING_BACKEND=sentence-transformers. The offline flags below are a
+      # hard guard: even on "auto", no request ever leaves the enclave.
+      EMBEDDING_BACKEND: hashing
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      BEDROCK_ENABLED: "false"
+      WORKER_CONCURRENCY: "2"
+    volumes:
+      - data:/data
+    depends_on:
+      - api
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+
+  # --- Deferred upgrade: PostgreSQL job/record store -----------------------
+  # postgres:
+  #   image: registry.redhat.io/rhel9/postgresql-16:latest
+  #   environment:
+  #     POSTGRESQL_USER: docagg
+  #     POSTGRESQL_PASSWORD: change_me
+  #     POSTGRESQL_DATABASE: docagg
+  #   volumes:
+  #     - pgdata:/var/lib/pgsql/data
+
+volumes:
+  data:
+  # pgdata:

@@ -1,0 +1,41 @@
+{
+  "note": "Real PNG figures live under corpus/figures/. Each carries a managed name, a centered title baked into the image, and a controlled width/height/alignment that the pipeline tracks and inspects across template, draft, and final output.",
+  "graphics": [
+    {
+      "graphic_id": "gfx_pressure_trace",
+      "name": "cavity_pressure_trace.png",
+      "title": "Cavity Pressure Trace",
+      "caption": "Cavity pressure trace over the affected run",
+      "source_doc": "qc_report_2026-08-09.txt",
+      "belongs_in_section": "timeline",
+      "file": "figures/cavity_pressure_trace.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_comp_curve",
+      "name": "pressure_compensation_curve.png",
+      "title": "Firmware Pressure-compensation Response Curve",
+      "caption": "Firmware pressure-compensation response curve",
+      "source_doc": "rca_review_2026-08-19.md",
+      "belongs_in_section": "contributing_factors",
+      "file": "figures/pressure_compensation_curve.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_micrograph",
+      "name": "crack_defect_micrograph.png",
+      "title": "Micrograph of the Hairline Crack Defect",
+      "caption": "Micrograph of the hairline crack defect",
+      "source_doc": "qc_report_2026-08-09.txt",
+      "belongs_in_section": "description",
+      "file": "figures/crack_defect_micrograph.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    }
+  ]
+}

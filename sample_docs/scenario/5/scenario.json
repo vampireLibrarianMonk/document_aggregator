@@ -1,0 +1,31 @@
+{
+  "id": "5",
+  "title": "Aircraft Hydraulic Decay Maintenance Event",
+  "domain": "aviation maintenance / reliability",
+  "note": "Aviation scenario. Same generic engine, different corpus/queries/facts.",
+
+  "corpus_docs": ["maintenance_log_2026-09-06.txt", "reliability_review_2026-09-16.md"],
+
+  "fields": [
+    { "key": "site", "label": "System", "section": "identifiers", "extract": "line", "hint": "System:" },
+    { "key": "incident_date", "label": "Event Date", "section": "identifiers", "extract": "date", "hint": "Date:" },
+    { "key": "severity", "label": "Severity", "section": "identifiers", "extract": "none" },
+    { "key": "software_version", "label": "Actuator-Controller Software", "section": "contributing_factors", "query": "actuator controller software version running on the affected unit", "extract": "token", "hint": "software" },
+    { "key": "duration", "label": "Ground Time Duration", "section": "description", "extract": "duration", "hint": "window" }
+  ],
+
+  "section_bodies": {
+    "description": { "query": "summary hydraulic pressure decay grounded aircraft", "block_anchor": "Summary" },
+    "timeline": { "query": "observations hydraulic pressure advisory triggered", "block_anchor": "Observations" },
+    "contributing_factors": { "query": "preliminary assessment degraded seal leak annunciation software", "block_anchor": "Assessment" }
+  },
+
+  "table": {
+    "key": "corrective_actions_table",
+    "section": "corrective_actions",
+    "query": "corrective action assignments owner due date",
+    "row_marker": "Action:",
+    "cell_queries": { "Action": "corrective action", "Owner": "who owns the action", "Due": "due date" },
+    "column_source": { "Action": "Action", "Owner": "Owner", "Due Date": "Due" }
+  }
+}

@@ -1,0 +1,304 @@
+:root {
+  --bg: #0f1419;
+  --panel: #1a2029;
+  --panel-2: #232b36;
+  --border: #2f3947;
+  --text: #e4e8ee;
+  /* Lifted from #8b97a7 -> #a8b3c2 for WCAG AA on the dark panels: the UI
+     leans heavily on 12px .muted .small explanatory text, which must stay
+     legible. ~5.5:1 on --panel, comfortably above the 4.5:1 AA threshold. */
+  --muted: #a8b3c2;
+  /* --accent is used both as a border/outline color AND as the fill behind
+     white button text. #4f9cf9 gave white only 2.81:1 (fails AA). --accent-btn
+     is a darkened shade used for button fills so #fff text clears 4.5:1, while
+     --accent stays bright for borders/focus rings where contrast-with-text
+     doesn't apply. */
+  --accent: #4f9cf9;
+  --accent-btn: #1f6fd6;
+  --ok: #3fb950;
+  --warn: #d29922;
+  /* Brightened from #f85149 (4.26:1 on panels) to clear AA for small text. */
+  --err: #ff6b62;
+  --skip: #6e7681;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+header.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+header.app-header h1 { font-size: 20px; margin: 0; }
+.subtitle { color: var(--muted); font-size: 13px; }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.tab {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+}
+
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+
+button.btn {
+  background: var(--accent-btn);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+button.btn.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+input, textarea, select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+textarea { width: 100%; min-height: 70px; resize: vertical; }
+
+table.docs { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.docs th, table.docs td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+table.docs th { color: var(--muted); font-weight: 600; }
+
+.stages { display: flex; gap: 4px; }
+.stage-pill {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.stage-pill.pending { color: var(--muted); }
+.stage-pill.processing { color: var(--warn); border-color: var(--warn); }
+.stage-pill.completed { color: var(--ok); border-color: var(--ok); }
+.stage-pill.failed { color: var(--err); border-color: var(--err); }
+.stage-pill.skipped { color: var(--skip); }
+
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.badge.completed { color: var(--ok); border-color: var(--ok); }
+.badge.processing { color: var(--warn); border-color: var(--warn); }
+.badge.failed { color: var(--err); border-color: var(--err); }
+.badge.pending { color: var(--muted); }
+.badge.negative { color: var(--err); border-color: var(--err); }
+.badge.positive { color: var(--ok); border-color: var(--ok); }
+.badge.neutral { color: var(--muted); }
+
+pre.json {
+  background: #0b0e13;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  overflow: auto;
+  max-height: 480px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+.supp-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--panel-2);
+}
+.supp-card .head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+
+.section-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--panel-2);
+}
+
+/* Per-component scroll container: caps a section's item list so a real
+   multi-page document doesn't produce one enormous page. The section heading
+   stays outside this (always visible) and only the rows scroll. Below the cap
+   it behaves normally (grows to content); above it, it scrolls. Focusable so
+   keyboard users can scroll it (WCAG 2.1.1 — scrollable regions must be
+   keyboard operable). */
+.section-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  /* Only show the inner scroll affordance once content actually overflows. */
+  overscroll-behavior: contain;
+}
+.section-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hit { border-bottom: 1px solid var(--border); padding: 8px 0; }
+.hit:last-child { border-bottom: none; }
+
+/* ---- Correction pipeline ---- */
+.flow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; margin-bottom: 16px; }
+.flow-box {
+  flex: 1;
+  min-width: 200px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+}
+.flow-box.active { border-color: var(--accent); }
+.flow-box h4 { margin: 0 0 2px; font-size: 13px; }
+.flow-box .sub { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
+.flow-box .count { font-size: 22px; font-weight: 600; }
+.flow-arrow { display: flex; align-items: center; color: var(--muted); font-size: 20px; }
+
+.status-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.status-tag.unchanged { color: var(--muted); }
+.status-tag.filled { color: var(--accent); border-color: var(--accent); }
+.status-tag.corrected { color: var(--ok); border-color: var(--ok); }
+.status-tag.needs_review { color: var(--warn); border-color: var(--warn); }
+.status-tag.conflict { color: var(--err); border-color: var(--err); }
+
+/* A table cell the corpus couldn't supply: show a readable chip, not the raw
+   internal "[needs_review]" token. */
+.cell-needs-review {
+  color: var(--warn);
+  font-style: italic;
+  font-family: system-ui, sans-serif;
+}
+
+.unit-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.unit-row:last-child { border-bottom: none; }
+.unit-row .label { min-width: 190px; font-size: 12px; color: var(--muted); }
+.unit-row .val { flex: 1; font-size: 13px; }
+.unit-row .prov { font-size: 11px; color: var(--muted); }
+
+/* Provenance: a clean human "Source:" line. The full raw audit detail
+   (internal IDs + rule/retrieval string) lives only in the hover title, never
+   as visible text — it means nothing to a reviewer. */
+.unit-row .prov[title] { cursor: help; }
+
+.mode-toggle { display: flex; gap: 4px; }
+.mode-toggle button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.mode-toggle button.active { color: var(--text); border-color: var(--accent); }
+
+/* ---- Onboarding intro + affordances (adversarial-review fixes) ---- */
+.panel.intro {
+  border-left: 3px solid var(--accent);
+  background: var(--panel-2);
+}
+.panel.intro p { margin: 6px 0 0; }
+
+.flow-box { transition: border-color 0.12s ease, background 0.12s ease; }
+.flow-box:hover { border-color: var(--accent); background: #262f3b; }
+
+/* ---- Accessibility: visible keyboard focus (WCAG 2.4.7) ----
+   The dark theme had no focus styles, so keyboard users lost their place.
+   A single high-contrast ring on every interactive element, only when
+   focus arrives via keyboard (:focus-visible), so mouse clicks stay clean. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus-visible,
+.tab:focus-visible,
+.flow-box:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Screen-reader-only text: present to assistive tech, invisible on screen.
+   Used for labels/announcements that would be redundant visually. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

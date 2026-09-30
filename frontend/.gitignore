@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.local
+.vite/
+
+# a11y audit generated artifact (the toolkit itself is committed)
+a11y/a11y-report.json
