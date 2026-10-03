@@ -83,11 +83,21 @@ class CorrectedSection(BaseModel):
 
 
 class CorrectedFurniture(BaseModel):
-    header: CorrectedField
-    footer: CorrectedField
-    classification: CorrectedField
-    page_numbers: CorrectedField
+    """Page elements that repeat across the document. Which elements exist is
+    DECLARED BY THE TEMPLATE (a government incident report has
+    header/footer/page-numbers/classification; an ICD may have a revision block
+    and an approval block instead). `elements` is the authoritative, dynamic
+    list in document order. The named fields below are kept OPTIONAL for
+    backward compatibility with older consumers and are populated when the
+    corresponding element is present."""
+    elements: list[CorrectedField] = Field(default_factory=list)
     cross_references: list[CorrectedField] = Field(default_factory=list)
+    # Backward-compatible named accessors (populated when present; may be None
+    # for document types that do not have that element).
+    header: CorrectedField | None = None
+    footer: CorrectedField | None = None
+    classification: CorrectedField | None = None
+    page_numbers: CorrectedField | None = None
 
 
 class CorrectedReport(BaseModel):

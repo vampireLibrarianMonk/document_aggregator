@@ -32,7 +32,8 @@ def _all_fields(report: dict) -> list[dict]:
     for sec in report["sections"]:
         out.extend(sec["fields"])
     fu = report["furniture"]
-    out.extend([fu["header"], fu["footer"], fu["classification"], fu["page_numbers"]])
+    # Page elements are now a dynamic, template-declared list.
+    out.extend(fu.get("elements", []))
     out.extend(fu["cross_references"])
     return out
 

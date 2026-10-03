@@ -30,7 +30,7 @@ def dump(report: dict, label: str) -> None:
             for row in t["rows"]:
                 print(f"        {row}")
     fu = report["furniture"]
-    for f in (fu["header"], fu["footer"], fu["classification"], fu["page_numbers"]):
+    for f in fu.get("elements", []):
         print(f"  furn  {f['key']:30s} {f['status']:12s} value={f['value']!r}")
     for x in fu["cross_references"]:
         print(f"  xref  {x['key']:30s} {x['status']:12s} value={x['value']!r}")

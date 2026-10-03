@@ -254,7 +254,7 @@ def reconcile(
 
         report_sections.append(sec)
 
-    furniture = _reconcile_furniture(first_attempt, by_target)
+    furniture = _reconcile_furniture(first_attempt, by_target, template)
 
     # Numbering + cross-reference resolution LAST, over final reading order.
     _assign_numbering(report_sections)
@@ -451,44 +451,91 @@ def _reconcile_graphic(
     )
 
 
-def _reconcile_furniture(first_attempt: dict, by_target: dict) -> CorrectedFurniture:
+def _reconcile_furniture(first_attempt: dict, by_target: dict,
+                         template: dict | None = None) -> CorrectedFurniture:
+    template = template or {}
     draft_f = first_attempt.get("furniture", {}) or {}
 
+    # The template declares WHICH page elements this document type has. Default
+    # to the government incident set so existing scenarios are unchanged.
+    declared = _declared_page_elements(template)
+
+    built: dict[str, CorrectedField] = {}
+    for name in declared:
+        builder = _PAGE_ELEMENT_BUILDERS.get(name)
+        if builder is None:
+            continue  # unknown element name in a template -> skip, no crash
+        built[name] = builder(first_attempt, draft_f, by_target)
+
+    elements = [built[n] for n in declared if n in built]
+    return CorrectedFurniture(
+        elements=elements,
+        header=built.get("header"),
+        footer=built.get("footer"),
+        classification=built.get("classification"),
+        page_numbers=built.get("page_numbers"),
+    )
+
+
+# Default page-element set: the government incident report furniture. A template
+# may override via build_discipline/furniture "page_elements": [...].
+_DEFAULT_PAGE_ELEMENTS = ["header", "footer", "page_numbers", "classification"]
+
+
+def _declared_page_elements(template: dict) -> list[str]:
+    furn = template.get("furniture") or {}
+    declared = furn.get("page_elements")
+    if isinstance(declared, list) and declared:
+        return [str(x) for x in declared]
+    return list(_DEFAULT_PAGE_ELEMENTS)
+
+
+# --- Page-element builders (one per known element) ---------------------------
+# Each takes (first_attempt, draft_furniture, by_target) -> CorrectedField, so
+# a template can mix and match them per document type.
+
+def _pe_header(first_attempt: dict, draft_f: dict, by_target: dict) -> CorrectedField:
     header_text = draft_f.get("header", {}).get("text", "")
-    header = CorrectedField(
-        key="furniture.header", label="Header", value=header_text or first_attempt.get("title", ""),
+    return CorrectedField(
+        key="furniture.header", label="Header",
+        value=header_text or first_attempt.get("title", ""),
         status=Status.unchanged if header_text else Status.filled,
         defect_class=DefectClass.furniture,
         provenance=Provenance(rule="furniture.header.must_contain=report_title"),
     )
 
+
+def _pe_page_numbers(first_attempt: dict, draft_f: dict, by_target: dict) -> CorrectedField:
     pn_on = bool(draft_f.get("page_numbers"))
-    page_numbers = CorrectedField(
+    return CorrectedField(
         key="furniture.page_numbers", label="Page Numbers", value=True,
         status=Status.unchanged if pn_on else Status.corrected,
         defect_class=DefectClass.furniture,
         provenance=Provenance(rule="furniture.footer.must_contain=page_number"),
     )
 
+
+def _pe_classification(first_attempt: dict, draft_f: dict, by_target: dict) -> CorrectedField:
     classif_corr = by_target.get("furniture.classification", [])
     if classif_corr:
-        classification = _resolve_value(
+        return _resolve_value(
             key="furniture.classification", label="Classification Marking",
             defect_class=DefectClass.furniture, current=draft_f.get("classification", ""),
             correct=None, correct_source=None, corrections=classif_corr,
             template_rule="furniture.footer.must_contain=classification",
         )
-    else:
-        classification = CorrectedField(
-            key="furniture.classification", label="Classification Marking",
-            value=draft_f.get("classification") or None,
-            status=Status.needs_review, defect_class=DefectClass.furniture,
-            provenance=Provenance(rule="furniture.footer.must_contain=classification"),
-            note="Required by template footer rule; no corpus source for a marking.",
-        )
+    return CorrectedField(
+        key="furniture.classification", label="Classification Marking",
+        value=draft_f.get("classification") or None,
+        status=Status.needs_review, defect_class=DefectClass.furniture,
+        provenance=Provenance(rule="furniture.footer.must_contain=classification"),
+        note="Required by template footer rule; no corpus source for a marking.",
+    )
 
+
+def _pe_footer(first_attempt: dict, draft_f: dict, by_target: dict) -> CorrectedField:
     footer_ok = bool(draft_f.get("footer", {}).get("text"))
-    footer = CorrectedField(
+    return CorrectedField(
         key="furniture.footer", label="Footer",
         value="Page number (added) + classification marking (still needed)",
         status=Status.corrected if not footer_ok else Status.unchanged,
@@ -497,9 +544,58 @@ def _reconcile_furniture(first_attempt: dict, by_target: dict) -> CorrectedFurni
         note="Page numbering was added to the footer. The classification marking "
              "still needs a human — see the Classification Marking row above.",
     )
-    return CorrectedFurniture(
-        header=header, footer=footer, classification=classification, page_numbers=page_numbers,
+
+
+def _pe_revision_history(first_attempt: dict, draft_f: dict, by_target: dict) -> CorrectedField:
+    """Revision/version block common to engineering docs (ICDs, specs)."""
+    rev_corr = by_target.get("furniture.revision_history", [])
+    if rev_corr:
+        return _resolve_value(
+            key="furniture.revision_history", label="Revision History",
+            defect_class=DefectClass.furniture, current=str(draft_f.get("revision_history", "") or ""),
+            correct=None, correct_source=None, corrections=rev_corr,
+            template_rule="furniture.revision_history.required",
+        )
+    cur = draft_f.get("revision_history")
+    return CorrectedField(
+        key="furniture.revision_history", label="Revision History",
+        value=cur or None,
+        status=Status.unchanged if cur else Status.needs_review,
+        defect_class=DefectClass.furniture,
+        provenance=Provenance(rule="furniture.revision_history.required"),
+        note="" if cur else "Required by the template; no revision entry supplied.",
     )
+
+
+def _pe_approval_block(first_attempt: dict, draft_f: dict, by_target: dict) -> CorrectedField:
+    """Signature/approval block (approver + date), e.g. for ICDs/specs."""
+    appr_corr = by_target.get("furniture.approval_block", [])
+    if appr_corr:
+        return _resolve_value(
+            key="furniture.approval_block", label="Approval Block",
+            defect_class=DefectClass.furniture, current=str(draft_f.get("approval_block", "") or ""),
+            correct=None, correct_source=None, corrections=appr_corr,
+            template_rule="furniture.approval_block.required",
+        )
+    cur = draft_f.get("approval_block")
+    return CorrectedField(
+        key="furniture.approval_block", label="Approval Block",
+        value=cur or None,
+        status=Status.unchanged if cur else Status.needs_review,
+        defect_class=DefectClass.furniture,
+        provenance=Provenance(rule="furniture.approval_block.required"),
+        note="" if cur else "Required by the template; no approver recorded.",
+    )
+
+
+_PAGE_ELEMENT_BUILDERS = {
+    "header": _pe_header,
+    "footer": _pe_footer,
+    "page_numbers": _pe_page_numbers,
+    "classification": _pe_classification,
+    "revision_history": _pe_revision_history,
+    "approval_block": _pe_approval_block,
+}
 
 
 def _assign_numbering(sections: list[CorrectedSection]) -> None:
@@ -563,8 +659,7 @@ def _summarize(report: CorrectedReport) -> dict[str, int]:
             tally(g.status)
         for t in sec.tables:
             tally(t.status)
-    for f in (report.furniture.header, report.furniture.footer,
-              report.furniture.classification, report.furniture.page_numbers):
+    for f in report.furniture.elements:
         tally(f.status)
     for x in report.furniture.cross_references:
         tally(x.status)

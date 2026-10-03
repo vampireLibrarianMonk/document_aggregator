@@ -19,8 +19,7 @@ def find_field(report: dict, key: str) -> dict | None:
         for f in sec["fields"]:
             if f["key"] == key:
                 return f
-    for f in (report["furniture"]["header"], report["furniture"]["footer"],
-              report["furniture"]["classification"], report["furniture"]["page_numbers"]):
+    for f in report["furniture"].get("elements", []):
         if f["key"] == key:
             return f
     for x in report["furniture"]["cross_references"]:
