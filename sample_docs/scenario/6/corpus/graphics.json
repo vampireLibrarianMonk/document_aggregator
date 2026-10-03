@@ -1,0 +1,41 @@
+{
+  "note": "Real PNG figures live under corpus/figures/. Each carries a managed name, a centered title baked into the image, and a controlled width/height/alignment that the pipeline tracks and inspects across template, draft, and final output.",
+  "graphics": [
+    {
+      "graphic_id": "gfx_topology",
+      "name": "nav_bus_topology.png",
+      "title": "Nav Bus Physical Topology",
+      "caption": "Nav Bus physical topology",
+      "source_doc": "interface_spec_2026-04-10.txt",
+      "belongs_in_section": "interface_overview",
+      "file": "figures/nav_bus_topology.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_timing",
+      "name": "message_timing.png",
+      "title": "Message Timing",
+      "caption": "Message timing over one major frame",
+      "source_doc": "interface_spec_2026-04-10.txt",
+      "belongs_in_section": "data_formats",
+      "file": "figures/message_timing.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    },
+    {
+      "graphic_id": "gfx_signal_detail",
+      "name": "signal_timing_detail.png",
+      "title": "Detailed Timing of the Position Message Word",
+      "caption": "Detailed timing of the POSITION message word",
+      "source_doc": "review_board_notes_2026-04-22.md",
+      "belongs_in_section": "revision_notes",
+      "file": "figures/signal_timing_detail.png",
+      "width": 640,
+      "height": 360,
+      "align": "center"
+    }
+  ]
+}

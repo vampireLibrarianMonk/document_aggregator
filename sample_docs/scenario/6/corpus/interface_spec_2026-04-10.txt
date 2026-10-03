@@ -1,0 +1,35 @@
+NAV BUS INTERFACE SPECIFICATION — SOURCE NOTES
+
+Date: 2026-04-10
+System: Navigation Data Bus (Nav Bus)
+Author: Interface Working Group
+
+Scope
+This document defines the electrical and logical interface between the
+Navigation Computer and the Flight Management Unit over the Nav Bus. The Nav Bus
+is a serial multiplexed bus operating at a signaling rate of 100 kbps.
+
+Interface Overview
+The Nav Bus carries three periodic messages from the Navigation Computer to the
+Flight Management Unit. Messages are transmitted on a fixed schedule. The
+physical layer uses a differential pair with a nominal bus voltage of 5 volts.
+
+Signal Definitions
+- Message POSITION carries latitude and longitude. Word length 32 bits.
+  Update rate 20 hertz. Units degrees.
+- Message VELOCITY carries ground speed and track angle. Word length 16 bits.
+  Update rate 10 hertz. Units knots.
+- Message STATUS carries validity and mode flags. Word length 8 bits.
+  Update rate 1 hertz. Units discrete.
+
+Data Formats
+Numeric fields use two's complement signed integers, most significant bit
+first. Timestamps use seconds since power-on.
+
+Figures
+- nav_bus_topology.png: Nav Bus physical topology between the two units.
+- message_timing.png: Message timing diagram over one major frame.
+
+Notes
+The signaling rate of 100 kbps was confirmed on the bench. An earlier draft
+listed 50 kbps, which is incorrect.

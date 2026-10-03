@@ -1,0 +1,41 @@
+{
+  "artifact_kind": "template",
+  "title": "Interface Control Document Template",
+  "note": "ICD rubric. Declares its own page elements (revision history + approval block) rather than the incident classification marking, proving page elements are template-driven.",
+
+  "build_discipline": { "profile": "gov_standard" },
+
+  "required_sections": [
+    { "key": "scope", "heading": "1. Scope", "fields": ["system", "spec_date", "approval_status"] },
+    { "key": "interface_overview", "heading": "2. Interface Overview", "fields": ["signaling_rate", "bus_voltage"], "requires_graphic": "gfx_topology" },
+    { "key": "signal_definitions", "heading": "3. Signal Definitions", "requires_table": "signal_definitions_table" },
+    { "key": "data_formats", "heading": "4. Data Formats", "requires_graphic": "gfx_timing" },
+    { "key": "revision_notes", "heading": "5. Revision Notes", "requires_graphic": "gfx_signal_detail" }
+  ],
+
+  "table_specs": {
+    "signal_definitions_table": {
+      "title_required": true,
+      "title": "Table {n}: Signal Definitions",
+      "columns": ["Message", "Word Length", "Update Rate", "Units"],
+      "font": "Arial",
+      "header_style": "table-header"
+    }
+  },
+
+  "furniture": {
+    "page_elements": ["header", "page_numbers", "revision_history", "approval_block"],
+    "header": { "required": true, "must_contain": ["report_title"] },
+    "figures": {
+      "caption_required": true,
+      "numbering": "sequential",
+      "caption_format": "Figure {n}: {caption}"
+    },
+    "tables": {
+      "title_required": true,
+      "title_position": "above",
+      "numbering": "sequential"
+    },
+    "cross_references": { "must_resolve": true }
+  }
+}

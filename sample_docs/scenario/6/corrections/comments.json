@@ -1,0 +1,49 @@
+{
+  "note": "Review-board comments on the Nav Bus ICD. In draft mode these judge value defects. The two approval-status comments disagree (conflict).",
+  "corrections": [
+    {
+      "id": "corr_rate",
+      "kind": "email",
+      "author": "interface.lead@example.com",
+      "subject": "signaling rate is wrong",
+      "target": "interface_overview.signaling_rate",
+      "operation": "replace",
+      "old_value": "50 kbps",
+      "new_value": "100 kbps",
+      "body": "The signaling rate is 100 kbps, confirmed on the bench. The draft's 50 kbps is wrong."
+    },
+    {
+      "id": "corr_figure",
+      "kind": "comment",
+      "author": "icb_reviewer",
+      "subject": "wrong figure in data formats",
+      "target": "data_formats.graphic",
+      "operation": "relabel_graphic",
+      "old_value": "figure1.png",
+      "new_value": "message_timing.png",
+      "body": "The chart in the Data Formats section is the wrong image reference; it should be the message timing figure."
+    },
+    {
+      "id": "corr_approval_approved",
+      "kind": "email",
+      "author": "program.manager@example.com",
+      "subject": "approve for release",
+      "target": "scope.approval_status",
+      "operation": "replace",
+      "old_value": "Draft",
+      "new_value": "Approved",
+      "body": "The interface is stable; mark the ICD Approved for release."
+    },
+    {
+      "id": "corr_approval_rejected",
+      "kind": "comment",
+      "author": "icb_reviewer",
+      "subject": "not ready",
+      "target": "scope.approval_status",
+      "operation": "replace",
+      "old_value": "Draft",
+      "new_value": "Rejected",
+      "body": "Open items remain on the message register; this should be Rejected until they close."
+    }
+  ]
+}

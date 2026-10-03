@@ -1,0 +1,86 @@
+{
+  "artifact_kind": "draft",
+  "title": "Nav Bus Interface Control Document",
+  "note": "First attempt at the ICD. Looks finished but carries seeded defects across value, figure, table, and page-element categories. Judged against the template rules plus review-board comments.",
+
+  "sections": [
+    {
+      "key": "scope",
+      "heading": "1. Scope",
+      "fields": {
+        "system": "Navigation Data Bus (Nav Bus)",
+        "spec_date": "2026-04-10",
+        "approval_status": "Draft"
+      },
+      "body": "This document defines the interface between the Navigation Computer and the Flight Management Unit over the Nav Bus. See Figure 2 for the physical topology."
+    },
+    {
+      "key": "interface_overview",
+      "heading": "2. Interface Overview",
+      "fields": {
+        "signaling_rate": "50 kbps",
+        "bus_voltage": "5 volts"
+      },
+      "body": "The Nav Bus carries periodic messages from the Navigation Computer to the Flight Management Unit on a fixed schedule.",
+      "graphics": [
+        { "ref_name": "message_timing.png", "caption": "Message timing", "title": "Message Timing", "title_centered": true, "width": 640 }
+      ]
+    },
+    {
+      "key": "signal_definitions",
+      "heading": "3. Signal Definitions",
+      "body": "",
+      "table": {
+        "title": "",
+        "font": "Calibri",
+        "header_style": "body-text",
+        "columns": ["Message", "Update Rate", "Word Length"],
+        "rows": []
+      }
+    },
+    {
+      "key": "data_formats",
+      "heading": "4. Data Formats",
+      "body": "Numeric fields use two's complement signed integers, most significant bit first.",
+      "graphics": [
+        { "ref_name": "figure1.png", "caption": "", "title": "", "title_centered": false, "width": 300 }
+      ]
+    },
+    {
+      "key": "revision_notes",
+      "heading": "5. Revision Notes",
+      "body": "Initial draft for review.",
+      "graphics": []
+    }
+  ],
+
+  "furniture": {
+    "header": { "text": "Nav Bus Interface Control Document" },
+    "page_numbers": false,
+    "revision_history": "",
+    "approval_block": ""
+  },
+
+  "cross_references": [
+    { "id": "xref_1", "in_section": "scope", "text": "Figure 2", "points_to_graphic": "gfx_topology" }
+  ],
+
+  "_seeded_defects": [
+    "1. Value: signaling rate says '50 kbps' but should be '100 kbps'.",
+    "2. Value: POSITION update rate in the table should be 20 Hz, not 25 Hz.",
+    "3. Missing content: the Signal Definitions table rows are empty.",
+    "4. Value: approval status 'Draft' is challenged with no agreed value (needs review or conflict).",
+    "5. Figure: the Data Formats figure is named 'figure1.png' but should be 'signal_timing_detail.png' (relabel).",
+    "6. Figure: 'message_timing.png' is placed in Interface Overview but belongs in Data Formats (move).",
+    "7. Figure: 'nav_bus_topology.png' is missing from Interface Overview entirely (insert).",
+    "8. Table: column order is Message, Update Rate, Word Length but should be Message, Word Length, Update Rate.",
+    "9. Table: the required 'Units' column is missing.",
+    "10. Table: font is Calibri with a plain header; the template requires Arial with a table-header style.",
+    "11. Page elements: the 'Figure 2' cross-reference points to a figure not placed there (dangling).",
+    "12. Page elements: the Data Formats figure has no caption, but the template requires one.",
+    "13. Page elements: figure numbers must be renumbered in order.",
+    "14. Page elements: the Signal Definitions table has no title, but the template requires one.",
+    "15. Page elements: the revision history is empty and no approver is recorded (both needs_review).",
+    "16. Conflict: two reviewers assign different approval statuses (Approved vs Rejected)."
+  ]
+}

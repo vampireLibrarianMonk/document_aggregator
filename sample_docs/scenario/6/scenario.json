@@ -1,0 +1,36 @@
+{
+  "id": "6",
+  "title": "Nav Bus Interface Control Document",
+  "domain": "systems engineering / interface control",
+  "note": "A non-incident document type (an ICD). Different sections, a signal-definitions table as the centerpiece, and ICD page elements (revision history + approval block) instead of a classification marking. Proves the pipeline is document-type agnostic.",
+
+  "corpus_docs": ["interface_spec_2026-04-10.txt", "review_board_notes_2026-04-22.md"],
+
+  "fields": [
+    { "key": "system", "label": "System", "section": "scope", "extract": "line", "hint": "System:" },
+    { "key": "spec_date", "label": "Specification Date", "section": "scope", "extract": "date", "hint": "Date:" },
+    { "key": "signaling_rate", "label": "Signaling Rate", "section": "interface_overview", "extract": "line", "hint": "signaling rate" },
+    { "key": "bus_voltage", "label": "Bus Voltage", "section": "interface_overview", "extract": "line", "hint": "bus voltage" },
+    { "key": "approval_status", "label": "Approval Status", "section": "scope", "extract": "none" }
+  ],
+
+  "section_bodies": {
+    "scope": { "query": "scope defines interface between navigation computer flight management", "block_anchor": "Scope" },
+    "interface_overview": { "query": "interface overview periodic messages physical layer", "block_anchor": "Interface Overview" },
+    "data_formats": { "query": "data formats numeric fields twos complement timestamps", "block_anchor": "Data Formats" }
+  },
+
+  "table": {
+    "key": "signal_definitions_table",
+    "section": "signal_definitions",
+    "query": "message word length update rate units signal definitions",
+    "row_marker": "Message",
+    "cell_queries": {
+      "Message": "message name",
+      "Word Length": "word length bits",
+      "Update Rate": "update rate hertz",
+      "Units": "units of the message"
+    },
+    "column_source": { "Message": "Message", "Word Length": "Word Length", "Update Rate": "Update Rate", "Units": "Units" }
+  }
+}
