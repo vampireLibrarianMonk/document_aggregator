@@ -26,6 +26,8 @@ Thumbs.db
 # scenario-generation model eval reports (dev artifacts)
 backend/eval_models_report.json
 backend/eval_models_report_*.json
+backend/eval_governor_report.json
+backend/eval_governor_report_*.json
 
 # TypeScript incremental build cache
 *.tsbuildinfo
