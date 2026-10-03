@@ -15,6 +15,7 @@ from dataclasses import dataclass
 class RunMetrics:
     """Per-generation score + cost. All fields are measured, not judged."""
     model: str = ""
+    prompt: str = ""                   # which prompt strategy authored this run
     # Score (quality signals from the validator)
     valid_first_try: bool = False      # raw output passed validate_spec, no repair
     repair_rounds: int = 0             # model repair rounds attempted (0 or 1)
@@ -33,6 +34,7 @@ class RunMetrics:
     def as_dict(self) -> dict:
         return {
             "model": self.model,
+            "prompt": self.prompt,
             "valid_first_try": self.valid_first_try,
             "repair_rounds": self.repair_rounds,
             "fabrication_rejections": self.fabrication_rejections,
