@@ -183,11 +183,15 @@ export interface CorrectedReport {
   generated_at: string
   sections: CorrectedSection[]
   furniture: {
-    header: CorrectedField
-    footer: CorrectedField
-    classification: CorrectedField
-    page_numbers: CorrectedField
+    // Dynamic, template-declared page elements (authoritative, in order).
+    elements: CorrectedField[]
     cross_references: CorrectedField[]
+    // Backward-compatible named accessors (present only for document types
+    // that have them; null otherwise).
+    header: CorrectedField | null
+    footer: CorrectedField | null
+    classification: CorrectedField | null
+    page_numbers: CorrectedField | null
   }
   discipline_findings: CorrectedField[]
   summary: Record<string, number>
@@ -206,6 +210,52 @@ export interface ScenarioInfo {
   id: string
   title: string
   domain: string
+}
+
+// ---- Scenario generation (model picker + metrics) ----
+
+export interface ApprovedModel {
+  id: string
+  name: string
+  family: string
+  is_default: boolean
+}
+
+export interface ScenarioModels {
+  available: boolean
+  bedrock_enabled: boolean
+  default: string
+  allowlist: string[]
+  region: string
+  models: ApprovedModel[]
+  error?: string
+}
+
+export interface GenerationMetrics {
+  model: string
+  valid_first_try: boolean
+  repair_rounds: number
+  fabrication_rejections: number
+  salvage_dropped: number
+  has_conflict: boolean
+  has_needs_review: boolean
+  graphic_defects: number
+  fell_back: boolean
+  input_tokens: number
+  output_tokens: number
+  latency_ms: number
+  est_usd: number
+}
+
+export interface GenerateResult {
+  generator: string
+  dry_run: boolean
+  scenario_id: string | null
+  title?: string
+  domain?: string
+  spec?: unknown
+  metrics?: GenerationMetrics
+  price_note?: { pinned: string; note: string }
 }
 
 export interface ConvergenceStep {

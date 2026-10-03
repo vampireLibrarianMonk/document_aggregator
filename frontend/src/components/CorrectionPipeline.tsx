@@ -1,162 +1,16 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type {
-  CorrectedField,
   CorrectedReport,
-  CorrectionStatus,
   ScenarioComponent,
   ScenarioInfo,
 } from '../api/types'
 import { ConvergenceView } from './ConvergenceView'
+import { GenerateScenario } from './GenerateScenario'
+import { ReportView } from './ReportView'
 
 type Mode = 'draft' | 'template'
 type View = 'single' | 'rounds'
-
-function StatusTag({ status }: { status: CorrectionStatus }) {
-  return <span className={`status-tag ${status}`}>{status.replace('_', ' ')}</span>
-}
-
-function Prov({ provenance }: { provenance: CorrectedField['provenance'] }) {
-  // Human-readable "where this came from" line. The raw rule/retrieval telemetry
-  // (e.g. "...#c1s1@0.316") and internal correction IDs are useful for auditors
-  // but confusing as the default, so they're demoted into a hover/expand.
-  const human: string[] = []
-  if (provenance.corpus.length) {
-    human.push(`from ${provenance.corpus.join(', ')}`)
-  }
-  if (provenance.corrections.length) {
-    const n = provenance.corrections.length
-    human.push(`${n} reviewer ${n === 1 ? 'comment' : 'comments'}`)
-  }
-  if (!human.length) return null
-
-  // The full raw detail (internal correction IDs + rule/retrieval string) is
-  // kept ONLY as a hover title for the rare auditor case — it is never rendered
-  // as visible text, because IDs like "corr_severity_high" and rule strings
-  // mean nothing to a reviewer and duplicate what the candidates line shows.
-  const rawTitle = [
-    provenance.corpus.length ? `corpus: ${provenance.corpus.join(', ')}` : '',
-    provenance.corrections.length ? `corrections: ${provenance.corrections.join(', ')}` : '',
-    provenance.rule ? `rule: ${provenance.rule}` : '',
-  ].filter(Boolean).join('  ·  ')
-
-  return (
-    <div className="prov" title={rawTitle}>
-      Source: {human.join(' · ')}
-    </div>
-  )
-}
-
-/** Strip an email down to a readable name (regional.director@x.com -> regional.director). */
-function displaySource(source: unknown): string {
-  const s = String(source ?? '')
-  return s.includes('@') ? s.split('@')[0] : s
-}
-
-function displayValue(v: unknown): string {
-  if (v === null || v === undefined) return '—'
-  if (typeof v === 'string') return v
-  if (typeof v === 'object') {
-    // Discipline findings carry {observed, required}; render readably.
-    const o = v as Record<string, unknown>
-    if ('observed' in o || 'required' in o) {
-      return `observed: ${JSON.stringify(o.observed)} · required: ${JSON.stringify(o.required)}`
-    }
-  }
-  return JSON.stringify(v)
-}
-
-function FieldRow({
-  field,
-  onResolve,
-}: {
-  field: CorrectedField
-  onResolve?: (target: string, value: string) => Promise<void>
-}) {
-  const [busy, setBusy] = useState(false)
-  const [manual, setManual] = useState('')
-
-  const resolvable =
-    !!onResolve && (field.status === 'conflict' || field.status === 'needs_review')
-
-  async function submit(value: string) {
-    if (!onResolve || !value.trim()) return
-    setBusy(true)
-    try {
-      await onResolve(field.key, value.trim())
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="unit-row">
-      <div className="label">{field.label}</div>
-      <div className="val">
-        <StatusTag status={field.status} />{' '}
-        {field.status === 'conflict' ? (
-          <span className="mono muted">unresolved — choose a candidate below</span>
-        ) : (
-          <span className="mono">{displayValue(field.value)}</span>
-        )}
-        {field.candidates.length > 0 && (
-          <div className="small" style={{ color: 'var(--err)' }}>
-            candidates:{' '}
-            {field.candidates
-              .map((c) => `${JSON.stringify(c.value)} (${displaySource(c.source)})`)
-              .join('  vs  ')}
-          </div>
-        )}
-        {field.note && <div className="small muted">{field.note}</div>}
-
-        {resolvable && (
-          <div className="resolve-controls">
-            {field.status === 'conflict' && field.candidates.length > 0 ? (
-              <>
-                <span className="small muted">Resolve:</span>
-                {field.candidates.map((c, i) => (
-                  <button
-                    key={i}
-                    className="btn secondary small"
-                    disabled={busy}
-                    onClick={() => void submit(String(c.value))}
-                    aria-label={`Resolve ${field.label} to ${String(c.value)}`}
-                  >
-                    Use {String(c.value)}
-                  </button>
-                ))}
-              </>
-            ) : (
-              <>
-                <label htmlFor={`resolve-${field.key}`} className="small muted">
-                  Resolve — enter a value:
-                </label>
-                <input
-                  id={`resolve-${field.key}`}
-                  className="small"
-                  value={manual}
-                  disabled={busy}
-                  onChange={(e) => setManual(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && void submit(manual)}
-                  placeholder={`${field.label} value`}
-                />
-                <button
-                  className="btn secondary small"
-                  disabled={busy || !manual.trim()}
-                  onClick={() => void submit(manual)}
-                >
-                  {busy ? 'Saving…' : 'Set value'}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
-        <Prov provenance={field.provenance} />
-      </div>
-    </div>
-  )
-}
 
 /** The four-component correction pipeline and the corrected intermediate JSON. */
 export function CorrectionPipeline() {
@@ -170,6 +24,19 @@ export function CorrectionPipeline() {
   const [view, setView] = useState<View>('single')
   const [raw, setRaw] = useState<unknown>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [showGenerate, setShowGenerate] = useState(false)
+
+  const refreshScenarios = useCallback(() => {
+    return api.scenarios().then(setScenarios).catch((e) =>
+      setErr(e instanceof Error ? e.message : String(e)),
+    )
+  }, [])
+
+  const onGenerated = useCallback(async (newId: string) => {
+    await refreshScenarios()
+    setScenarioId(newId)   // jump to the freshly generated scenario
+    setShowGenerate(false)
+  }, [refreshScenarios])
 
   const loadReport = useCallback((m: Mode, sid: string, fmt: string) => {
     setErr(null)
@@ -216,6 +83,7 @@ export function CorrectionPipeline() {
 
   return (
     <>
+      {showGenerate && <GenerateScenario onGenerated={onGenerated} />}
       <div className="panel">
         <div className="row">
           <strong>Correction pipeline</strong>
@@ -230,6 +98,13 @@ export function CorrectionPipeline() {
               </option>
             ))}
           </select>
+          <button
+            className="btn secondary small"
+            aria-expanded={showGenerate}
+            onClick={() => setShowGenerate((v) => !v)}
+          >
+            {showGenerate ? 'Close generator' : '+ New scenario'}
+          </button>
           <div className="spacer" />
           <label htmlFor="source-fidelity" className="muted small" title="Which pre-converted copy of the demo first-attempt document to read (this tab does not convert an uploaded file). Higher fidelity = more structure preserved.">source fidelity</label>
           <select id="source-fidelity" value={sourceFormat} onChange={(e) => setSourceFormat(e.target.value)}>
@@ -335,98 +210,7 @@ export function CorrectionPipeline() {
       )}
 
       {view === 'single' && selected === 'intermediate_json' && report ? (
-        <>
-          {report.sections.map((sec) => (
-            <div key={sec.key} className="section-card">
-              <strong>{sec.heading}</strong>
-              <div className="section-scroll" tabIndex={0} role="group" aria-label={`${sec.heading} items`}>
-              {sec.fields.map((f) => (
-                <FieldRow key={f.key} field={f} onResolve={handleResolve} />
-              ))}
-              {sec.graphics.map((g) => (
-                <div key={g.graphic_id} className="unit-row">
-                  <div className="label">Figure {g.figure_number}</div>
-                  <div className="val">
-                    <StatusTag status={g.status} />{' '}
-                    <span className="mono">{g.name}</span> — {g.caption}
-                    {g.note && <div className="small muted">{g.note}</div>}
-                    <Prov provenance={g.provenance} />
-                  </div>
-                </div>
-              ))}
-              {sec.tables.map((t) => (
-                <div key={t.key} className="unit-row">
-                  <div className="label">{t.title || 'Table'}</div>
-                  <div className="val">
-                    <StatusTag status={t.status} />{' '}
-                    <span className="mono">
-                      [{t.columns.join(' | ')}] · {t.font}/{t.header_style}
-                    </span>
-                    {Object.keys(t.formatting).length > 0 && (
-                      <div className="small muted">
-                        normalized: {Object.keys(t.formatting).join(', ')}
-                      </div>
-                    )}
-                    {t.rows.map((row, ri) => (
-                      <div key={ri} className="small mono">
-                        {row.map((cell, ci) => (
-                          <Fragment key={ci}>
-                            {ci > 0 && '  |  '}
-                            {cell === '[needs_review]' ? (
-                              <span className="cell-needs-review">needs review</span>
-                            ) : (
-                              cell
-                            )}
-                          </Fragment>
-                        ))}
-                      </div>
-                    ))}
-                    {t.note && <div className="small muted">{t.note}</div>}
-                    <Prov provenance={t.provenance} />
-                  </div>
-                </div>
-              ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="section-card">
-            <strong>Page elements</strong>
-            <div className="small muted" style={{ marginBottom: 6 }}>
-              The parts that repeat on every page: header, footer, page numbers,
-              and the classification marking.
-            </div>
-            <div className="section-scroll" tabIndex={0} role="group" aria-label="Page elements">
-              <FieldRow field={report.furniture.header} onResolve={handleResolve} />
-              <FieldRow field={report.furniture.footer} onResolve={handleResolve} />
-              <FieldRow field={report.furniture.page_numbers} onResolve={handleResolve} />
-              <FieldRow field={report.furniture.classification} onResolve={handleResolve} />
-              {report.furniture.cross_references.map((x) => (
-                <FieldRow key={x.key} field={x} onResolve={handleResolve} />
-              ))}
-            </div>
-          </div>
-
-          {report.discipline_findings.length > 0 && (
-            <div className="section-card">
-              <div className="row">
-                <strong>Formatting &amp; placement checks</strong>
-                <span className="muted small">
-                  {report.discipline_findings.length} findings from document inspection
-                </span>
-              </div>
-              <div className="small muted" style={{ marginBottom: 6 }}>
-                Where the document breaks the template&apos;s layout and
-                formatting rules (fonts, captions, table styles, placement).
-              </div>
-              <div className="section-scroll" tabIndex={0} role="group" aria-label="Formatting and placement findings">
-                {report.discipline_findings.map((f) => (
-                  <FieldRow key={f.key} field={f} />
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+        <ReportView report={report} onResolve={handleResolve} />
       ) : (
         view === 'single' && (
           <div className="panel">

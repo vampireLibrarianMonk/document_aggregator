@@ -32,15 +32,17 @@ class ScenarioGenerator(Protocol):
     def generate(self, brief: ScenarioBrief) -> ScenarioSpec: ...
 
 
-def get_generator() -> ScenarioGenerator:
+def get_generator(model_id: str | None = None) -> ScenarioGenerator:
     """Select the generator by config, with graceful fallback to the offline
-    deterministic generator (which is also the air-gap default)."""
+    deterministic generator (which is also the air-gap default). An optional
+    model_id overrides the configured scenario model (must be on the allowlist).
+    If Bedrock is disabled and no model is requested, returns the offline one."""
     from .rule_generator import RuleScenarioGenerator
 
-    if settings.BEDROCK_ENABLED:
+    if settings.BEDROCK_ENABLED or model_id:
         try:
             from .bedrock_gen import BedrockScenarioGenerator
-            return BedrockScenarioGenerator()
+            return BedrockScenarioGenerator(model_id=model_id)
         except Exception:
             return RuleScenarioGenerator()
     return RuleScenarioGenerator()

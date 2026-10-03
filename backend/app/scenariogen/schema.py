@@ -266,16 +266,24 @@ def salvage_spec(spec: ScenarioSpec) -> ScenarioSpec:
             g.source_doc = first_doc
 
     kept = []
+    dropped = 0
+    fabrication = 0
     for c in spec.corrections:
         base = c.target.split("[", 1)[0]
         if c.target not in resolvable and base not in resolvable:
+            dropped += 1
             continue  # drop non-resolvable target
         if c.operation == "replace" and c.new_value not in (None, ""):
             nv = _norm(str(c.new_value))
             if nv and nv not in corpus_blob and nv not in _norm(c.body):
+                dropped += 1
+                fabrication += 1
                 continue  # drop ungrounded (possible fabrication)
         kept.append(c)
     spec.corrections = kept
+    # Stash counts for the metrics layer (ignored by every other consumer).
+    spec._salvage_dropped = dropped          # type: ignore[attr-defined]
+    spec._salvage_fabrication = fabrication  # type: ignore[attr-defined]
     return spec
 
 

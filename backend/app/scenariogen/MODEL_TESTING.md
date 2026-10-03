@@ -1,10 +1,10 @@
 # Scenario generation: testing with real Bedrock models
 
-The scenario generator is built and fully alpha-looped against the offline
-deterministic `RuleScenarioGenerator`. To exercise the real LLM path with the
-approved models (NVIDIA Nemotron, OpenAI GPT-OSS), run it where AWS Bedrock
-credentials are available (this dev box has none, so only the offline path was
-testable here).
+The scenario generator runs against the offline deterministic
+`RuleScenarioGenerator` by default and, when AWS Bedrock credentials resolve,
+against the approved models (NVIDIA Nemotron, OpenAI GPT-OSS). Both the live
+single-generation path and the model-comparison eval harness have been exercised
+against real models in `us-east-1`.
 
 ## What is already proven (offline, deterministic)
 
@@ -90,3 +90,59 @@ validated and written to disk as fixed JSON; from then on the deterministic
 engine runs it. So a generated scenario is as reproducible and traceable as a
 hand-authored one, and nothing about correctness depends on the model at
 runtime.
+
+## Choosing a model in the UI
+
+The Correction Pipeline tab has a **"+ New scenario"** button that opens the
+generator panel. There you pick a **model** (the offline deterministic generator,
+or any live approved Bedrock model from `GET /scenario/models`), enter a brief
+(structured domain/doc-type/title, or freeform), and either **Dry run (preview)**
+or **Generate & save**. After each run the panel shows the per-run score + cost
+readout (outcome, fabrications caught, tokens, latency, estimated $).
+
+If Bedrock is not enabled / no creds (e.g. the default compose stack), the picker
+shows only the offline generator — the feature degrades gracefully.
+
+## Model evaluation harness (score + cost)
+
+`backend/eval_models.py` runs each approved model over a fixed set of briefs N
+times and prints an aggregated comparison, writing `eval_models_report.json`.
+
+```
+python backend/eval_models.py                 # all approved models, N=3
+python backend/eval_models.py --runs 5
+python backend/eval_models.py --models nvidia.nemotron-super-3-120b,openai.gpt-oss-120b-1:0
+```
+
+### How to read the numbers (all measured, none subjective)
+
+Score (from the strict validator):
+- **valid1st%** — raw model output passed validation with no repair (higher better).
+- **repaired%** — needed one model repair round.
+- **fellback%** — model output was unusable, so the deterministic generator ran
+  instead (lower better; this is the worst outcome).
+- **fab/run** — corrections the model INVENTED that the validator caught and
+  dropped (lower better). This directly measures the platform's core promise of
+  no fabrication; a high number means the model hallucinates values.
+- **conflict% / needs-review%** — richness: did it produce the required hard
+  cases.
+
+Cost:
+- **in_tok / out_tok** — token usage, measured from the Bedrock response (ground
+  truth). GPT-OSS spends output tokens on a reasoning block before the answer,
+  so its out_tok runs high; a model that hits the token cap tends to fall back.
+- **lat_ms** — server-side latency, measured.
+- **est_$** — an ESTIMATE: measured tokens x a PINNED, dated price table
+  (`metrics.py`, `PRICE_TABLE_PINNED`). Bedrock does not expose live prices via
+  API, so verify current AWS pricing before relying on the dollar figure. Tokens
+  and latency are exact; only $ is estimated.
+
+### Example finding (us-east-1, 2026-05, 120B models)
+
+A first comparison (nemotron-super-3-120b vs gpt-oss-120b) showed a real
+trade-off rather than a clear winner: GPT-OSS was cheaper, faster, and always
+produced usable output but fabricated more and less reliably included the
+required conflict; Nemotron fabricated less and nailed richness but fell back
+more often and cost ~2x. Neither was "valid first try" — the salvage layer
+(drop bad items, keep the good) carries both. Re-run the harness with more runs
+to get stable rates before picking a default `BEDROCK_SCENARIO_MODEL`.

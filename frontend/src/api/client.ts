@@ -5,10 +5,12 @@ import type {
   CorrectedReport,
   DocumentRecord,
   ExportFormat,
+  GenerateResult,
   Project,
   Report,
   ScenarioComponent,
   ScenarioInfo,
+  ScenarioModels,
   SearchResponse,
   Supplemental,
   SupplementalKind,
@@ -162,5 +164,37 @@ export const api = {
         source_format: sourceFormat,
       }),
     }).then((r) => json<CorrectedReport>(r))
+  },
+
+  // ---- Scenario generation (model picker + per-run metrics) ----
+
+  scenarioModels(): Promise<ScenarioModels> {
+    return fetch(`${BASE}/scenario/models`).then((r) => json<ScenarioModels>(r))
+  },
+
+  scenarioGenerate(body: {
+    domain?: string
+    doc_type?: string
+    title?: string
+    model?: string | null
+    dry_run?: boolean
+  }): Promise<GenerateResult> {
+    return fetch(`${BASE}/scenario/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => json<GenerateResult>(r))
+  },
+
+  scenarioGenerateFromText(body: {
+    text: string
+    model?: string | null
+    dry_run?: boolean
+  }): Promise<GenerateResult> {
+    return fetch(`${BASE}/scenario/generate/from-text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => json<GenerateResult>(r))
   },
 }

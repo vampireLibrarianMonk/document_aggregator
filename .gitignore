@@ -22,3 +22,9 @@ frontend/node_modules/
 .DS_Store
 Thumbs.db
 *.log
+
+# scenario-generation model eval report (dev artifact)
+backend/eval_models_report.json
+
+# TypeScript incremental build cache
+*.tsbuildinfo

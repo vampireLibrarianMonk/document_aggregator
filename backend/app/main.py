@@ -297,41 +297,72 @@ class GenerateRequest(BaseModel):
     domain: str = ""
     doc_type: str = "incident report"
     title: str = ""
+    model: str | None = None       # optional approved model override
     dry_run: bool = False          # preview the spec without writing it to disk
 
 
 class GenerateFromTextRequest(BaseModel):
     text: str                      # freeform description; the LLM uses judgment
+    model: str | None = None
     dry_run: bool = False
 
 
-def _generate_scenario(brief_kwargs: dict, dry_run: bool) -> dict:
+def _generate_scenario(brief_kwargs: dict, dry_run: bool, model: str | None) -> dict:
+    from .scenariogen.bedrock_gen import ModelNotApprovedError
     from .scenariogen.generator import ScenarioBrief, get_generator
+    from .scenariogen.metrics import PRICE_META
     from .scenariogen.persist import next_scenario_id, persist_spec
     from .scenariogen.schema import validate_spec
 
-    gen = get_generator()
-    spec = gen.generate(ScenarioBrief(**brief_kwargs))
+    try:
+        gen = get_generator(model_id=model)
+    except ModelNotApprovedError as exc:
+        raise HTTPException(400, str(exc))
+
+    brief = ScenarioBrief(**brief_kwargs)
+    # Capture per-run score+cost metrics when the generator supports it.
+    metrics = None
+    if hasattr(gen, "generate_with_metrics"):
+        result = gen.generate_with_metrics(brief)
+        spec, metrics = result.spec, result.metrics.as_dict()
+    else:
+        spec = gen.generate(brief)
+
     problems = validate_spec(spec)
     if problems:
         raise HTTPException(422, "generated scenario failed validation: " + "; ".join(problems))
+
+    out: dict = {"generator": gen.name, "dry_run": dry_run}
+    if metrics is not None:
+        out["metrics"] = metrics
+        out["price_note"] = PRICE_META
     if dry_run:
-        return {"generator": gen.name, "dry_run": True,
-                "scenario_id": None, "spec": spec.model_dump()}
-    sid = persist_spec(spec, scenario_id=next_scenario_id())
-    return {"generator": gen.name, "dry_run": False, "scenario_id": sid,
-            "title": spec.title, "domain": spec.domain}
+        out.update({"scenario_id": None, "spec": spec.model_dump()})
+    else:
+        sid = persist_spec(spec, scenario_id=next_scenario_id())
+        out.update({"scenario_id": sid, "title": spec.title, "domain": spec.domain})
+    return out
+
+
+@app.get("/scenario/models")
+def scenario_models() -> dict:
+    """List the live, approved models available for scenario generation (plus the
+    current default and the allowlist). Degrades gracefully offline: `available`
+    is false and `models` is empty, so the UI offers only the offline generator."""
+    from .scenariogen.bedrock_gen import list_approved_models
+
+    return list_approved_models()
 
 
 @app.post("/scenario/generate")
 def scenario_generate(body: GenerateRequest) -> dict:
     """Generate a NEW scenario from a structured brief (domain + document type).
     Uses the configured generator (deterministic offline by default; an approved
-    Bedrock model when enabled). The output is validated and persisted as a new
-    scenario id so it reconciles deterministically like a hand-authored one."""
+    Bedrock model when enabled or when `model` is given). The output is validated
+    and persisted as a new scenario id, returning per-run score+cost metrics."""
     return _generate_scenario(
         {"domain": body.domain, "doc_type": body.doc_type, "title": body.title},
-        body.dry_run,
+        body.dry_run, body.model,
     )
 
 
@@ -342,7 +373,7 @@ def scenario_generate_from_text(body: GenerateFromTextRequest) -> dict:
     and realistic defects. Falls back to the deterministic generator offline."""
     if not body.text.strip():
         raise HTTPException(400, "text is required")
-    return _generate_scenario({"freeform": body.text}, body.dry_run)
+    return _generate_scenario({"freeform": body.text}, body.dry_run, body.model)
 
 
 @app.post("/scenario/resolve")

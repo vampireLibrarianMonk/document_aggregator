@@ -60,6 +60,15 @@ export const flows = [
     },
   },
   {
+    id: 'generate-scenario',
+    title: 'Correction Pipeline — Generate scenario panel (model picker + brief)',
+    async setup(page) {
+      await openTab(page, 'Correction Pipeline')
+      await clickRole(page, 'button', '+ New scenario')
+      await page.waitForTimeout(400)
+    },
+  },
+  {
     id: 'ingestion-default',
     title: 'Ingestion — document board',
     needsProject: true,
