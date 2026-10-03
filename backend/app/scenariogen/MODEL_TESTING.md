@@ -105,14 +105,25 @@ shows only the offline generator — the feature degrades gracefully.
 
 ## Model evaluation harness (score + cost)
 
-`backend/eval_models.py` runs each approved model over a fixed set of briefs N
-times and prints an aggregated comparison, writing `eval_models_report.json`.
+`backend/eval_models.py` is a 3-factor experiment (**model x prompt-strategy x
+brief**, N replicates per cell). It prints a per-cell table sorted by a
+transparent composite, a prompt-strategy roll-up, and the best prompt per model,
+and writes a timestamped `eval_models_report_<ts>.json` (plus
+`eval_models_report.json`).
 
 ```
-python backend/eval_models.py                 # all approved models, N=3
+python backend/eval_models.py                      # all models x all prompts, N=3
 python backend/eval_models.py --runs 5
-python backend/eval_models.py --models nvidia.nemotron-super-3-120b,openai.gpt-oss-120b-1:0
+python backend/eval_models.py --prompts baseline,strict_schema
+python backend/eval_models.py --models nvidia.nemotron-nano-9b-v2 --briefs 2
+python backend/eval_models.py --quick              # smoke: 2 models, baseline, N=1
 ```
+
+The prompt strategies live in `prompts.py` (`baseline`, `strict_schema`,
+`few_shot`, `reasoning_suppressed`). Per-model output token budgets live in
+`model_profiles.py` (reasoning models get more headroom so they do not truncate).
+`backend/eval_budget_ab.py` is a controlled before/after that measures whether
+right-sizing the token budget rescues the small reasoning models.
 
 ### How to read the numbers (all measured, none subjective)
 
@@ -137,12 +148,13 @@ Cost:
   API, so verify current AWS pricing before relying on the dollar figure. Tokens
   and latency are exact; only $ is estimated.
 
-### Example finding (us-east-1, 2026-05, 120B models)
+### Findings
 
-A first comparison (nemotron-super-3-120b vs gpt-oss-120b) showed a real
-trade-off rather than a clear winner: GPT-OSS was cheaper, faster, and always
-produced usable output but fabricated more and less reliably included the
-required conflict; Nemotron fabricated less and nailed richness but fell back
-more often and cost ~2x. Neither was "valid first try" — the salvage layer
-(drop bad items, keep the good) carries both. Re-run the harness with more runs
-to get stable rates before picking a default `BEDROCK_SCENARIO_MODEL`.
+The full experiment across all 8 approved models and 4 prompt strategies is
+written up in **`MODEL_EVAL.md`** (methodology, per-model table, the decisive
+results, and the earned default). Headline: no model produced a valid spec
+first-try in single-shot mode (0% across the board); viability splits by size
+(the 120b-class and 30b Nemotron are usable, the small models truncate); and no
+prompt strategy beat `baseline`. The earned default is **gpt-oss-120b** (lowest
+fallback, cheapest usable, fast). The real lever is task decomposition, not
+prompting — see the governor work.

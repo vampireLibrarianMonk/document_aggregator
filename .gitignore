@@ -23,8 +23,9 @@ frontend/node_modules/
 Thumbs.db
 *.log
 
-# scenario-generation model eval report (dev artifact)
+# scenario-generation model eval reports (dev artifacts)
 backend/eval_models_report.json
+backend/eval_models_report_*.json
 
 # TypeScript incremental build cache
 *.tsbuildinfo
