@@ -293,6 +293,58 @@ class ResolveRequest(BaseModel):
     author: str = "reviewer"
 
 
+class GenerateRequest(BaseModel):
+    domain: str = ""
+    doc_type: str = "incident report"
+    title: str = ""
+    dry_run: bool = False          # preview the spec without writing it to disk
+
+
+class GenerateFromTextRequest(BaseModel):
+    text: str                      # freeform description; the LLM uses judgment
+    dry_run: bool = False
+
+
+def _generate_scenario(brief_kwargs: dict, dry_run: bool) -> dict:
+    from .scenariogen.generator import ScenarioBrief, get_generator
+    from .scenariogen.persist import next_scenario_id, persist_spec
+    from .scenariogen.schema import validate_spec
+
+    gen = get_generator()
+    spec = gen.generate(ScenarioBrief(**brief_kwargs))
+    problems = validate_spec(spec)
+    if problems:
+        raise HTTPException(422, "generated scenario failed validation: " + "; ".join(problems))
+    if dry_run:
+        return {"generator": gen.name, "dry_run": True,
+                "scenario_id": None, "spec": spec.model_dump()}
+    sid = persist_spec(spec, scenario_id=next_scenario_id())
+    return {"generator": gen.name, "dry_run": False, "scenario_id": sid,
+            "title": spec.title, "domain": spec.domain}
+
+
+@app.post("/scenario/generate")
+def scenario_generate(body: GenerateRequest) -> dict:
+    """Generate a NEW scenario from a structured brief (domain + document type).
+    Uses the configured generator (deterministic offline by default; an approved
+    Bedrock model when enabled). The output is validated and persisted as a new
+    scenario id so it reconciles deterministically like a hand-authored one."""
+    return _generate_scenario(
+        {"domain": body.domain, "doc_type": body.doc_type, "title": body.title},
+        body.dry_run,
+    )
+
+
+@app.post("/scenario/generate/from-text")
+def scenario_generate_from_text(body: GenerateFromTextRequest) -> dict:
+    """Generate a scenario on the fly from a freeform description, letting the
+    model use its best judgment to choose sections, fields, figures, a table,
+    and realistic defects. Falls back to the deterministic generator offline."""
+    if not body.text.strip():
+        raise HTTPException(400, "text is required")
+    return _generate_scenario({"freeform": body.text}, body.dry_run)
+
+
 @app.post("/scenario/resolve")
 def scenario_resolve(body: ResolveRequest) -> dict:
     """Apply a human decision to one unresolved unit (a conflict or a

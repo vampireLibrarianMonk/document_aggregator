@@ -47,6 +47,16 @@ class Settings:
     # Use a cross-region inference profile ID (required for on-demand newer models).
     BEDROCK_MODEL: str = os.getenv("BEDROCK_MODEL", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
 
+    # Scenario-generation model: separate from the feedback-interpreter model so
+    # the two roles can use different approved models. Must be on the allowlist.
+    BEDROCK_SCENARIO_MODEL: str = os.getenv(
+        "BEDROCK_SCENARIO_MODEL", os.getenv("BEDROCK_MODEL", ""))
+    # Approved models for scenario generation (comma-separated model ids or
+    # substrings). Only Nemotron and GPT-OSS families are approved by default;
+    # the generator refuses any model id not matching the allowlist.
+    BEDROCK_SCENARIO_MODEL_ALLOWLIST: str = os.getenv(
+        "BEDROCK_SCENARIO_MODEL_ALLOWLIST", "nemotron,gpt-oss")
+
     PIPELINE_VERSION: str = "0.1.0"
     SCHEMA_VERSION: str = "1.0"
 
