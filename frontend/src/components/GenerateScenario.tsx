@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { GenerateResult, ScenarioModels } from '../api/types'
+import type {
+  GenerateResult,
+  GovernorEvent,
+  GovernorSummary,
+  ScenarioModels,
+} from '../api/types'
 
 type BriefMode = 'structured' | 'freeform'
 
@@ -17,6 +22,13 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [result, setResult] = useState<GenerateResult | null>(null)
+  // Governed (decomposed) live run.
+  const [events, setEvents] = useState<GovernorEvent[]>([])
+  const [summary, setSummary] = useState<GovernorSummary | null>(null)
+  const [streaming, setStreaming] = useState(false)
+  const abortRef = useRef<null | (() => void)>(null)
+
+  useEffect(() => () => abortRef.current?.(), []) // abort any open stream on unmount
 
   useEffect(() => {
     api.scenarioModels().then((m) => {
@@ -41,6 +53,26 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
     } finally {
       setBusy(false)
     }
+  }
+
+  function runGoverned() {
+    setErr(null)
+    setResult(null)
+    setEvents([])
+    setSummary(null)
+    setStreaming(true)
+    const params = briefMode === 'freeform'
+      ? { freeform, model: model || null }
+      : { domain, doc_type: docType, title, model: model || null }
+    abortRef.current = api.scenarioGovernedStream(params, {
+      onEvent: (ev) => setEvents((prev) => [...prev, ev]),
+      onResult: (s) => setSummary(s),
+      onError: (detail) => setErr(detail),
+      onDone: () => {
+        setStreaming(false)
+        abortRef.current = null
+      },
+    })
   }
 
   const canRun =
@@ -119,11 +151,16 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
       )}
 
       <div className="row" style={{ marginTop: 8 }}>
-        <button className="btn secondary" disabled={busy || !canRun} onClick={() => void run(true)}>
+        <button className="btn secondary" disabled={busy || streaming || !canRun} onClick={() => void run(true)}>
           {busy ? 'Working…' : 'Dry run (preview)'}
         </button>
-        <button className="btn" disabled={busy || !canRun} onClick={() => void run(false)}>
+        <button className="btn" disabled={busy || streaming || !canRun} onClick={() => void run(false)}>
           {busy ? 'Working…' : 'Generate & save'}
+        </button>
+        <button className="btn secondary" disabled={busy || streaming || !canRun}
+          title="Decomposed generation with a live progress log"
+          onClick={runGoverned}>
+          {streaming ? 'Running…' : 'Governed (live log)'}
         </button>
       </div>
 
@@ -131,6 +168,72 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
         {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
         {result && <GenerationReadout result={result} />}
       </div>
+
+      {(events.length > 0 || summary) && (
+        <GovernorLog events={events} summary={summary} streaming={streaming} />
+      )}
+    </div>
+  )
+}
+
+/** A live, cumulative, append-only log of the governed run's operations. */
+function GovernorLog({
+  events, summary, streaming,
+}: { events: GovernorEvent[]; summary: GovernorSummary | null; streaming: boolean }) {
+  const endRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [events.length, summary])
+
+  return (
+    <div className="gov-log" style={{ marginTop: 12 }}>
+      <div className="small muted" style={{ marginBottom: 4 }}>
+        Governed run {streaming ? '(live)' : '(done)'} — operations as they transpire
+      </div>
+      <div className="gov-log-scroll" tabIndex={0} role="group"
+        aria-label="Governor progress log"
+        style={{ maxHeight: 260, overflow: 'auto' }}>
+        <ol className="gov-log-list" aria-live="polite"
+          style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {events.map((ev, i) => (
+            <li key={i} className="gov-log-row small">
+              <code className="gov-log-step">{ev.step}</code>
+              <span className={`gov-badge gov-${ev.verdict || ev.status}`}>
+                {ev.verdict || ev.status}
+              </span>
+              {ev.confidence != null && (
+                <span className="muted"> {(ev.confidence * 100).toFixed(0)}%</span>
+              )}
+              {ev.detail && <span className="muted"> — {ev.detail}</span>}
+            </li>
+          ))}
+        </ol>
+        <div ref={endRef} />
+      </div>
+      {summary && (
+        <div className="gen-metric-grid small" style={{ marginTop: 8 }}>
+          <Metric label="Adjudicator" value={summary.adjudicator} />
+          <Metric label="Author" value={summary.author_model} />
+          <Metric label="Sections (filled / planned)"
+            value={`${summary.sections_filled} / ${summary.sections_planned}`} />
+          <Metric label="Needs review" value={String(summary.sections_needs_review)}
+            warn={summary.sections_needs_review > 0} />
+          <Metric label="Rejected" value={String(summary.rejects)} warn={summary.rejects > 0} />
+          <Metric label="Fabrications caught" value={String(summary.fabrications_caught)}
+            warn={summary.fabrications_caught > 0} />
+          <Metric label="Fell back" value={summary.fell_back ? 'yes' : 'no'} warn={summary.fell_back} />
+          <Metric label="Decisions (agree w/ truth)"
+            value={`${summary.decisions_total}${summary.decision_agreement != null
+              ? ` (${(summary.decision_agreement * 100).toFixed(0)}%)` : ''}`} />
+          {summary.output_tokens > 0 && (
+            <Metric label="Tokens (in / out)"
+              value={`${summary.input_tokens} / ${summary.output_tokens}`} />
+          )}
+          {summary.est_usd > 0 && (
+            <Metric label="Est. cost" value={`$${summary.est_usd.toFixed(5)}`} />
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -75,11 +75,12 @@ class Governor:
 
     def __init__(self, author, adjudicator: Adjudicator | None = None,
                  budget: GovernorBudget | None = None,
-                 author_model: str = "offline") -> None:
+                 author_model: str = "offline", on_event=None) -> None:
         self.author = author                       # a ScenarioGenerator
         self.adjudicator = adjudicator or DeterministicAdjudicator()
         self.budget = budget or GovernorBudget()
         self.author_model = author_model
+        self.on_event = on_event                   # optional callback(GovernorEvent)
         self.result = GovernorResult(
             spec=None, adjudicator=self.adjudicator.name,
             author_model=author_model)
@@ -109,7 +110,15 @@ class Governor:
 
     # -- event helper -------------------------------------------------------
     def _emit(self, **kw) -> None:
-        self.result.events.append(GovernorEvent(adjudicator=self.adjudicator.name, **kw))
+        ev = GovernorEvent(adjudicator=self.adjudicator.name, **kw)
+        self.result.events.append(ev)
+        if self.on_event is not None:
+            # Streaming consumers get each event as it happens; a failing sink
+            # must never break the governor.
+            try:
+                self.on_event(ev)
+            except Exception:
+                pass
 
     # -- decision helper: ask adjudicator, record decision-quality ----------
     def _decide(self, decision: Decision):
@@ -242,12 +251,14 @@ class Governor:
 
 def run_governed(brief, *, author=None, adjudicator: Adjudicator | None = None,
                  budget: GovernorBudget | None = None,
-                 author_model: str = "offline") -> GovernorResult:
+                 author_model: str = "offline", on_event=None) -> GovernorResult:
     """Synchronous entry point. Defaults to the deterministic author +
-    deterministic adjudicator, so this runs fully offline with no Bedrock."""
+    deterministic adjudicator, so this runs fully offline with no Bedrock.
+    `on_event` is an optional callback invoked with each GovernorEvent as it is
+    emitted (used by the streaming API)."""
     if author is None:
         from ..rule_generator import RuleScenarioGenerator
         author = RuleScenarioGenerator()
     gov = Governor(author=author, adjudicator=adjudicator, budget=budget,
-                   author_model=author_model)
+                   author_model=author_model, on_event=on_event)
     return gov.run(brief)

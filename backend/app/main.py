@@ -10,7 +10,7 @@ import uuid
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from .aggregate import _sentiment, build_report
@@ -374,6 +374,90 @@ def scenario_generate_from_text(body: GenerateFromTextRequest) -> dict:
     if not body.text.strip():
         raise HTTPException(400, "text is required")
     return _generate_scenario({"freeform": body.text}, body.dry_run, body.model)
+
+
+def _governed_event_stream(brief_kwargs: dict, model: str | None, adjudicator: str):
+    """Run the governor on a worker thread and yield its progress events as they
+    happen (Server-Sent Events). The final event carries the run summary. Any
+    failure degrades to an error event rather than a broken stream."""
+    import json
+    import queue
+    import threading
+
+    from .scenariogen.generator import ScenarioBrief
+    from .scenariogen.governor import run_governed
+
+    q: queue.Queue = queue.Queue()
+    _DONE = object()
+
+    def on_event(ev) -> None:
+        q.put(("event", ev.as_dict()))
+
+    def worker() -> None:
+        try:
+            author, author_model, adj = _build_governor_parts(model, adjudicator)
+            brief = ScenarioBrief(**brief_kwargs)
+            res = run_governed(brief, author=author, adjudicator=adj,
+                               author_model=author_model, on_event=on_event)
+            q.put(("result", res.summary()))
+        except Exception as exc:  # never break the stream
+            q.put(("error", {"detail": str(exc)[:300]}))
+        finally:
+            q.put((_DONE, None))
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def sse() -> str:
+        while True:
+            kind, data = q.get()
+            if kind is _DONE:
+                return
+            yield f"event: {kind}\ndata: {json.dumps(data)}\n\n"
+
+    return sse()
+
+
+def _build_governor_parts(model: str | None, adjudicator: str):
+    """Resolve (author, author_model, adjudicator) for a governed run. Offline by
+    default; a Bedrock author + model-based adjudicator only when a model is
+    given and approved. Always degrades to the deterministic path on any error."""
+    from .scenariogen.governor import make_adjudicator
+
+    if not model:
+        from .scenariogen.rule_generator import RuleScenarioGenerator
+        return RuleScenarioGenerator(), "offline", make_adjudicator(adjudicator)
+    try:
+        import boto3
+
+        from .scenariogen.bedrock_gen import BedrockScenarioGenerator
+        from .scenariogen.model_adapters import adapter_for
+        author = BedrockScenarioGenerator(model_id=model)
+        client = boto3.client("bedrock-runtime", region_name=settings.BEDROCK_REGION)
+        adj = make_adjudicator(adjudicator, model_id=author.model_id, client=client,
+                               adapter=adapter_for(author.model_id))
+        return author, author.model_id, adj
+    except Exception:
+        from .scenariogen.rule_generator import RuleScenarioGenerator
+        return RuleScenarioGenerator(), "offline", make_adjudicator("deterministic")
+
+
+@app.get("/scenario/governed/stream")
+def scenario_governed_stream(domain: str = "", doc_type: str = "incident report",
+                             title: str = "", freeform: str = "",
+                             model: str | None = None,
+                             adjudicator: str = "deterministic") -> StreamingResponse:
+    """Run the governed (decomposed) generation and STREAM its progress as the
+    operations transpire: one Server-Sent Event per governor step (plan, fill,
+    proofread, reconcile), then a final `result` event with the run summary. The
+    client renders a live cumulative log. Offline by default (deterministic
+    author + adjudicator); pass an approved `model` for the live path."""
+    brief_kwargs = ({"freeform": freeform} if freeform.strip()
+                    else {"domain": domain, "doc_type": doc_type, "title": title})
+    return StreamingResponse(
+        _governed_event_stream(brief_kwargs, model, adjudicator),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/scenario/resolve")

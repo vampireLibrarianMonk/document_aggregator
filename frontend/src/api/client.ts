@@ -6,6 +6,8 @@ import type {
   DocumentRecord,
   ExportFormat,
   GenerateResult,
+  GovernorEvent,
+  GovernorSummary,
   Project,
   Report,
   ScenarioComponent,
@@ -196,5 +198,77 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => json<GenerateResult>(r))
+  },
+
+  // ---- Governed (decomposed) generation with a live progress stream ----
+  // Consumes Server-Sent Events: calls onEvent for each step, onResult for the
+  // final summary. Returns an abort function so the caller can cancel.
+  scenarioGovernedStream(
+    params: {
+      domain?: string
+      doc_type?: string
+      title?: string
+      freeform?: string
+      model?: string | null
+      adjudicator?: string
+    },
+    handlers: {
+      onEvent: (ev: GovernorEvent) => void
+      onResult: (summary: GovernorSummary) => void
+      onError?: (detail: string) => void
+      onDone?: () => void
+    },
+  ): () => void {
+    const qs = new URLSearchParams()
+    if (params.freeform?.trim()) qs.set('freeform', params.freeform)
+    else {
+      if (params.domain) qs.set('domain', params.domain)
+      if (params.doc_type) qs.set('doc_type', params.doc_type)
+      if (params.title) qs.set('title', params.title)
+    }
+    if (params.model) qs.set('model', params.model)
+    qs.set('adjudicator', params.adjudicator || 'deterministic')
+
+    const ctrl = new AbortController()
+    void (async () => {
+      try {
+        const res = await fetch(`${BASE}/scenario/governed/stream?${qs.toString()}`, {
+          signal: ctrl.signal,
+          headers: { Accept: 'text/event-stream' },
+        })
+        if (!res.ok || !res.body) throw new Error(`${res.status}: ${res.statusText}`)
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          // SSE frames are separated by a blank line.
+          const frames = buf.split('\n\n')
+          buf = frames.pop() ?? ''
+          for (const frame of frames) {
+            let evName = 'message'
+            let data = ''
+            for (const line of frame.split('\n')) {
+              if (line.startsWith('event:')) evName = line.slice(6).trim()
+              else if (line.startsWith('data:')) data += line.slice(5).trim()
+            }
+            if (!data) continue
+            const parsed = JSON.parse(data)
+            if (evName === 'event') handlers.onEvent(parsed as GovernorEvent)
+            else if (evName === 'result') handlers.onResult(parsed as GovernorSummary)
+            else if (evName === 'error') handlers.onError?.(String(parsed.detail ?? 'error'))
+          }
+        }
+        handlers.onDone?.()
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') {
+          handlers.onError?.(e instanceof Error ? e.message : String(e))
+        }
+        handlers.onDone?.()
+      }
+    })()
+    return () => ctrl.abort()
   },
 }

@@ -474,3 +474,40 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--border);
 }
 .gen-metric-warn { color: var(--warn); font-weight: 600; }
+
+/* Governed run: live cumulative progress log */
+.gov-log {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.gov-log-scroll {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-alt, rgba(0, 0, 0, 0.02));
+}
+.gov-log-scroll:focus-visible {
+  outline: 2px solid var(--focus, #1a73e8);
+  outline-offset: 1px;
+}
+.gov-log-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.gov-log-row:last-child { border-bottom: none; }
+.gov-log-step { color: var(--muted); min-width: 170px; }
+.gov-badge {
+  font-size: 0.75em;
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.gov-accept { color: var(--ok, #137333); }
+.gov-reject { color: var(--err); }
+.gov-needs_review { color: var(--warn); }
+.gov-retry, .gov-downshift { color: var(--warn); }
+.gov-start, .gov-done, .gov-verdict { color: var(--muted); }

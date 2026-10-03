@@ -69,6 +69,23 @@ export const flows = [
     },
   },
   {
+    id: 'governed-live-log',
+    title: 'Correction Pipeline — Governed run live progress log',
+    async setup(page) {
+      await openTab(page, 'Correction Pipeline')
+      await clickRole(page, 'button', '+ New scenario')
+      await page.waitForTimeout(300)
+      // Provide a domain so the run can start, then trigger the governed stream.
+      const domain = page.getByPlaceholder(/domain/i)
+      if (await domain.count()) {
+        await domain.first().fill('avionics interface validation').catch(() => {})
+      }
+      await clickRole(page, 'button', 'Governed (live log)')
+      // Offline run completes fast; wait for the log + summary to render.
+      await page.waitForTimeout(1200)
+    },
+  },
+  {
     id: 'ingestion-default',
     title: 'Ingestion — document board',
     needsProject: true,

@@ -258,6 +258,39 @@ export interface GenerateResult {
   price_note?: { pinned: string; note: string }
 }
 
+// ---- Governed (decomposed) generation: live progress events ----
+
+export interface GovernorEvent {
+  step: string
+  status: string
+  detail?: string
+  model?: string
+  adjudicator?: string
+  verdict?: string
+  confidence?: number
+  ts: number
+}
+
+export interface GovernorSummary {
+  adjudicator: string
+  author_model: string
+  sections_planned: number
+  sections_filled: number
+  sections_needs_review: number
+  retries: number
+  downshifts: number
+  rejects: number
+  fabrications_caught: number
+  fell_back: boolean
+  author_calls: number
+  input_tokens: number
+  output_tokens: number
+  latency_ms: number
+  est_usd: number
+  decisions_total: number
+  decision_agreement: number | null
+}
+
 export interface ConvergenceStep {
   round: number
   revision: number
