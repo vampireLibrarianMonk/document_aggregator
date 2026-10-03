@@ -84,6 +84,29 @@ class Governor:
             spec=None, adjudicator=self.adjudicator.name,
             author_model=author_model)
 
+    def account_usage(self, usage) -> None:
+        """Fold a model call's measured usage into the per-document totals, and
+        estimate its dollar cost. Adjudicators call this via their metrics_sink;
+        the engine also calls it for the author's own usage. Safe for any object
+        exposing input_tokens/output_tokens/latency_ms (zero on the offline
+        path)."""
+        from ..metrics import estimate_usd
+        it = int(getattr(usage, "input_tokens", 0) or 0)
+        ot = int(getattr(usage, "output_tokens", 0) or 0)
+        self.result.input_tokens += it
+        self.result.output_tokens += ot
+        self.result.latency_ms += int(getattr(usage, "latency_ms", 0) or 0)
+        model = self.author_model if self.author_model != "offline" else ""
+        if model:
+            self.result.est_usd += estimate_usd(model, it, ot)
+        self.result.author_calls += 1
+
+    def _wire_sink(self) -> None:
+        """Point a model-based adjudicator's metrics sink at this governor so its
+        decision-call tokens are accounted. No-op for the deterministic one."""
+        if hasattr(self.adjudicator, "_sink"):
+            self.adjudicator._sink = self.account_usage
+
     # -- event helper -------------------------------------------------------
     def _emit(self, **kw) -> None:
         self.result.events.append(GovernorEvent(adjudicator=self.adjudicator.name, **kw))
@@ -102,12 +125,25 @@ class Governor:
 
     # -- the state machine --------------------------------------------------
     def run(self, brief) -> GovernorResult:
+        self._wire_sink()
         # PLAN + authoring: the author produces a complete candidate spec. (In a
         # fully section-wise live path the author would fill one section at a
         # time; the governor's decision/budget logic is identical either way.)
         self._emit(step="plan", status="start", detail="authoring candidate",
                    model=self.author_model)
-        spec = self.author.generate(brief)
+        # Capture the author's own token/latency usage when it supports metrics.
+        if hasattr(self.author, "generate_with_metrics"):
+            author_res = self.author.generate_with_metrics(brief)
+            spec = author_res.spec
+            am = author_res.metrics
+            self.result.input_tokens += am.input_tokens
+            self.result.output_tokens += am.output_tokens
+            self.result.latency_ms += am.latency_ms
+            self.result.est_usd += am.est_usd
+            if am.fell_back:
+                self.result.fell_back = True
+        else:
+            spec = self.author.generate(brief)
         sections = _spec_sections(spec)
         self.result.sections_planned = len(sections)
 

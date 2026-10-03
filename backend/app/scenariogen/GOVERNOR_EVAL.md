@@ -6,10 +6,36 @@ and `GOVERNOR_DESIGN.md` (the architecture). Harness: `backend/eval_governor.py`
 
 ## Status
 
-- **Offline comparison: DONE** (this document). The decomposition + decision
-  state machine is proven end-to-end with ZERO paid Bedrock calls.
-- **Live (paid) comparison: PENDING your approval** (cost estimate below). The
-  real differentiation between adjudicators only appears on the live path.
+- **Offline comparison: DONE.** The decomposition + decision state machine is
+  proven end-to-end with ZERO paid Bedrock calls.
+- **Live (paid) comparison: DONE** (gpt-oss-120b author, 3 adjudicators x 3
+  briefs x 2 runs = 18 governed documents, us-east-1). Results below.
+
+## Headline result (live)
+
+| adjudicator      | agree w/ truth | fell_back | rejects/doc | est $/doc |
+|------------------|---------------:|----------:|------------:|----------:|
+| **deterministic**|       **1.00** |    16.7%  |     0.67    |  $0.0040  |
+| generator_judge  |         0.44   |     0.0%  |     0.83    |  $0.0050  |
+| decision_layer   |         0.49   |    33.3%  |     3.0     |  $0.0050  |
+
+**The deterministic adjudicator wins for this task, decisively.** Both
+model-based adjudicators agreed with the deterministic ground truth only ~44-49%
+of the time (a multi-class decision, so this is weak calibration), while costing
+MORE per document. The decision_layer over-rejected (3.0 rejects/doc) and drove
+the most fallbacks (33%).
+
+Why, honestly: grounding is NOT a fuzzy decision. "Is this value verbatim in the
+corpus" is a crisp, verifiable check, and the deterministic adjudicator computes
+it exactly and for free. Asking an LLM to re-judge a verifiable rule just adds
+cost and noise. The JEV-style decision layer is the right pattern only when the
+decision is genuinely ambiguous (e.g. "is this prose on-topic"); for a
+verifiable predicate, the deterministic check is both cheaper and correct.
+
+This does NOT invalidate the architecture -- it validates having the adjudicator
+be PLUGGABLE and keeping the deterministic one as the ground-truth default. The
+model-based adjudicators remain available for future decisions that are actually
+fuzzy. See "When would a model adjudicator win?" below.
 
 ## Methodology
 
@@ -65,47 +91,66 @@ run PROVES (the point of the overnight loop):
 5. All of it runs with no Bedrock, so the air-gap/offline path for the governor
    is complete and tested (`backend/tests/test_governor.py`, 7 tests).
 
-## What the LIVE comparison will answer
+## Live results (gpt-oss-120b author, us-east-1)
 
-On the live path the author is a Bedrock model and the model-based adjudicators
-make real typed-verdict calls. The open questions:
+Design: 3 adjudicators x 3 briefs (ICD, incident, lab-safety) x 2 runs = 18
+governed documents. Each document = 1 author call + ~9-11 decision calls. Total
+spend was cents-scale (author calls dominate; ~$0.004-0.005/doc). The harness
+honored the per-document call ceiling throughout.
 
-- Does `generator_judge` or `decision_layer` reach high AGREEMENT with the
-  deterministic ground truth (is the model judge calibrated)?
-- Is `decision_layer` (small cheap model) meaningfully cheaper per document than
-  `generator_judge` (big model judging), as the research predicts, while keeping
-  agreement high?
-- Does decomposition let the previously-starved small models (gpt-oss-20b,
-  nemotron-nano-12b) succeed per-section where they failed on the whole document?
+- **generator_judge agreement 0.44, decision_layer 0.49** -- both weakly
+  calibrated against the deterministic grounding truth. On individual documents
+  agreement swung from 0.11 to 1.0, i.e. the model judge is inconsistent.
+- Both model adjudicators cost MORE per document than the free deterministic one
+  while agreeing with it less than half the time.
+- `decision_layer` over-rejected (3.0 rejects/doc vs 0.67) and drove the most
+  fallbacks (33%). Its confidence-gated escalation helped when it was unsure
+  (those decisions deferred to the free truth) but hurt when it was
+  confidently-wrong.
+- `generator_judge` tended to over-flag `needs_review` (up to 5/doc), i.e. it is
+  cautious rather than wrong-in-a-dangerous-direction, but still noisy.
 
-## Live run cost estimate (for approval)
+### Interpretation
 
-A governed document is roughly: 1 author call + up to N section author calls +
-N proofread/decision calls. For the 6 briefs the author produces ~5-6 sections,
-so per document the model-based adjudicators add ~6-12 short decision calls.
+The grounding decision is a VERIFIABLE PREDICATE ("does this value appear in the
+corpus"), not a judgment call. The deterministic adjudicator computes it exactly,
+instantly, and for free. Routing a verifiable predicate through an LLM only adds
+latency, cost, and variance. This is the honest, slightly counterintuitive
+result the alpha loop was built to find, and it is consistent with the research:
+decision models earn their keep on BOUNDED-BUT-FUZZY choices, not on checks that
+code can already verify.
 
-Rough per-cell (one document) call budget:
-- `generator_judge`: ~6-12 judge calls on the big author model (~512 tok each).
-- `decision_layer`: ~6-12 judge calls on a small model (~256 tok each) + any
-  escalations (free).
+### When WOULD a model adjudicator win?
 
-For a comparison of 2 model-based adjudicators x 6 briefs x N=2 that is on the
-order of a few hundred short calls. At the pinned gpt-oss rates (~$0.0002-0.0006
-per 1k tokens) the decision calls are cents-scale; the author calls dominate.
-A bounded estimate: **well under $1 for a N=2, 6-brief live comparison**, but it
-is real spend and real wall-clock (reasoning-model latency). The harness has a
-per-document call ceiling (`GovernorBudget.max_total_author_calls`) as a hard
-cost governor (the Jevons safeguard).
+Keep the model-based adjudicators (they are pluggable and cost nothing to retain)
+for decisions the deterministic rule CANNOT make:
+- "Is this section's prose on-topic / coherent for the heading" (not verifiable
+  by substring).
+- "Does this needs_review flag reflect a real content gap vs a template artifact."
+- Tie-breaking between two plausible corpus-grounded values.
+These are the fuzzy decisions where accept-when-confident / escalate-when-unsure
+should pay off; our current decisions are not those, so the harness is ready to
+re-measure if we add fuzzy decision kinds.
 
-**Recommendation:** approve a small live run (e.g. `--live --runs 2 --briefs 3`,
-one strong author model) to measure agreement + cost, before any larger sweep.
+## Recommendation
+
+- **Default adjudicator: deterministic.** It is the ground truth for the
+  decisions the governor currently makes, free, and correct.
+- **Keep the model adjudicators pluggable** for future fuzzy decision kinds; do
+  not wire them into the default path.
+- **Author model: gpt-oss-120b** (from the model eval) remains the default.
+- Next real lever is per-SECTION authoring (so small models fill one section at
+  a time), which this run did not isolate -- see caveats.
 
 ## Caveats (honest)
 
-- Offline runs do not exercise model judgment; they prove LOGIC, not model
-  calibration. The headline "which adjudicator is best" needs the live run.
+- This run decomposed ADJUDICATION, not authoring: the author still produced the
+  whole spec in one call, so it did not test whether per-section authoring
+  rescues the small models. That is a separate, worthwhile experiment.
+- N=2 per cell; agreement rates are indicative, not precise, and the author's
+  nondeterminism (temperature 0 is not perfectly reproducible) shows up as
+  run-to-run swings.
 - `est $` uses the pinned table (`metrics.py`), not an AWS pricing API.
 - Decision agreement treats the deterministic grounding check as ground truth,
-  which is correct for FABRICATION but conservative for needs_review nuance; a
-  human spot-check of a few live documents is worthwhile before trusting a cheap
-  judge in production.
+  which is exactly right for FABRICATION but conservative for `needs_review`
+  nuance; a human spot-check is worthwhile before trusting any cheap judge.

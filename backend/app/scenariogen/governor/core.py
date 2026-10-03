@@ -92,6 +92,7 @@ class GovernorResult:
     rejects: int = 0
     fabrications_caught: int = 0
     fell_back: bool = False
+    author_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
     latency_ms: int = 0
@@ -114,6 +115,7 @@ class GovernorResult:
             "rejects": self.rejects,
             "fabrications_caught": self.fabrications_caught,
             "fell_back": self.fell_back,
+            "author_calls": self.author_calls,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "latency_ms": self.latency_ms,
