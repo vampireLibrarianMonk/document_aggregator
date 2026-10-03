@@ -179,7 +179,8 @@ def _first_attempt_for(scenario_id: str, mode: str, source_format: str | None) -
 
 
 def run_reconciliation(mode: str = "draft", scenario_id: str = DEFAULT_SCENARIO,
-                       source_format: str | None = None) -> dict:
+                       source_format: str | None = None,
+                       extra_corrections: list[dict] | None = None) -> dict:
     template = load_template(scenario_id)
     # When the source is a real document, divine the discipline rubric from the
     # template DOCUMENT's own formatting (attach its evidence for the engine).
@@ -187,11 +188,18 @@ def run_reconciliation(mode: str = "draft", scenario_id: str = DEFAULT_SCENARIO,
         tev = load_template_evidence(scenario_id)
         if tev:
             template = {**template, "_evidence": tev}
+    # The scenario's own corrections plus any ad-hoc human decisions (e.g. a
+    # reviewer resolving a conflict or supplying a needs_review value). The
+    # engine's last-good-wins round collapse lets a later-round extra correction
+    # supersede the original conflicting ones for that target.
+    corrections = load_corrections(scenario_id)
+    if extra_corrections:
+        corrections = corrections + list(extra_corrections)
     report = reconcile(
         first_attempt=_first_attempt_for(scenario_id, mode, source_format),
         corpus=load_corpus(scenario_id),
         graphics_manifest=load_graphics(scenario_id),
-        corrections=load_corrections(scenario_id),
+        corrections=corrections,
         template=template,
         scenario=load_manifest(scenario_id),
     )
@@ -205,6 +213,57 @@ def run_reconciliation(mode: str = "draft", scenario_id: str = DEFAULT_SCENARIO,
             result["discipline_findings"] = result.get("discipline_findings", []) + vec
             result["vector_tier_ran"] = True
     return result
+
+
+def resolvable_targets(scenario_id: str = DEFAULT_SCENARIO) -> list[str]:
+    """The set of unit targets a human may resolve (fields, section bodies,
+    graphic sections, the table, and furniture elements)."""
+    from .corrections.interpreter import _valid_targets
+
+    manifest = load_manifest(scenario_id)
+    template = load_template(scenario_id)
+    ctx = {
+        "fields": manifest.get("fields", []),
+        "section_bodies": manifest.get("section_bodies", {}),
+        "sections": [s["key"] for s in template["required_sections"]],
+        "graphic_sections": [s["key"] for s in template["required_sections"]
+                             if s.get("requires_graphic")],
+        "table_section": (manifest.get("table") or {}).get("section"),
+    }
+    return _valid_targets(ctx)
+
+
+def resolve_unit(target: str, value: str | None, mode: str = "draft",
+                 scenario_id: str = DEFAULT_SCENARIO, source_format: str | None = None,
+                 author: str = "reviewer") -> dict:
+    """Apply a human decision to a single unit: supply a chosen/entered value for
+    a conflicted or needs_review target. The decision is injected as a NEW
+    correction round (max existing round + 1), so the engine's last-good-wins
+    collapse supersedes any earlier conflicting corrections for that target while
+    leaving every other unit's resolution untouched. Never fabricates: a value is
+    required (there is no 'resolve to nothing').
+    """
+    from .reconcile.engine import max_round
+
+    if target not in resolvable_targets(scenario_id):
+        raise ValueError(f"'{target}' is not a resolvable unit for scenario {scenario_id}")
+    if value is None or str(value).strip() == "":
+        raise ValueError("a non-empty value is required to resolve a unit (no fabrication)")
+
+    base = load_corrections(scenario_id)
+    next_round = max_round(base) + 1
+    decision = {
+        "id": f"resolve_{target.replace('.', '_')}_r{next_round}",
+        "round": next_round,
+        "kind": "resolution",
+        "author": author,
+        "subject": f"human resolution of {target}",
+        "target": target,
+        "operation": "replace",
+        "new_value": str(value),
+        "body": f"Resolved by {author}.",
+    }
+    return run_reconciliation(mode, scenario_id, source_format, extra_corrections=[decision])
 
 
 def _vector_findings(scenario_id: str, mode: str, source_format: str, template: dict) -> list[dict]:

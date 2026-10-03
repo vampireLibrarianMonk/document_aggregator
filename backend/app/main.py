@@ -284,6 +284,35 @@ def scenario_reconcile(mode: str = "draft",
         raise HTTPException(404, str(exc))
 
 
+class ResolveRequest(BaseModel):
+    target: str
+    value: str
+    mode: str = "draft"
+    scenario_id: str = scenario.DEFAULT_SCENARIO
+    source_format: str = "json"
+    author: str = "reviewer"
+
+
+@app.post("/scenario/resolve")
+def scenario_resolve(body: ResolveRequest) -> dict:
+    """Apply a human decision to one unresolved unit (a conflict or a
+    needs_review field): record the chosen/entered value as a new correction
+    round and return the re-reconciled report. The rest of the report is
+    unchanged; never fabricates (a value is required)."""
+    if body.mode not in ("draft", "template"):
+        raise HTTPException(400, "mode must be 'draft' or 'template'")
+    try:
+        return scenario.resolve_unit(
+            target=body.target, value=body.value, mode=body.mode,
+            scenario_id=body.scenario_id, source_format=body.source_format,
+            author=body.author,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc))
+
+
 @app.get("/scenario/converge")
 def scenario_converge(mode: str = "draft",
                       scenario_id: str = scenario.DEFAULT_SCENARIO,

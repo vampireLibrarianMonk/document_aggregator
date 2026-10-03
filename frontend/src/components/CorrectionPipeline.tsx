@@ -66,7 +66,29 @@ function displayValue(v: unknown): string {
   return JSON.stringify(v)
 }
 
-function FieldRow({ field }: { field: CorrectedField }) {
+function FieldRow({
+  field,
+  onResolve,
+}: {
+  field: CorrectedField
+  onResolve?: (target: string, value: string) => Promise<void>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [manual, setManual] = useState('')
+
+  const resolvable =
+    !!onResolve && (field.status === 'conflict' || field.status === 'needs_review')
+
+  async function submit(value: string) {
+    if (!onResolve || !value.trim()) return
+    setBusy(true)
+    try {
+      await onResolve(field.key, value.trim())
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="unit-row">
       <div className="label">{field.label}</div>
@@ -86,6 +108,50 @@ function FieldRow({ field }: { field: CorrectedField }) {
           </div>
         )}
         {field.note && <div className="small muted">{field.note}</div>}
+
+        {resolvable && (
+          <div className="resolve-controls">
+            {field.status === 'conflict' && field.candidates.length > 0 ? (
+              <>
+                <span className="small muted">Resolve:</span>
+                {field.candidates.map((c, i) => (
+                  <button
+                    key={i}
+                    className="btn secondary small"
+                    disabled={busy}
+                    onClick={() => void submit(String(c.value))}
+                    aria-label={`Resolve ${field.label} to ${String(c.value)}`}
+                  >
+                    Use {String(c.value)}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <label htmlFor={`resolve-${field.key}`} className="small muted">
+                  Resolve — enter a value:
+                </label>
+                <input
+                  id={`resolve-${field.key}`}
+                  className="small"
+                  value={manual}
+                  disabled={busy}
+                  onChange={(e) => setManual(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && void submit(manual)}
+                  placeholder={`${field.label} value`}
+                />
+                <button
+                  className="btn secondary small"
+                  disabled={busy || !manual.trim()}
+                  onClick={() => void submit(manual)}
+                >
+                  {busy ? 'Saving…' : 'Set value'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         <Prov provenance={field.provenance} />
       </div>
     </div>
@@ -111,6 +177,21 @@ export function CorrectionPipeline() {
       setErr(e instanceof Error ? e.message : String(e)),
     )
   }, [])
+
+  // Apply a human decision to one unresolved unit, then re-render with the
+  // updated report returned by the backend.
+  const handleResolve = useCallback(
+    async (target: string, value: string) => {
+      setErr(null)
+      try {
+        const updated = await api.scenarioResolve(target, value, mode, scenarioId, sourceFormat)
+        setReport(updated)
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [mode, scenarioId, sourceFormat],
+  )
 
   useEffect(() => {
     api.scenarios().then(setScenarios).catch((e) =>
@@ -263,7 +344,7 @@ export function CorrectionPipeline() {
               <strong>{sec.heading}</strong>
               <div className="section-scroll" tabIndex={0} role="group" aria-label={`${sec.heading} items`}>
               {sec.fields.map((f) => (
-                <FieldRow key={f.key} field={f} />
+                <FieldRow key={f.key} field={f} onResolve={handleResolve} />
               ))}
               {sec.graphics.map((g) => (
                 <div key={g.graphic_id} className="unit-row">
@@ -319,12 +400,12 @@ export function CorrectionPipeline() {
               classification marking.
             </div>
             <div className="section-scroll" tabIndex={0} role="group" aria-label="Document furniture items">
-              <FieldRow field={report.furniture.header} />
-              <FieldRow field={report.furniture.footer} />
-              <FieldRow field={report.furniture.page_numbers} />
-              <FieldRow field={report.furniture.classification} />
+              <FieldRow field={report.furniture.header} onResolve={handleResolve} />
+              <FieldRow field={report.furniture.footer} onResolve={handleResolve} />
+              <FieldRow field={report.furniture.page_numbers} onResolve={handleResolve} />
+              <FieldRow field={report.furniture.classification} onResolve={handleResolve} />
               {report.furniture.cross_references.map((x) => (
-                <FieldRow key={x.key} field={x} />
+                <FieldRow key={x.key} field={x} onResolve={handleResolve} />
               ))}
             </div>
           </div>

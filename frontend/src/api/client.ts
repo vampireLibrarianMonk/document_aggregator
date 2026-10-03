@@ -141,4 +141,26 @@ export const api = {
       `${BASE}/scenario/converge?mode=${mode}&scenario_id=${scenarioId}&source_format=${sourceFormat}`,
     ).then((r) => json<Convergence>(r))
   },
+
+  // Apply a human decision to one unresolved unit (a conflict candidate choice
+  // or a needs_review value) and get the re-reconciled report back.
+  scenarioResolve(
+    target: string,
+    value: string,
+    mode: 'draft' | 'template',
+    scenarioId: string,
+    sourceFormat: string,
+  ): Promise<CorrectedReport> {
+    return fetch(`${BASE}/scenario/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target,
+        value,
+        mode,
+        scenario_id: scenarioId,
+        source_format: sourceFormat,
+      }),
+    }).then((r) => json<CorrectedReport>(r))
+  },
 }

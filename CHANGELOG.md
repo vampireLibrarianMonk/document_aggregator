@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Human-in-the-loop resolution for unresolved units in the Correction Pipeline.
+  A `conflict` row now offers a "Use <value>" button per candidate, and a
+  `needs_review` row offers an input + "Set value". The decision is recorded via
+  a new `POST /scenario/resolve` endpoint as a fresh correction round, so the
+  engine's last-good-wins collapse supersedes the conflict (or fills the
+  needs_review) while leaving the rest of the report unchanged. Never fabricates:
+  a value is required, and the target must be a resolvable unit.
+
 ## [0.1.0] - 2026-09-28
 
 First tagged release: a local-first, offline document aggregation and correction

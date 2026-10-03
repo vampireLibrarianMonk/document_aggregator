@@ -230,6 +230,26 @@ pre.json {
   font-family: system-ui, sans-serif;
 }
 
+/* Inline controls to resolve a conflict (pick a candidate) or supply a
+   needs_review value. Appears only on unresolved rows. */
+.resolve-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+.resolve-controls input {
+  padding: 4px 8px;
+  min-width: 160px;
+}
+.resolve-controls .btn.small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .unit-row {
   display: flex;
   gap: 8px;
