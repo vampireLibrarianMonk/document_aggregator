@@ -30,30 +30,24 @@ export default function App() {
         <div>
           <h1>Document Aggregation Pipeline</h1>
           <div className="subtitle">
-            Turn a messy first-draft report into a clean, corrected report —
-            and flag where it doesn&apos;t follow the rules.
+            Reconcile raw source documents, a template, and a first-draft report
+            into one clean, corrected report. Every change traces to a source,
+            and every rule the template sets is checked.
           </div>
-        </div>
-        <div className="small muted">
-          {project ? (
-            <>
-              <div>{project.name}</div>
-              <div className="mono">{project.id}</div>
-            </>
-          ) : (
-            'Loading…'
-          )}
         </div>
       </header>
 
       <div className="panel intro">
         <strong>What this does</strong>
         <p className="small">
-          You give it the source material (the <b>corpus</b>) plus a first
-          attempt at a report and any reviewer comments. It produces a{' '}
-          <b>corrected report</b> — fixing wrong values, filling gaps, and
-          flagging anything it can&apos;t resolve or that breaks the formatting
-          rules. Nothing is invented: every change traces back to a source.
+          You provide the raw source documents (the <b>corpus</b>), a{' '}
+          <b>template</b> that defines the required structure and formatting, a
+          first attempt at the report, and any reviewer comments. The platform
+          reads the template to learn its rules, then produces a{' '}
+          <b>corrected report</b>: fixing wrong values, filling gaps, applying
+          the formatting rules, and flagging anything it cannot resolve on its
+          own. Nothing is invented. Every change traces back to a source, and
+          anything left unresolved is yours to decide.
         </p>
         <p className="small muted">
           New here? Start on <b>Correction Pipeline</b> to see a worked example,

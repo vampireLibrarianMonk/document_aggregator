@@ -230,9 +230,6 @@ export function CorrectionPipeline() {
               </option>
             ))}
           </select>
-          <span className="muted small">
-            corpus → first attempt → comments → corrected JSON
-          </span>
           <div className="spacer" />
           <label htmlFor="source-fidelity" className="muted small" title="Which pre-converted copy of the demo first-attempt document to read (this tab does not convert an uploaded file). Higher fidelity = more structure preserved.">source fidelity</label>
           <select id="source-fidelity" value={sourceFormat} onChange={(e) => setSourceFormat(e.target.value)}>
@@ -274,8 +271,8 @@ export function CorrectionPipeline() {
         <div className="small muted" style={{ marginTop: 6 }}>
           <b>{mode === 'draft' ? 'Draft mode' : 'Template mode'}</b>
           {mode === 'draft'
-            ? ' — correcting a flawed first-attempt report against the source material and comments.'
-            : ' — filling a blank report template from the source material.'}
+            ? ': correcting a flawed first-attempt report against the source material and comments.'
+            : ': filling a blank report template from the source material.'}
           {'  '}Source = which pre-converted copy of the demo first attempt is
           read (DOCX highest fidelity, PDF lowest; JSON is the clean baseline).
           Uploading your own file uses the API&apos;s convert endpoint, not this tab.
@@ -394,12 +391,12 @@ export function CorrectionPipeline() {
           ))}
 
           <div className="section-card">
-            <strong>Document furniture</strong>
+            <strong>Page elements</strong>
             <div className="small muted" style={{ marginBottom: 6 }}>
-              The repeating page elements — header, footer, page numbers, and
-              classification marking.
+              The parts that repeat on every page: header, footer, page numbers,
+              and the classification marking.
             </div>
-            <div className="section-scroll" tabIndex={0} role="group" aria-label="Document furniture items">
+            <div className="section-scroll" tabIndex={0} role="group" aria-label="Page elements">
               <FieldRow field={report.furniture.header} onResolve={handleResolve} />
               <FieldRow field={report.furniture.footer} onResolve={handleResolve} />
               <FieldRow field={report.furniture.page_numbers} onResolve={handleResolve} />

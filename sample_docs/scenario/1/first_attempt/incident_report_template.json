@@ -1,7 +1,7 @@
 {
   "artifact_kind": "template",
   "title": "Standard Incident Report Template",
-  "note": "Grounded in the widely-used incident-report structure (identifiers, timeline, description, contributing factors, corrective actions, approvals) consolidated from public incident-report guidance. This template is a machine-readable rubric: the pipeline fills it from the corpus and judges structure/formatting/furniture against it. Content rephrased for licensing compliance.",
+  "note": "Grounded in the widely-used incident-report structure (identifiers, timeline, description, contributing factors, corrective actions, approvals) consolidated from public incident-report guidance. This template is a machine-readable rubric: the pipeline fills it from the corpus and judges structure, formatting, and page elements against it. Content rephrased for licensing compliance.",
   "source_reference": "https://www.accountablehq.com/post/incident-report-writing-a-step-by-step-guide-with-examples-and-templates",
 
   "build_discipline": { "profile": "gov_standard" },

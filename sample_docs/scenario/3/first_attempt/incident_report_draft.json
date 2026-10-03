@@ -34,6 +34,6 @@
     "graphic: sample_tray_layout.png missing (insert -> description)",
     "table: columns [Due Date,Action] wrong order + missing Owner/Verification",
     "table: font Times New Roman + body-text header",
-    "furniture: xref dangling; footer empty; no page numbers/classification; no table title"
+    "page elements: dangling cross-reference; footer empty; no page numbers or classification; no table title"
   ]
 }

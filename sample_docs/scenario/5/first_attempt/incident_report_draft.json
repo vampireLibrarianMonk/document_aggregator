@@ -34,6 +34,6 @@
     "graphic: hydraulic_schematic_system_b.png missing (insert -> description)",
     "table: columns [Action,Owner] missing Due Date/Verification",
     "table: font Verdana + body-text header",
-    "furniture: xref dangling; footer empty; no page numbers/classification; no table title"
+    "page elements: dangling cross-reference; footer empty; no page numbers or classification; no table title"
   ]
 }

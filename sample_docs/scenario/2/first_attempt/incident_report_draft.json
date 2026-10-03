@@ -34,6 +34,6 @@
     "graphic: botnet_geo_distribution.png missing (insert -> description)",
     "table: columns [Owner,Action] wrong order + missing Due Date/Verification",
     "table: font Calibri + body-text header (template Arial + table-header)",
-    "furniture: xref 'Figure 2' dangling; footer empty; no page numbers/classification; table no title"
+    "page elements: 'Figure 2' cross-reference dangling; footer empty; no page numbers or classification; table has no title"
   ]
 }

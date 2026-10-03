@@ -1,7 +1,7 @@
 {
   "artifact_kind": "draft",
   "title": "TGX-9 North Ridge Incident Report",
-  "note": "First attempt at the deliverable. Looks finished but carries 16 seeded defects across value / graphic / table / furniture classes. Judged against the template rubric plus reviewer comments.",
+  "note": "First attempt at the deliverable. Looks finished but carries 16 seeded defects across value, figure, table, and page-element categories. Judged against the template rules plus reviewer comments.",
 
   "sections": [
     {
@@ -69,21 +69,21 @@
   ],
 
   "_seeded_defects": [
-    "1  value: firmware 4.2.0 (should be 4.2.1)",
-    "2  value: duration 'two hour' (should be four hour)",
-    "3  value/fill: corrective_actions body + table rows empty",
-    "4  value: severity 'Low' (challenged; correct value unknown -> needs_review/conflict)",
-    "5  graphic: timeline figure named 'figure1.png' (should be packet_loss_vs_temp.png) -> relabel",
-    "6  graphic: cabinet_thermal_layout.png placed in description (belongs in contributing_factors) -> move",
-    "7  graphic: site_network_topology.png missing from description entirely -> insert",
-    "8  table: column order Owner|Action|Due Date (should lead with Action)",
-    "9  table: missing 'Verification' column required by template",
-    "10 table: font Comic Sans + body-text header style (template mandates Arial + table-header)",
-    "11 furniture: cross-reference 'Figure 2' in description points to a graphic that isn't placed there -> dangling",
-    "12 furniture: timeline figure caption empty (template requires caption)",
-    "13 furniture: figure numbers not assigned/stale (derived numbering must run)",
-    "14 furniture: corrective_actions table has no title (template requires table title)",
-    "15 furniture: footer empty -> missing page numbers + classification marking",
-    "16 value conflict: severity flagged by two comments with different values (High vs Medium)"
+    "1. Value: firmware is 4.2.0 but should be 4.2.1.",
+    "2. Value: outage duration says 'two hour' but should be 'four hour'.",
+    "3. Missing content: the Corrective Actions text and table rows are empty.",
+    "4. Value: severity 'Low' is challenged and the correct value is unknown, so it needs review or becomes a conflict.",
+    "5. Figure: the Timeline figure is named 'figure1.png' but should be 'packet_loss_vs_temp.png' (needs relabel).",
+    "6. Figure: 'cabinet_thermal_layout.png' is placed in Description but belongs in Contributing Factors (needs to move).",
+    "7. Figure: 'site_network_topology.png' is missing from Description entirely (needs to be inserted).",
+    "8. Table: column order is Owner, Action, Due Date but should lead with Action.",
+    "9. Table: the required 'Verification' column is missing.",
+    "10. Table: font is Comic Sans with a plain header, but the template requires Arial with a table-header style.",
+    "11. Page elements: the 'Figure 2' cross-reference in Description points to a figure that is not placed there (dangling reference).",
+    "12. Page elements: the Timeline figure has no caption, but the template requires one.",
+    "13. Page elements: figure numbers are missing or stale and must be renumbered in order.",
+    "14. Page elements: the Corrective Actions table has no title, but the template requires one.",
+    "15. Page elements: the footer is empty, so page numbers and the classification marking are missing.",
+    "16. Conflict: two reviewers assign different severities (High vs Medium)."
   ]
 }
