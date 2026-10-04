@@ -61,15 +61,44 @@ def create_project(body: CreateProject) -> Project:
 
 @app.get("/projects")
 def list_projects() -> list[Project]:
-    return store.list_projects()
+    """Unified project list: every stored Project PLUS every scenario in either
+    store (a project IS a scenario). Scenario entries that are not yet backed by
+    a project record are surfaced with a synthetic record so the single global
+    selector has one clean source. Stored projects win on an id collision."""
+    out: list[Project] = []
+    seen: set[str] = set()
+    for p in store.list_projects():
+        out.append(p)
+        seen.add(p.id)
+    for s in scenario.list_scenarios():
+        sid = str(s["id"])
+        if sid not in seen:
+            out.append(Project(id=sid, name=s.get("title") or sid))
+            seen.add(sid)
+    return out
+
+
+def _resolve_project(project_id: str) -> Project:
+    """Return the project record, materializing one on first use for a scenario
+    id that exists in either store (so selecting a demo scenario as the active
+    project just works). 404 only if neither a project nor a scenario exists."""
+    p = store.get_project(project_id)
+    if p:
+        return p
+    # A scenario that exists but has no project record yet -> adopt it.
+    if (settings.resolve_scenario_dir(project_id) / "scenario.json").exists():
+        title = project_id
+        try:
+            title = scenario.load_manifest(project_id).get("title", project_id)
+        except Exception:
+            pass
+        return store.create_project(Project(id=project_id, name=title))
+    raise HTTPException(404, "project not found")
 
 
 @app.get("/projects/{project_id}")
 def get_project(project_id: str) -> Project:
-    p = store.get_project(project_id)
-    if not p:
-        raise HTTPException(404, "project not found")
-    return p
+    return _resolve_project(project_id)
 
 
 # --------------------------------------------------------------------------
@@ -78,8 +107,7 @@ def get_project(project_id: str) -> Project:
 
 @app.post("/projects/{project_id}/documents")
 async def upload_document(project_id: str, file: UploadFile = File(...)) -> dict:
-    if not store.get_project(project_id):
-        raise HTTPException(404, "project not found")
+    _resolve_project(project_id)
     data = await file.read()
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
     if len(data) > max_bytes:
@@ -91,8 +119,7 @@ async def upload_document(project_id: str, file: UploadFile = File(...)) -> dict
 
 @app.get("/projects/{project_id}/documents")
 def list_documents(project_id: str) -> list[dict]:
-    if not store.get_project(project_id):
-        raise HTTPException(404, "project not found")
+    _resolve_project(project_id)
     out = []
     for r in store.list_records(project_id):
         d = r.model_dump()
@@ -133,8 +160,7 @@ class CreateSupplemental(BaseModel):
 
 @app.post("/projects/{project_id}/supplementals")
 def add_supplemental(project_id: str, body: CreateSupplemental) -> Supplemental:
-    if not store.get_project(project_id):
-        raise HTTPException(404, "project not found")
+    _resolve_project(project_id)
     supp = Supplemental(
         id="supp_" + uuid.uuid4().hex[:10],
         kind=body.kind, author=body.author, subject=body.subject, body=body.body,
@@ -147,8 +173,7 @@ def add_supplemental(project_id: str, body: CreateSupplemental) -> Supplemental:
 
 @app.get("/projects/{project_id}/supplementals")
 def list_supplementals(project_id: str) -> list[Supplemental]:
-    if not store.get_project(project_id):
-        raise HTTPException(404, "project not found")
+    _resolve_project(project_id)
     return store.list_supplementals(project_id)
 
 
@@ -163,8 +188,7 @@ class SearchRequest(BaseModel):
 
 @app.post("/projects/{project_id}/search")
 def search_project(project_id: str, body: SearchRequest) -> dict:
-    if not store.get_project(project_id):
-        raise HTTPException(404, "project not found")
+    _resolve_project(project_id)
     try:
         return run_search(project_id, body.query, body.top_k)
     except ValueError as exc:
@@ -177,15 +201,13 @@ def search_project(project_id: str, body: SearchRequest) -> dict:
 
 @app.get("/projects/{project_id}/report")
 def get_report(project_id: str) -> dict:
-    if not store.get_project(project_id):
-        raise HTTPException(404, "project not found")
+    _resolve_project(project_id)
     return build_report(project_id)
 
 
 @app.get("/projects/{project_id}/export")
 def export(project_id: str, format: str = "json") -> Response:
-    if not store.get_project(project_id):
-        raise HTTPException(404, "project not found")
+    _resolve_project(project_id)
     report = build_report(project_id)
     try:
         data, media_type, filename = export_report(report, format)
