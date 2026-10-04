@@ -29,7 +29,7 @@ class FeedbackInterpreter(Protocol):
 
 
 def _valid_targets(context: dict) -> list[str]:
-    """Enumerate the exact resolvable targets from the scenario manifest/template
+    """Enumerate the exact resolvable targets from the project manifest/template
     so the interpreter proposes ops only against real units. Anything outside
     this set is rejected as off-target (never applied)."""
     targets: list[str] = []

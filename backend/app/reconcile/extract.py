@@ -1,15 +1,15 @@
 """Generic, retrieval-driven fact extraction.
 
-Replaces the scenario-specific regex extractor. For each field declared in the
-scenario manifest, we:
+Replaces the project-specific regex extractor. For each field declared in the
+project manifest, we:
 
     1. retrieve the most semantically relevant corpus chunk for the field's query
        (using the shared embedder / indexing), then
     2. apply a small, GENERIC value-extraction rule to that chunk.
 
 The manifest supplies the query and the extract type; the engine supplies no
-scenario knowledge. Extraction rules are generic patterns (a version number, a
-date, a duration phrase, a labelled line) — not scenario-specific literals — so
+project knowledge. Extraction rules are generic patterns (a version number, a
+date, a duration phrase, a labelled line) — not project-specific literals — so
 the same code works across unrelated corpora. When nothing can be extracted the
 field is simply absent, and the engine flags it (needs_review), never invents.
 """

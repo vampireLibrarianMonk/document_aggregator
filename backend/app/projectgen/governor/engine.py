@@ -5,7 +5,7 @@ the bounded control decisions, per-document budgets, a retry/downshift policy,
 and an append-only event log for the live progress view.
 
 Separation of concerns:
-  - AUTHORING is delegated to a ScenarioGenerator (deterministic offline, or a
+  - AUTHORING is delegated to a ProjectGenerator (deterministic offline, or a
     Bedrock model). The governor does not know how a section is produced.
   - ADJUDICATION is delegated to an Adjudicator (this file never hardcodes a
     decision rule; it asks the adjudicator and acts on the typed verdict).
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..schema import ScenarioSpec, salvage_spec, validate_spec
+from ..schema import ProjectSpec, salvage_spec, validate_spec
 from .adjudicators import (
     Adjudicator,
     DeterministicAdjudicator,
@@ -43,7 +43,7 @@ class GovernorBudget:
     allow_downshift: bool = True
 
 
-def _spec_sections(spec: ScenarioSpec) -> list[dict]:
+def _spec_sections(spec: ProjectSpec) -> list[dict]:
     """Project a spec's draft sections into decision payloads: the asserted
     values are the correction new_values that target this section (what could be
     fabricated), plus the body text."""
@@ -77,7 +77,7 @@ class Governor:
                  budget: GovernorBudget | None = None,
                  author_model: str = "offline", on_event=None,
                  section_author=None) -> None:
-        self.author = author                       # a whole-document ScenarioGenerator
+        self.author = author                       # a whole-document ProjectGenerator
         self.section_author = section_author       # a SectionAuthor (per_section mode)
         self.adjudicator = adjudicator or DeterministicAdjudicator()
         self.budget = budget or GovernorBudget()
@@ -215,7 +215,7 @@ class Governor:
             return
         self.section_author.author_section(key, model=model)
 
-    def _run_section(self, decision: Decision, spec: ScenarioSpec):
+    def _run_section(self, decision: Decision, spec: ProjectSpec):
         """Fill -> adjudicate -> retry/downshift/accept for one section.
 
         In per_section mode a retry/downshift RE-AUTHORS the section (small call)
@@ -259,7 +259,7 @@ class Governor:
                    verdict=verdict.kind.value, model=self.author_model)
         return verdict
 
-    def _reconcile(self, spec: ScenarioSpec, keep_sections: set[str]) -> None:
+    def _reconcile(self, spec: ProjectSpec, keep_sections: set[str]) -> None:
         """Drop corrections whose section was rejected, then salvage + validate."""
         if keep_sections:
             spec.corrections = [
@@ -278,7 +278,7 @@ class Governor:
                        detail="; ".join(problems)[:160], model=self.author_model)
 
     @staticmethod
-    def _corpus(spec: ScenarioSpec) -> str:
+    def _corpus(spec: ProjectSpec) -> str:
         return " \n ".join(d.text for d in spec.corpus)
 
 
@@ -297,8 +297,8 @@ def run_governed(brief, *, author=None, adjudicator: Adjudicator | None = None,
                        budget=budget, author_model=author_model, on_event=on_event)
         return gov.run(brief)
     if author is None:
-        from ..rule_generator import RuleScenarioGenerator
-        author = RuleScenarioGenerator()
+        from ..rule_generator import RuleProjectGenerator
+        author = RuleProjectGenerator()
     gov = Governor(author=author, adjudicator=adjudicator, budget=budget,
                    author_model=author_model, on_event=on_event)
     return gov.run(brief)

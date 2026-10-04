@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 from app.reconcile.extract import RetrievalExtractor  # noqa: E402
 
 
@@ -27,7 +27,7 @@ def main() -> None:
         scen = sc.load_manifest(sid)
         corpus = sc.load_corpus(sid)
         ex = RetrievalExtractor(corpus)
-        print(f"\n=== scenario {sid} ===")
+        print(f"\n=== project {sid} ===")
         for f in scen["fields"]:
             hand = ex.field(f["query"], f.get("extract", "line"), f.get("hint"))
             auto = ex.field(auto_query(f), f.get("extract", "line"), f.get("hint"))

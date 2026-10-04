@@ -78,12 +78,12 @@ def test_pdf_scanned_still_needs_ocr_when_engine_absent(monkeypatch):
 
 
 def test_from_document_scenario_uses_ocr_text(monkeypatch):
-    # The scenario from-document path shares the parsers, so OCR'd text flows
+    # The project from-document path shares the parsers, so OCR'd text flows
     # into the corpus. Prove an image upload yields a usable corpus when OCR is on.
     monkeypatch.setattr("app.parsers.ocr_available", lambda: True)
     monkeypatch.setattr(
         "app.parsers.ocr_image_bytes",
         lambda data: "# Incident\nSite: North Plant\nSeverity: High")
-    from app.scenariogen.corpus_intake import corpus_from_upload
+    from app.projectgen.corpus_intake import corpus_from_upload
     corpus = corpus_from_upload("scan.png", b"fakeimagebytes")
     assert corpus and "North Plant" in corpus[0].text

@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app import scenario  # noqa: E402
+from app import project  # noqa: E402
 
 
 def find_field(report: dict, key: str) -> dict | None:
@@ -46,7 +46,7 @@ def find_table(report: dict, key: str) -> dict | None:
 
 def main() -> int:
     sid = sys.argv[1] if len(sys.argv) > 1 else "1"
-    r = scenario.run_reconciliation("draft", sid)
+    r = project.run_reconciliation("draft", sid)
     checks: list[tuple[str, bool, str]] = []
 
     def check(name: str, cond: bool, detail: str = "") -> None:
@@ -107,7 +107,7 @@ def main() -> int:
     check("15 classification needs_review", bool(classif) and classif["status"] == "needs_review")
 
     # convergence: template mode produces same section/furniture shape
-    rt = scenario.run_reconciliation("template", sid)
+    rt = project.run_reconciliation("template", sid)
     same_sections = [s["key"] for s in r["sections"]] == [s["key"] for s in rt["sections"]]
     check("convergence: same section keys", same_sections)
 

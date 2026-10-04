@@ -1,12 +1,12 @@
-"""The ScenarioSpec: a single structured description of a complete scenario.
+"""The ProjectSpec: a single structured description of a complete project.
 
 This is the contract every generator (deterministic or LLM) must satisfy, and
 the gate before anything is written to disk. If a spec validates here, it is
-guaranteed to produce a scenario the engine can reconcile and that the
+guaranteed to produce a project the engine can reconcile and that the
 invariant suite will accept.
 
-A ScenarioSpec maps 1:1 onto the four on-disk components:
-  - manifest  (scenario.json): fields, section_bodies, table
+A ProjectSpec maps 1:1 onto the four on-disk components:
+  - manifest  (project.json): fields, section_bodies, table
   - template  (incident_report_template.json): required_sections, table_specs,
               furniture, build_discipline
   - draft     (incident_report_draft.json): per-section values + furniture +
@@ -16,7 +16,7 @@ A ScenarioSpec maps 1:1 onto the four on-disk components:
 
 Design rule mirrored from the rest of the platform: NOTHING is fabricated. Every
 value a correction or the corpus asserts must be present in the corpus text the
-spec itself carries, so a generated scenario is as traceable as a hand-authored
+spec itself carries, so a generated project is as traceable as a hand-authored
 one. The validator enforces this (see _check_corpus_grounding).
 """
 from __future__ import annotations
@@ -219,7 +219,7 @@ class CorrectionSpec(BaseModel):
 # The full spec
 # --------------------------------------------------------------------------
 
-class ScenarioSpec(BaseModel):
+class ProjectSpec(BaseModel):
     title: str
     domain: str = ""
     # Template structure
@@ -248,7 +248,7 @@ class ScenarioSpec(BaseModel):
 # Validation: enforce engine-consumability + no fabrication
 # --------------------------------------------------------------------------
 
-def salvage_spec(spec: ScenarioSpec) -> ScenarioSpec:
+def salvage_spec(spec: ProjectSpec) -> ProjectSpec:
     """Drop individually-invalid items so a mostly-good generated spec is kept
     rather than rejected wholesale: corrections targeting non-resolvable units
     or asserting ungrounded values are removed, and graphics with a bad
@@ -287,7 +287,7 @@ def salvage_spec(spec: ScenarioSpec) -> ScenarioSpec:
     return spec
 
 
-def validate_spec(spec: ScenarioSpec) -> list[str]:
+def validate_spec(spec: ProjectSpec) -> list[str]:
     """Return a list of human-readable problems. Empty list == valid and safe to
     persist. These checks mirror exactly what reconcile()/load_* require, plus
     the no-fabrication rule that corrections and corpus-backed values must be
@@ -345,7 +345,7 @@ def validate_spec(spec: ScenarioSpec) -> list[str]:
     return problems
 
 
-def _resolvable_targets(spec: ScenarioSpec) -> set[str]:
+def _resolvable_targets(spec: ProjectSpec) -> set[str]:
     targets: set[str] = set()
     for f in spec.fields:
         targets.add(f"{f.section}.{f.key}")
@@ -364,7 +364,7 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
 
 
-def _check_corpus_grounding(spec: ScenarioSpec) -> list[str]:
+def _check_corpus_grounding(spec: ProjectSpec) -> list[str]:
     """A replace correction asserts a corrected value. To honor 'no fabrication',
     that value should appear either in the corpus text (the ground truth) or be
     explicitly stated in the correction's own body (a reviewer-supplied value is

@@ -18,7 +18,7 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 from app.knowledge.pagegrow import build_multipage  # noqa: E402
 from app.reconcile import reconcile  # noqa: E402
 
@@ -60,7 +60,7 @@ def _contiguous(report: dict) -> bool:
 def test_page_growth_stays_correct(pages, seed):
     b = build_multipage(pages=pages, seed=seed, **_base())
     report = reconcile(b["draft"], b["corpus"], b["graphics"], b["corrections"],
-                       b["template"], b["scenario"]).model_dump()
+                       b["template"], b["project"]).model_dump()
     assert _no_fabrication(report), f"fabrication at pages={pages} seed={seed}"
     assert _contiguous(report), f"numbering gap at pages={pages} seed={seed}"
     # Sections scale with pages (6 base sections per page).
@@ -77,7 +77,7 @@ def test_unit_count_grows_monotonically_with_pages(seed):
     for pages in range(1, 6):
         b = build_multipage(pages=pages, seed=seed, **base)
         report = reconcile(b["draft"], b["corpus"], b["graphics"], b["corrections"],
-                           b["template"], b["scenario"]).model_dump()
+                           b["template"], b["project"]).model_dump()
         units = report["summary"]["total_units"]
         assert units > prev, f"units did not grow at pages={pages}"
         prev = units
@@ -91,11 +91,11 @@ def test_rendered_multipage_docx_matches_inmemory(tmp_path):
 
     b = build_multipage(pages=3, seed=7, **_base())
     docx_path = tmp_path / "mp.docx"
-    build_docx_multipage(b["draft"], b["scenario"], 3, docx_path)
+    build_docx_multipage(b["draft"], b["project"], 3, docx_path)
 
-    res = convert_document(docx_path.read_bytes(), "mp.docx", b["template"], b["scenario"], "draft")
+    res = convert_document(docx_path.read_bytes(), "mp.docx", b["template"], b["project"], "draft")
     report = reconcile(res.first_attempt, b["corpus"], b["graphics"], b["corrections"],
-                       b["template"], b["scenario"]).model_dump()
+                       b["template"], b["project"]).model_dump()
     assert res.fidelity == "high"
     assert len(report["sections"]) == 18
     gfx = sum(len(s["graphics"]) for s in report["sections"])

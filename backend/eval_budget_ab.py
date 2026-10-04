@@ -20,9 +20,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.scenariogen.bedrock_gen import BedrockScenarioGenerator  # noqa: E402
-from app.scenariogen.generator import ScenarioBrief  # noqa: E402
-from app.scenariogen.model_profiles import profile_for  # noqa: E402
+from app.projectgen.bedrock_gen import BedrockProjectGenerator  # noqa: E402
+from app.projectgen.generator import ProjectBrief  # noqa: E402
+from app.projectgen.model_profiles import profile_for  # noqa: E402
 
 OLD_FLAT_BUDGET = 8192
 
@@ -30,17 +30,17 @@ OLD_FLAT_BUDGET = 8192
 DEFAULT_MODELS = ["openai.gpt-oss-20b-1:0", "openai.gpt-oss-safeguard-20b"]
 
 BRIEFS = [
-    ScenarioBrief(domain="avionics interface validation",
+    ProjectBrief(domain="avionics interface validation",
                   doc_type="interface control document", title="Nav Bus ICD"),
-    ScenarioBrief(domain="hardware reliability / incident response",
+    ProjectBrief(domain="hardware reliability / incident response",
                   doc_type="incident report", title="Gateway Outage Report"),
 ]
 PROMPTS = ["baseline", "reasoning_suppressed"]
 
 
-def _run(model_id: str, prompt: str, brief: ScenarioBrief, budget: int) -> dict:
+def _run(model_id: str, prompt: str, brief: ProjectBrief, budget: int) -> dict:
     """Generate once at a FORCED token budget (override the profile)."""
-    gen = BedrockScenarioGenerator(model_id=model_id, prompt_strategy=prompt)
+    gen = BedrockProjectGenerator(model_id=model_id, prompt_strategy=prompt)
     gen._profile = gen._profile.__class__(  # force the budget for this call
         family=gen._profile.family, is_reasoning=gen._profile.is_reasoning,
         max_tokens=budget, default_prompt=gen._profile.default_prompt,

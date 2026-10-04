@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 from app.knowledge.factpool import FactPool, PoolExhaustedError  # noqa: E402
 from app.knowledge.pagegrow import build_multipage_from_pool  # noqa: E402
 from app.reconcile import reconcile  # noqa: E402
@@ -20,7 +20,7 @@ def main() -> None:
                                       sc.load_first_attempt(sid, "draft"),
                                       sc.load_graphics(sid), pool, cap, seed=7)
         r = reconcile(b["draft"], b["corpus"], b["graphics"], b["corrections"],
-                      b["template"], b["scenario"]).model_dump()
+                      b["template"], b["project"]).model_dump()
         sites = [rec["site"] for rec in b["records"]]
         distinct_sites = len(set(sites)) == len(sites)
         durs = {f["value"] for s in r["sections"] for f in s["fields"]

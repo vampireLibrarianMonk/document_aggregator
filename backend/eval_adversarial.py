@@ -1,10 +1,10 @@
 """Adversarial reproducibility review: can the recommended model regenerate the
 existing committed scenarios, or does it drift?
 
-For each committed scenario under sample_docs/scenario/*, we derive a brief from
+For each committed project under sample_docs/project/*, we derive a brief from
 its own metadata (domain + doc_type/title) and regenerate it N times with the
 RECOMMENDED model. We then compare each regeneration against the committed
-scenario on OBJECTIVE axes, looking for FAILURE and DRIFT (adversarial intent),
+project on OBJECTIVE axes, looking for FAILURE and DRIFT (adversarial intent),
 not for confirmation:
 
   valid            did the regenerated spec pass validate_spec (persistable)?
@@ -15,7 +15,7 @@ not for confirmation:
   fell_back        did the model fail and the deterministic generator take over?
   stability        across the N runs, how much do these properties vary?
 
-A reference scenario's own properties (conflict?/needs_review?/section count)
+A reference project's own properties (conflict?/needs_review?/section count)
 are read from disk so we compare like-for-like, not against an assumed ideal.
 
 OFFLINE by default (deterministic model, zero Bedrock) proves the harness.
@@ -38,24 +38,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.scenariogen.generator import ScenarioBrief, get_generator  # noqa: E402
-from app.scenariogen.schema import ScenarioSpec, validate_spec  # noqa: E402
+from app.projectgen.generator import ProjectBrief, get_generator  # noqa: E402
+from app.projectgen.schema import ProjectSpec, validate_spec  # noqa: E402
 
-SCENARIO_ROOT = Path(__file__).resolve().parent.parent / "sample_docs" / "scenario"
+BUNDLED_PROJECT_ROOT = Path(__file__).resolve().parent.parent / "sample_docs" / "project"
 
 
-def _reference(scenario_dir: Path) -> dict:
-    """Read a committed scenario's own objective properties as the comparison
-    reference. Robust to the on-disk shape (scenario.json is template-shaped;
+def _reference(project_case_dir: Path) -> dict:
+    """Read a committed project's own objective properties as the comparison
+    reference. Robust to the on-disk shape (project.json is template-shaped;
     the full spec is assembled from the directory)."""
-    sj = json.loads((scenario_dir / "scenario.json").read_text(encoding="utf-8"))
+    sj = json.loads((project_case_dir / "project.json").read_text(encoding="utf-8"))
     domain = sj.get("domain", "")
     doc_type = sj.get("doc_type") or sj.get("title", "")
     # needs-review proxy: a field declared with extract "none".
     nr = any(f.get("extract") == "none" for f in sj.get("fields", []))
     # conflict proxy: look in the corrections/comments if present.
     conflict = False
-    comments = scenario_dir / "corrections" / "comments.json"
+    comments = project_case_dir / "corrections" / "comments.json"
     if comments.exists():
         try:
             data = json.loads(comments.read_text(encoding="utf-8"))
@@ -69,7 +69,7 @@ def _reference(scenario_dir: Path) -> dict:
             "ref_fields": len(sj.get("fields", []))}
 
 
-def _spec_props(spec: ScenarioSpec) -> dict:
+def _spec_props(spec: ProjectSpec) -> dict:
     """Objective properties of a (re)generated spec."""
     by_target: dict[str, set] = {}
     for c in spec.corrections:
@@ -84,9 +84,9 @@ def _spec_props(spec: ScenarioSpec) -> dict:
     }
 
 
-def _review_one(scenario_dir: Path, model: str | None, runs: int) -> dict:
-    ref = _reference(scenario_dir)
-    brief = ScenarioBrief(domain=ref["domain"], doc_type=ref["doc_type"] or "incident report")
+def _review_one(project_case_dir: Path, model: str | None, runs: int) -> dict:
+    ref = _reference(project_case_dir)
+    brief = ProjectBrief(domain=ref["domain"], doc_type=ref["doc_type"] or "incident report")
     runs_out: list[dict] = []
     for _ in range(runs):
         gen = get_generator(model_id=model)
@@ -102,7 +102,7 @@ def _review_one(scenario_dir: Path, model: str | None, runs: int) -> dict:
         p["matches_conflict"] = (p["has_conflict"] == ref["ref_has_conflict"])
         p["matches_needs_review"] = (p["has_needs_review"] == ref["ref_has_needs_review"])
         runs_out.append(p)
-    return {"scenario": scenario_dir.name, "reference": ref, "runs": runs_out,
+    return {"project": project_case_dir.name, "reference": ref, "runs": runs_out,
             "aggregate": _aggregate(runs_out, ref)}
 
 
@@ -131,20 +131,20 @@ def _aggregate(runs: list[dict], ref: dict) -> dict:
 
 
 def _print(report: dict) -> None:
-    print("\n=== Adversarial reproducibility (per committed scenario) ===")
-    hdr = ("scenario            n  valid%  fellbk%  repro_conflict%  repro_nr%  "
+    print("\n=== Adversarial reproducibility (per committed project) ===")
+    hdr = ("project            n  valid%  fellbk%  repro_conflict%  repro_nr%  "
            "sections(min-max)  stable?")
     print(hdr)
     print("-" * len(hdr))
     for row in report["reviews"]:
         a = row["aggregate"]
         stable = all([a["stable_valid"], a["stable_conflict"], a["stable_needs_review"]])
-        print(f'{row["scenario"][:18]:18s}  {a["runs"]:<2} {a["valid_pct"]:<6} '
+        print(f'{row["project"][:18]:18s}  {a["runs"]:<2} {a["valid_pct"]:<6} '
               f'{a["fell_back_pct"]:<7} {a["reproduced_conflict_pct"]:<15} '
               f'{a["reproduced_needs_review_pct"]:<9} '
               f'{a["sections_min"]}-{a["sections_max"]:<15} {"yes" if stable else "NO"}')
     print("\n(repro_* = fraction of runs whose conflict/needs-review presence MATCHED "
-          "the committed scenario. stable? = the property was identical across all "
+          "the committed project. stable? = the property was identical across all "
           "runs. Low repro% or stable=NO means the model DRIFTS from the reference.)")
 
 
@@ -156,12 +156,12 @@ def main() -> None:
     ap.add_argument("--model", type=str, default="",
                     help="model id (default: the recommended model when --live)")
     ap.add_argument("--scenarios", type=str, default="",
-                    help="comma list of scenario dir names (default: all)")
+                    help="comma list of project dir names (default: all)")
     args = ap.parse_args()
 
     model = args.model.strip() or None
     if args.live and not model:
-        from app.scenariogen.bedrock_gen import list_approved_models
+        from app.projectgen.bedrock_gen import list_approved_models
         info = list_approved_models()
         if info.get("available"):
             model = (info.get("recommended") or {}).get("model") or info["models"][0]["id"]
@@ -171,15 +171,15 @@ def main() -> None:
     if not args.live:
         model = None  # offline deterministic
 
-    dirs = sorted(d for d in SCENARIO_ROOT.iterdir()
-                  if (d / "scenario.json").exists())
+    dirs = sorted(d for d in BUNDLED_PROJECT_ROOT.iterdir()
+                  if (d / "project.json").exists())
     if args.scenarios.strip():
         want = {s.strip() for s in args.scenarios.split(",")}
         dirs = [d for d in dirs if d.name in want]
 
     started = time.time()
     label = f"LIVE ({model})" if args.live else "OFFLINE (deterministic)"
-    print(f"Adversarial review [{label}]: {len(dirs)} scenario(s) x {args.runs} run(s)")
+    print(f"Adversarial review [{label}]: {len(dirs)} project(s) x {args.runs} run(s)")
 
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),

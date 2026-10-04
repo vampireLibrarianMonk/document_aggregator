@@ -1,10 +1,10 @@
 """The reconciliation engine — generic and manifest-driven.
 
 One engine for both modes (adversarial-review Loop 6): the template rubric
-always runs; comment corrections are additive. The engine holds NO scenario
+always runs; comment corrections are additive. The engine holds NO project
 knowledge — section vocabulary, discrete fields, retrieval queries, and the
-table spec all come from the scenario manifest. Values are located by semantic
-retrieval over the indexed corpus (extract.py), never by scenario-specific
+table spec all come from the project manifest. Values are located by semantic
+retrieval over the indexed corpus (extract.py), never by project-specific
 regex, and are always corpus- or correction-backed (never fabricated).
 
 Pipeline order:
@@ -171,7 +171,7 @@ def reconcile(
     graphics_manifest: list[dict],
     corrections: list[dict],
     template: dict,
-    scenario: dict,
+    project: dict,
     up_to_round: int | None = None,
 ) -> CorrectedReport:
     mode = "template" if first_attempt.get("artifact_kind") == "template" else "draft"
@@ -183,10 +183,10 @@ def reconcile(
 
     # Manifest-declared discrete fields, grouped by their section.
     fields_by_section: dict[str, list[dict]] = defaultdict(list)
-    for f in scenario.get("fields", []):
+    for f in project.get("fields", []):
         fields_by_section[f["section"]].append(f)
-    section_bodies = scenario.get("section_bodies", {})
-    table_manifest = scenario.get("table")
+    section_bodies = project.get("section_bodies", {})
+    table_manifest = project.get("table")
 
     draft_sections = {s["key"]: s for s in first_attempt.get("sections", [])}
 
@@ -315,7 +315,7 @@ def converge(
     graphics_manifest: list[dict],
     corrections: list[dict],
     template: dict,
-    scenario: dict,
+    project: dict,
 ) -> dict:
     """Run the correction rounds cumulatively and return the convergence
     trajectory. Each round produces a revision (base=1, round N -> revision N+1)
@@ -327,7 +327,7 @@ def converge(
     trajectory: list[dict] = []
     for r in range(last + 1):
         report = reconcile(first_attempt, corpus, graphics_manifest, corrections,
-                           template, scenario, up_to_round=r)
+                           template, project, up_to_round=r)
         summary = report.summary
         unresolved = summary.get("needs_review", 0) + summary.get("conflict", 0)
         trajectory.append({

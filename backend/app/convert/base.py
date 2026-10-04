@@ -2,8 +2,8 @@
 
 A converter extracts raw structural elements from a document (headings,
 paragraphs, tables, image refs, header/footer). base.py then maps those onto the
-scenario's section vocabulary using the template's section headings as the guide
-— so the converter needs no per-scenario code, only the template it is judged
+project's section vocabulary using the template's section headings as the guide
+— so the converter needs no per-project code, only the template it is judged
 against (which the client would supply alongside the document).
 """
 from __future__ import annotations
@@ -97,9 +97,9 @@ def _match_section(heading_text: str, template_sections: list[dict]) -> str | No
 
 
 def map_to_first_attempt(
-    raw: RawDocument, template: dict, scenario: dict, artifact_kind: str,
+    raw: RawDocument, template: dict, project: dict, artifact_kind: str,
 ) -> dict[str, Any]:
-    """Fold raw blocks onto the scenario's section vocabulary.
+    """Fold raw blocks onto the project's section vocabulary.
 
     Fields declared in the manifest are pulled from the mapped section's text by
     "Label: value" parsing; a prose section's body is the concatenated non-field
@@ -108,7 +108,7 @@ def map_to_first_attempt(
     template_sections = template["required_sections"]
     # manifest fields grouped by section
     fields_by_section: dict[str, list[dict]] = {}
-    for f in scenario.get("fields", []):
+    for f in project.get("fields", []):
         fields_by_section.setdefault(f["section"], []).append(f)
 
     # Initialize a section shell for every template section (order preserved).
@@ -265,7 +265,7 @@ def _extract_cross_refs(sections: dict[str, dict]) -> list[dict]:
     return refs
 
 
-def convert_document(data: bytes, filename: str, template: dict, scenario: dict,
+def convert_document(data: bytes, filename: str, template: dict, project: dict,
                      artifact_kind: str) -> ConversionResult:
     ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     if ext == "docx":
@@ -283,6 +283,6 @@ def convert_document(data: bytes, filename: str, template: dict, scenario: dict,
     else:
         raise ValueError(f"unsupported document format: {ext}")
 
-    first_attempt = map_to_first_attempt(raw, template, scenario, artifact_kind)
+    first_attempt = map_to_first_attempt(raw, template, project, artifact_kind)
     return ConversionResult(first_attempt=first_attempt, fidelity=fidelity,
                             source_format=fmt, notes=notes)

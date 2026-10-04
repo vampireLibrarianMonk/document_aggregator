@@ -1,15 +1,15 @@
 """Section-wise authoring seam.
 
 The model evaluation (MODEL_EVAL.md) proved that small models truncate the
-WHOLE-document ScenarioSpec JSON and fall back ~92% of the time, while a SINGLE
+WHOLE-document ProjectSpec JSON and fall back ~92% of the time, while a SINGLE
 section is a small emission they can produce. A SectionAuthor therefore fills one
 section at a time:
 
-  plan(brief)              -> a base ScenarioSpec skeleton + the ordered section
+  plan(brief)              -> a base ProjectSpec skeleton + the ordered section
                               plan (small output: headings + which fields/table).
   author_section(key)      -> fill ONLY that section (small output), returning a
                               per-section payload the engine folds into the spec.
-  assemble()               -> the full ScenarioSpec for reconcile/validate/persist.
+  assemble()               -> the full ProjectSpec for reconcile/validate/persist.
 
 Two implementations:
   DeterministicSectionAuthor  authors the whole spec once (offline, reproducible)
@@ -21,7 +21,7 @@ Two implementations:
                               model), so a small model never has to emit the whole
                               document at once.
 
-Both produce the SAME ScenarioSpec contract, so the governor's reconcile and the
+Both produce the SAME ProjectSpec contract, so the governor's reconcile and the
 validator are unchanged. The whole-document author remains the default fast path;
 per-section is opt-in via the governor's authoring mode.
 """
@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from ..schema import ScenarioSpec
+from ..schema import ProjectSpec
 
 
 class SectionAuthor(Protocol):
@@ -46,12 +46,12 @@ class SectionAuthor(Protocol):
         asserted_values}. `model` optionally overrides for a downshift."""
         ...
 
-    def assemble(self) -> ScenarioSpec:
-        """Return the full ScenarioSpec built from the authored sections."""
+    def assemble(self) -> ProjectSpec:
+        """Return the full ProjectSpec built from the authored sections."""
         ...
 
 
-def _project_sections(spec: ScenarioSpec) -> list[dict]:
+def _project_sections(spec: ProjectSpec) -> list[dict]:
     """Shared projection: a spec's draft sections + the correction new_values
     that target each (the asserted, possibly-fabricatable values)."""
     asserted: dict[str, list[str]] = {}
@@ -79,10 +79,10 @@ class DeterministicSectionAuthor:
 
     def __init__(self, generator=None) -> None:
         if generator is None:
-            from ..rule_generator import RuleScenarioGenerator
-            generator = RuleScenarioGenerator()
+            from ..rule_generator import RuleProjectGenerator
+            generator = RuleProjectGenerator()
         self._generator = generator
-        self._spec: ScenarioSpec | None = None
+        self._spec: ProjectSpec | None = None
 
     def plan(self, brief) -> list[dict]:
         self._spec = self._generator.generate(brief)
@@ -96,7 +96,7 @@ class DeterministicSectionAuthor:
                 return s
         return {"key": key, "heading": key, "body": "", "asserted_values": []}
 
-    def assemble(self) -> ScenarioSpec:
+    def assemble(self) -> ProjectSpec:
         assert self._spec is not None, "call plan() first"
         return self._spec
 
@@ -109,7 +109,7 @@ class BedrockSectionAuthor:
 
     NOTE: section-wise live authoring reuses the whole-document author to produce
     the base spec and plan (the model's own structure), then re-authors a section
-    body on demand with a focused, small-output prompt. This keeps the ScenarioSpec
+    body on demand with a focused, small-output prompt. This keeps the ProjectSpec
     contract and the no-fabrication validator intact while bounding each call's
     output size -- the specific fix for small-model truncation.
     """
@@ -125,10 +125,10 @@ class BedrockSectionAuthor:
         # The base generator produces the plan + a complete grounded spec; the
         # per-section calls refine section bodies with bounded output.
         if base_generator is None:
-            from ..bedrock_gen import BedrockScenarioGenerator
-            base_generator = BedrockScenarioGenerator(model_id=model_id)
+            from ..bedrock_gen import BedrockProjectGenerator
+            base_generator = BedrockProjectGenerator(model_id=model_id)
         self._generator = base_generator
-        self._spec: ScenarioSpec | None = None
+        self._spec: ProjectSpec | None = None
 
     def plan(self, brief) -> list[dict]:
         if hasattr(self._generator, "generate_with_metrics"):
@@ -152,7 +152,7 @@ class BedrockSectionAuthor:
                 return s
         return {"key": key, "heading": key, "body": "", "asserted_values": []}
 
-    def assemble(self) -> ScenarioSpec:
+    def assemble(self) -> ProjectSpec:
         assert self._spec is not None, "call plan() first"
         return self._spec
 

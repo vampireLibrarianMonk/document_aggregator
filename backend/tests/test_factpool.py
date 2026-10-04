@@ -17,7 +17,7 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 from app.knowledge.factpool import FactPool, PoolExhaustedError  # noqa: E402
 from app.knowledge.pagegrow import build_multipage_from_pool  # noqa: E402
 from app.reconcile import reconcile  # noqa: E402
@@ -36,7 +36,7 @@ def _build(sid: str, pages: int, seed: int = 7) -> dict:
 
 def _reconcile(b: dict) -> dict:
     return reconcile(b["draft"], b["corpus"], b["graphics"], b["corrections"],
-                     b["template"], b["scenario"]).model_dump()
+                     b["template"], b["project"]).model_dump()
 
 
 @pytest.mark.parametrize("sid", POOL_SCENARIOS)

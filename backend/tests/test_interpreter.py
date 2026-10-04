@@ -16,7 +16,7 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 from app.corrections.interpreter import interpret_feedback  # noqa: E402
 from app.corrections.schema import OPERATIONS, to_engine_correction, validate_op  # noqa: E402
 from app.reconcile import reconcile  # noqa: E402
@@ -72,7 +72,7 @@ def test_interpreted_ops_apply_as_a_round_without_fabrication():
         first_attempt=sc.load_first_attempt("1", "draft"),
         corpus=sc.load_corpus("1"), graphics_manifest=sc.load_graphics("1"),
         corrections=corrections, template=sc.load_template("1"),
-        scenario=sc.load_manifest("1"),
+        project=sc.load_manifest("1"),
     ).model_dump()
     for s in report["sections"]:
         for f in s["fields"]:

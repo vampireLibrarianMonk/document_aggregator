@@ -19,7 +19,7 @@ def test_real_ops_registered():
 
 def test_reconcile_op_via_worker(tmp_path):
     q = SqliteJobQueue(tmp_path / "j.db")
-    jid = q.enqueue("reconcile", {"scenario_id": "1", "mode": "draft"})
+    jid = q.enqueue("reconcile", {"project_id": "1", "mode": "draft"})
     assert Worker(q, "w1").run_once() is True
     job = q.get(jid)
     assert job.state.value == "completed"
@@ -29,7 +29,7 @@ def test_reconcile_op_via_worker(tmp_path):
 
 def test_pipeline_op_from_docx_source(tmp_path):
     q = SqliteJobQueue(tmp_path / "j.db")
-    jid = q.enqueue("pipeline", {"scenario_id": "1", "mode": "draft", "source_format": "docx"})
+    jid = q.enqueue("pipeline", {"project_id": "1", "mode": "draft", "source_format": "docx"})
     Worker(q, "w1").run_once()
     job = q.get(jid)
     assert job.state.value == "completed"
@@ -40,7 +40,7 @@ def test_pipeline_op_from_docx_source(tmp_path):
 
 def test_render_geometry_op_degrades_without_soffice(tmp_path):
     q = SqliteJobQueue(tmp_path / "j.db")
-    jid = q.enqueue("render_geometry", {"scenario_id": "1", "mode": "draft", "source_format": "docx"})
+    jid = q.enqueue("render_geometry", {"project_id": "1", "mode": "draft", "source_format": "docx"})
     Worker(q, "w1").run_once()
     job = q.get(jid)
     assert job.state.value == "completed"

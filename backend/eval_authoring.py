@@ -2,7 +2,7 @@
 
 The model evaluation (MODEL_EVAL.md) left one lever untested: WHOLE-DOCUMENT
 single-shot authoring starves small models (gpt-oss-20b, nemotron-nano-12b fell
-back ~92%), because the whole ScenarioSpec JSON is too big to emit in one call.
+back ~92%), because the whole ProjectSpec JSON is too big to emit in one call.
 PER-SECTION authoring fills one section per call -- small output -- so a small
 model should stop truncating. This harness measures that.
 
@@ -35,25 +35,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.scenariogen.generator import ScenarioBrief  # noqa: E402
-from app.scenariogen.governor import (  # noqa: E402
+from app.projectgen.generator import ProjectBrief  # noqa: E402
+from app.projectgen.governor import (  # noqa: E402
     make_adjudicator,
     make_section_author,
     run_governed,
 )
 
 BRIEFS = [
-    ScenarioBrief(domain="avionics interface validation",
+    ProjectBrief(domain="avionics interface validation",
                   doc_type="interface control document", title="Nav Bus ICD"),
-    ScenarioBrief(domain="hardware reliability / incident response",
+    ProjectBrief(domain="hardware reliability / incident response",
                   doc_type="incident report", title="Gateway Outage Report"),
-    ScenarioBrief(domain="clinical laboratory safety",
+    ProjectBrief(domain="clinical laboratory safety",
                   doc_type="safety event report", title="Reagent Spill Report"),
-    ScenarioBrief(domain="environmental field sampling",
+    ProjectBrief(domain="environmental field sampling",
                   doc_type="test report", title="Groundwater Sampling Test Report"),
-    ScenarioBrief(domain="manufacturing quality assurance",
+    ProjectBrief(domain="manufacturing quality assurance",
                   doc_type="standard operating procedure", title="Line Changeover SOP"),
-    ScenarioBrief(domain="structural engineering review",
+    ProjectBrief(domain="structural engineering review",
                   doc_type="analysis memo", title="Beam Deflection Analysis Memo"),
 ]
 
@@ -67,7 +67,7 @@ def _run_once(mode: str, brief, live: bool, model_id: str | None):
         if live and model_id:
             import boto3
             from app.config import settings
-            from app.scenariogen.model_adapters import adapter_for
+            from app.projectgen.model_adapters import adapter_for
             client = boto3.client("bedrock-runtime", region_name=settings.BEDROCK_REGION)
             sa = make_section_author(model_id, client=client, adapter=adapter_for(model_id))
             author_model = model_id
@@ -78,12 +78,12 @@ def _run_once(mode: str, brief, live: bool, model_id: str | None):
                             author_model=author_model).summary()
     # whole_doc
     if live and model_id:
-        from app.scenariogen.bedrock_gen import BedrockScenarioGenerator
-        author = BedrockScenarioGenerator(model_id=model_id)
+        from app.projectgen.bedrock_gen import BedrockProjectGenerator
+        author = BedrockProjectGenerator(model_id=model_id)
         author_model = author.model_id
     else:
-        from app.scenariogen.rule_generator import RuleScenarioGenerator
-        author = RuleScenarioGenerator()
+        from app.projectgen.rule_generator import RuleProjectGenerator
+        author = RuleProjectGenerator()
         author_model = "offline"
     return run_governed(brief, author=author, adjudicator=adj,
                         author_model=author_model).summary()

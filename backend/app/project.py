@@ -1,14 +1,14 @@
-"""Scenario service: loads a numbered scenario's four components and runs
-reconciliation. Scenarios live in sample_docs/scenario/<id>/ and are fully
-data-driven via scenario.json, so the engine stays generic.
+"""Project service: loads a numbered project's four components and runs
+reconciliation. Scenarios live in sample_docs/project/<id>/ and are fully
+data-driven via project.json, so the engine stays generic.
 
-Layout per scenario:
-    scenario/<id>/scenario.json           manifest (fields, queries, table spec)
-    scenario/<id>/corpus/*.txt|*.md       source docs (ground truth)
-    scenario/<id>/corpus/graphics.json    named graphic references
-    scenario/<id>/first_attempt/incident_report_draft.json
-    scenario/<id>/first_attempt/incident_report_template.json
-    scenario/<id>/corrections/comments.json
+Layout per project:
+    project/<id>/project.json           manifest (fields, queries, table spec)
+    project/<id>/corpus/*.txt|*.md       source docs (ground truth)
+    project/<id>/corpus/graphics.json    named graphic references
+    project/<id>/first_attempt/incident_report_draft.json
+    project/<id>/first_attempt/incident_report_template.json
+    project/<id>/corrections/comments.json
 """
 from __future__ import annotations
 
@@ -20,8 +20,8 @@ from .config import settings
 from .reconcile import reconcile
 
 # Single source of truth lives in config; re-exported here for existing callers.
-SCENARIO_ROOT = settings.SCENARIO_ROOT
-DEFAULT_SCENARIO = "1"
+BUNDLED_PROJECT_ROOT = settings.BUNDLED_PROJECT_ROOT
+DEFAULT_PROJECT = "1"
 
 
 def _read_json(path: Path) -> Any:
@@ -32,81 +32,81 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _dir(scenario_id: str) -> Path:
-    """Resolve a scenario's directory, preferring the unified project store and
-    falling back to the legacy bundled sample_docs/scenario/<id>. All loaders go
+def _dir(project_id: str) -> Path:
+    """Resolve a project's directory, preferring the unified project store and
+    falling back to the legacy bundled sample_docs/project/<id>. All loaders go
     through here, so relocating storage required no loader changes."""
-    return settings.resolve_scenario_dir(scenario_id)
+    return settings.resolve_project_data_dir(project_id)
 
 
-def list_scenarios() -> list[dict]:
+def list_project_cases() -> list[dict]:
     """List scenarios from BOTH the unified project store and the legacy bundle
     (project store wins on an id collision)."""
     out: list[dict] = []
-    for sid, d in settings.iter_scenario_dirs():
-        m = _read_json(d / "scenario.json")
+    for sid, d in settings.iter_project_data_dirs():
+        m = _read_json(d / "project.json")
         out.append({"id": m.get("id", sid), "title": m.get("title", sid),
                     "domain": m.get("domain", "")})
     return out
 
 
-def load_manifest(scenario_id: str) -> dict:
-    return _read_json(_dir(scenario_id) / "scenario.json")
+def load_manifest(project_id: str) -> dict:
+    return _read_json(_dir(project_id) / "project.json")
 
 
-def load_corpus(scenario_id: str) -> dict[str, str]:
-    cdir = _dir(scenario_id) / "corpus"
+def load_corpus(project_id: str) -> dict[str, str]:
+    cdir = _dir(project_id) / "corpus"
     return {p.name: _read_text(p) for p in sorted(cdir.iterdir()) if p.suffix in (".txt", ".md")}
 
 
-def load_graphics(scenario_id: str) -> list[dict]:
-    return _read_json(_dir(scenario_id) / "corpus" / "graphics.json")["graphics"]
+def load_graphics(project_id: str) -> list[dict]:
+    return _read_json(_dir(project_id) / "corpus" / "graphics.json")["graphics"]
 
 
-def load_corrections(scenario_id: str, variant: str = "comments") -> list[dict]:
+def load_corrections(project_id: str, variant: str = "comments") -> list[dict]:
     """variant='comments' = single-round review (default); 'rounds' = the
-    multi-round convergence feedback if the scenario provides it."""
+    multi-round convergence feedback if the project provides it."""
     fname = "rounds.json" if variant == "rounds" else "comments.json"
-    path = _dir(scenario_id) / "corrections" / fname
+    path = _dir(project_id) / "corrections" / fname
     if not path.exists() and variant == "rounds":
-        path = _dir(scenario_id) / "corrections" / "comments.json"
+        path = _dir(project_id) / "corrections" / "comments.json"
     return _read_json(path)["corrections"]
 
 
-def has_rounds(scenario_id: str) -> bool:
-    return (_dir(scenario_id) / "corrections" / "rounds.json").exists()
+def has_rounds(project_id: str) -> bool:
+    return (_dir(project_id) / "corrections" / "rounds.json").exists()
 
 
-def run_convergence(mode: str = "draft", scenario_id: str = DEFAULT_SCENARIO,
+def run_convergence(mode: str = "draft", project_id: str = DEFAULT_PROJECT,
                     source_format: str | None = None) -> dict:
     from .reconcile import converge
 
     return converge(
-        first_attempt=_first_attempt_for(scenario_id, mode, source_format),
-        corpus=load_corpus(scenario_id),
-        graphics_manifest=load_graphics(scenario_id),
-        corrections=load_corrections(scenario_id, "rounds"),
-        template=load_template(scenario_id),
-        scenario=load_manifest(scenario_id),
+        first_attempt=_first_attempt_for(project_id, mode, source_format),
+        corpus=load_corpus(project_id),
+        graphics_manifest=load_graphics(project_id),
+        corrections=load_corrections(project_id, "rounds"),
+        template=load_template(project_id),
+        project=load_manifest(project_id),
     )
 
 
-def load_first_attempt(scenario_id: str, mode: str) -> dict:
+def load_first_attempt(project_id: str, mode: str) -> dict:
     fname = "incident_report_template.json" if mode == "template" else "incident_report_draft.json"
-    return _read_json(_dir(scenario_id) / "first_attempt" / fname)
+    return _read_json(_dir(project_id) / "first_attempt" / fname)
 
 
-def load_first_attempt_from_document(scenario_id: str, mode: str, source_format: str) -> dict:
+def load_first_attempt_from_document(project_id: str, mode: str, source_format: str) -> dict:
     """Convert a generated real document (docx/pptx/pdf) into the first_attempt
     shape, exactly as a client-submitted file would be handled. Returns a dict
     with an added `_conversion` block recording fidelity/format/notes."""
     from .convert import convert_document
 
-    gen = _dir(scenario_id) / "first_attempt" / "generated" / f"{mode}.{source_format}"
+    gen = _dir(project_id) / "first_attempt" / "generated" / f"{mode}.{source_format}"
     if not gen.exists():
-        raise FileNotFoundError(f"no generated {source_format} for scenario {scenario_id} {mode}")
-    template = load_template(scenario_id)
-    manifest = load_manifest(scenario_id)
+        raise FileNotFoundError(f"no generated {source_format} for project {project_id} {mode}")
+    template = load_template(project_id)
+    manifest = load_manifest(project_id)
     result = convert_document(gen.read_bytes(), gen.name, template, manifest, mode)
     fa = result.first_attempt
     fa["_conversion"] = {"fidelity": result.fidelity, "source_format": result.source_format,
@@ -114,21 +114,21 @@ def load_first_attempt_from_document(scenario_id: str, mode: str, source_format:
     return fa
 
 
-def load_template(scenario_id: str) -> dict:
-    return _read_json(_dir(scenario_id) / "first_attempt" / "incident_report_template.json")
+def load_template(project_id: str) -> dict:
+    return _read_json(_dir(project_id) / "first_attempt" / "incident_report_template.json")
 
 
-def load_template_evidence(scenario_id: str) -> dict | None:
+def load_template_evidence(project_id: str) -> dict | None:
     """Extract the TEMPLATE document's own observable evidence (from template.docx)
     so the build-discipline rubric can be divined from the template rather than
     a hand-authored JSON. Returns the `_evidence` block, or None if no template
     document exists (falls back to the JSON/profile rubric)."""
-    gen = _dir(scenario_id) / "first_attempt" / "generated" / "template.docx"
+    gen = _dir(project_id) / "first_attempt" / "generated" / "template.docx"
     if not gen.exists():
         return None
     from .convert import convert_document
-    template = load_template(scenario_id)
-    manifest = load_manifest(scenario_id)
+    template = load_template(project_id)
+    manifest = load_manifest(project_id)
     try:
         result = convert_document(gen.read_bytes(), gen.name, template, manifest, "template")
     except Exception:
@@ -136,10 +136,10 @@ def load_template_evidence(scenario_id: str) -> dict | None:
     return result.first_attempt.get("_evidence")
 
 
-def component_overview(scenario_id: str = DEFAULT_SCENARIO) -> list[dict]:
-    corpus = load_corpus(scenario_id)
-    graphics = load_graphics(scenario_id)
-    corrections = load_corrections(scenario_id)
+def component_overview(project_id: str = DEFAULT_PROJECT) -> list[dict]:
+    corpus = load_corpus(project_id)
+    graphics = load_graphics(project_id)
+    corrections = load_corrections(project_id)
     return [
         {
             "id": "corpus", "order": 1, "title": "Original corpus",
@@ -174,57 +174,57 @@ def component_overview(scenario_id: str = DEFAULT_SCENARIO) -> list[dict]:
     ]
 
 
-def _first_attempt_for(scenario_id: str, mode: str, source_format: str | None) -> dict:
+def _first_attempt_for(project_id: str, mode: str, source_format: str | None) -> dict:
     """JSON baseline when source_format is None/'json', else convert a real doc."""
     if source_format in (None, "json"):
-        return load_first_attempt(scenario_id, mode)
-    return load_first_attempt_from_document(scenario_id, mode, source_format)
+        return load_first_attempt(project_id, mode)
+    return load_first_attempt_from_document(project_id, mode, source_format)
 
 
-def run_reconciliation(mode: str = "draft", scenario_id: str = DEFAULT_SCENARIO,
+def run_reconciliation(mode: str = "draft", project_id: str = DEFAULT_PROJECT,
                        source_format: str | None = None,
                        extra_corrections: list[dict] | None = None) -> dict:
-    template = load_template(scenario_id)
+    template = load_template(project_id)
     # When the source is a real document, divine the discipline rubric from the
     # template DOCUMENT's own formatting (attach its evidence for the engine).
     if source_format in ("docx", "pdf"):
-        tev = load_template_evidence(scenario_id)
+        tev = load_template_evidence(project_id)
         if tev:
             template = {**template, "_evidence": tev}
-    # The scenario's own corrections plus any ad-hoc human decisions (e.g. a
+    # The project's own corrections plus any ad-hoc human decisions (e.g. a
     # reviewer resolving a conflict or supplying a needs_review value). The
     # engine's last-good-wins round collapse lets a later-round extra correction
     # supersede the original conflicting ones for that target.
-    corrections = load_corrections(scenario_id)
+    corrections = load_corrections(project_id)
     if extra_corrections:
         corrections = corrections + list(extra_corrections)
     report = reconcile(
-        first_attempt=_first_attempt_for(scenario_id, mode, source_format),
-        corpus=load_corpus(scenario_id),
-        graphics_manifest=load_graphics(scenario_id),
+        first_attempt=_first_attempt_for(project_id, mode, source_format),
+        corpus=load_corpus(project_id),
+        graphics_manifest=load_graphics(project_id),
         corrections=corrections,
         template=template,
-        scenario=load_manifest(scenario_id),
+        project=load_manifest(project_id),
     )
     result = report.model_dump()
     # Vector-layout tier (gated): when the source is a real document, render to
     # PDF and inspect element geometry, merging findings. Degrades silently if
     # LibreOffice is absent (structural inspection only).
     if source_format in ("docx", "pdf"):
-        vec = _vector_findings(scenario_id, mode, source_format, template)
+        vec = _vector_findings(project_id, mode, source_format, template)
         if vec:
             result["discipline_findings"] = result.get("discipline_findings", []) + vec
             result["vector_tier_ran"] = True
     return result
 
 
-def resolvable_targets(scenario_id: str = DEFAULT_SCENARIO) -> list[str]:
+def resolvable_targets(project_id: str = DEFAULT_PROJECT) -> list[str]:
     """The set of unit targets a human may resolve (fields, section bodies,
     graphic sections, the table, and furniture elements)."""
     from .corrections.interpreter import _valid_targets
 
-    manifest = load_manifest(scenario_id)
-    template = load_template(scenario_id)
+    manifest = load_manifest(project_id)
+    template = load_template(project_id)
     ctx = {
         "fields": manifest.get("fields", []),
         "section_bodies": manifest.get("section_bodies", {}),
@@ -237,7 +237,7 @@ def resolvable_targets(scenario_id: str = DEFAULT_SCENARIO) -> list[str]:
 
 
 def resolve_unit(target: str, value: str | None, mode: str = "draft",
-                 scenario_id: str = DEFAULT_SCENARIO, source_format: str | None = None,
+                 project_id: str = DEFAULT_PROJECT, source_format: str | None = None,
                  author: str = "reviewer") -> dict:
     """Apply a human decision to a single unit: supply a chosen/entered value for
     a conflicted or needs_review target. The decision is injected as a NEW
@@ -248,12 +248,12 @@ def resolve_unit(target: str, value: str | None, mode: str = "draft",
     """
     from .reconcile.engine import max_round
 
-    if target not in resolvable_targets(scenario_id):
-        raise ValueError(f"'{target}' is not a resolvable unit for scenario {scenario_id}")
+    if target not in resolvable_targets(project_id):
+        raise ValueError(f"'{target}' is not a resolvable unit for project {project_id}")
     if value is None or str(value).strip() == "":
         raise ValueError("a non-empty value is required to resolve a unit (no fabrication)")
 
-    base = load_corrections(scenario_id)
+    base = load_corrections(project_id)
     next_round = max_round(base) + 1
     decision = {
         "id": f"resolve_{target.replace('.', '_')}_r{next_round}",
@@ -266,14 +266,14 @@ def resolve_unit(target: str, value: str | None, mode: str = "draft",
         "new_value": str(value),
         "body": f"Resolved by {author}.",
     }
-    return run_reconciliation(mode, scenario_id, source_format, extra_corrections=[decision])
+    return run_reconciliation(mode, project_id, source_format, extra_corrections=[decision])
 
 
-def _vector_findings(scenario_id: str, mode: str, source_format: str, template: dict) -> list[dict]:
+def _vector_findings(project_id: str, mode: str, source_format: str, template: dict) -> list[dict]:
     from .discipline import load_discipline
     from .discipline.vector import inspect_vector_layout
 
-    gen = _dir(scenario_id) / "first_attempt" / "generated" / f"{mode}.{source_format}"
+    gen = _dir(project_id) / "first_attempt" / "generated" / f"{mode}.{source_format}"
     if not gen.exists():
         return []
     discipline = load_discipline(template)
@@ -281,14 +281,14 @@ def _vector_findings(scenario_id: str, mode: str, source_format: str, template: 
     return [f.model_dump() for f in findings] if ran else []
 
 
-def raw_component(component_id: str, mode: str = "draft", scenario_id: str = DEFAULT_SCENARIO,
+def raw_component(component_id: str, mode: str = "draft", project_id: str = DEFAULT_PROJECT,
                   source_format: str | None = None) -> Any:
     if component_id == "corpus":
-        return {"documents": load_corpus(scenario_id), "graphics": load_graphics(scenario_id)}
+        return {"documents": load_corpus(project_id), "graphics": load_graphics(project_id)}
     if component_id == "first_attempt":
-        return _first_attempt_for(scenario_id, mode, source_format)
+        return _first_attempt_for(project_id, mode, source_format)
     if component_id == "corrections":
-        return load_corrections(scenario_id)
+        return load_corrections(project_id)
     if component_id == "intermediate_json":
-        return run_reconciliation(mode, scenario_id, source_format)
+        return run_reconciliation(mode, project_id, source_format)
     raise KeyError(component_id)

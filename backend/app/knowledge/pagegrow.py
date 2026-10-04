@@ -1,6 +1,6 @@
 """Page-growth synthesis.
 
-Builds a scenario of N "pages" from a base scenario: each page repeats the base
+Builds a project of N "pages" from a base project: each page repeats the base
 section set with page-suffixed keys (identifiers__p2, description__p2, ...), so
 the generic engine treats every page's units as distinct resolvable targets.
 Each page carries populated elements (fields, body, table, graphics) plus a
@@ -27,11 +27,11 @@ def build_multipage(base_scenario: dict, base_template: dict, base_draft: dict,
                     base_corpus: dict[str, str], base_graphics: list[dict],
                     base_corrections: list[dict],
                     pages: int, seed: int) -> dict:
-    """Return a dict with keys scenario/template/draft/corpus/graphics/corrections/
+    """Return a dict with keys project/template/draft/corpus/graphics/corrections/
     injected for a `pages`-page document with per-page shuffled defects."""
     rng = random.Random(seed)
 
-    scenario = {"id": f"pg{seed}", "title": f"{pages}-page synthetic",
+    project = {"id": f"pg{seed}", "title": f"{pages}-page synthetic",
                 "fields": [], "section_bodies": {}, "table": None}
     template = {"artifact_kind": "template", "title": "Multi-page template",
                 "required_sections": [], "table_specs": {}, "furniture": base_template["furniture"]}
@@ -64,11 +64,11 @@ def build_multipage(base_scenario: dict, base_template: dict, base_draft: dict,
         # Manifest fields / bodies / table per page.
         for f in base_scenario.get("fields", []):
             nf = dict(f, section=_suffix(f["section"], page))
-            scenario["fields"].append(nf)
+            project["fields"].append(nf)
         for sb, sbv in base_scenario.get("section_bodies", {}).items():
-            scenario["section_bodies"][_suffix(sb, page)] = sbv
+            project["section_bodies"][_suffix(sb, page)] = sbv
         if base_scenario.get("table") and page == 1:
-            scenario["table"] = base_scenario["table"]  # single table, page 1
+            project["table"] = base_scenario["table"]  # single table, page 1
         template["table_specs"] = base_template.get("table_specs", {})
 
         # Draft sections (deep-copied), then inject this page's defects.
@@ -104,7 +104,7 @@ def build_multipage(base_scenario: dict, base_template: dict, base_draft: dict,
     for c in base_corrections:
         corrections.append(c)
 
-    return {"scenario": scenario, "template": template, "draft": draft,
+    return {"project": project, "template": template, "draft": draft,
             "corpus": corpus, "graphics": graphics, "corrections": corrections,
             "injected": injected, "pages": pages}
 
@@ -132,7 +132,7 @@ def build_multipage_from_pool(base_scenario: dict, base_template: dict, base_dra
     shared-corpus builder). Page count is capped at the pool's capacity; asking
     for more raises PoolExhaustedError.
 
-    Returns scenario/template/draft/corpus/graphics/corrections/injected/records,
+    Returns project/template/draft/corpus/graphics/corrections/injected/records,
     where `corpus` holds one source doc PER PAGE and `records` are the withdrawn
     facts (for distinctness assertions).
     """
@@ -141,7 +141,7 @@ def build_multipage_from_pool(base_scenario: dict, base_template: dict, base_dra
     rng = random.Random(seed)
     records = pool.withdraw_n(pages)  # raises PoolExhaustedError if pages > capacity
 
-    scenario = {"id": f"pool{seed}", "title": f"{pages}-page pool-backed",
+    project = {"id": f"pool{seed}", "title": f"{pages}-page pool-backed",
                 "fields": [], "section_bodies": {}, "table": None}
     template = {"artifact_kind": "template", "title": "Multi-page template",
                 "required_sections": [], "table_specs": base_template.get("table_specs", {}),
@@ -169,10 +169,10 @@ def build_multipage_from_pool(base_scenario: dict, base_template: dict, base_dra
             template["required_sections"].append(new_tspec)
         for f in base_scenario.get("fields", []):
             # Scope each page's field retrieval to THIS page's corpus doc.
-            scenario["fields"].append(dict(f, section=_suffix(f["section"], page),
+            project["fields"].append(dict(f, section=_suffix(f["section"], page),
                                            source_doc=fname))
         for sb, sbv in base_scenario.get("section_bodies", {}).items():
-            scenario["section_bodies"][_suffix(sb, page)] = dict(sbv, source_doc=fname)
+            project["section_bodies"][_suffix(sb, page)] = dict(sbv, source_doc=fname)
 
         # Draft sections seeded with THIS page's (wrong-on-purpose) values so the
         # engine corrects them against this page's corpus facts.
@@ -203,6 +203,6 @@ def build_multipage_from_pool(base_scenario: dict, base_template: dict, base_dra
             _apply(d, target)
             injected.append({"page": page, "defect": d.id, "section": target["key"]})
 
-    return {"scenario": scenario, "template": template, "draft": draft,
+    return {"project": project, "template": template, "draft": draft,
             "corpus": corpus, "graphics": graphics, "corrections": [],
             "injected": injected, "records": records, "pages": pages}

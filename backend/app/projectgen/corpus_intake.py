@@ -1,8 +1,8 @@
-"""Turn an uploaded document into scenario corpus docs.
+"""Turn an uploaded document into project corpus docs.
 
 Bridges the ingestion parsers (which already handle docx/pdf/pptx/txt/md) to the
-scenario CorpusDoc shape, so a user's real document can become the ground-truth
-corpus of a generated scenario. Pure extraction: it reproduces the document's
+project CorpusDoc shape, so a user's real document can become the ground-truth
+corpus of a generated project. Pure extraction: it reproduces the document's
 text faithfully (headings preserved as markdown so the corpus generator can
 derive sections), and never adds or invents content.
 """

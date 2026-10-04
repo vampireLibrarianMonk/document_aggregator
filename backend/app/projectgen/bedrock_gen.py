@@ -1,10 +1,10 @@
-"""Bedrock scenario generator (optional).
+"""Bedrock project generator (optional).
 
-Asks an APPROVED model (Nemotron or GPT-OSS) to emit a complete ScenarioSpec as
+Asks an APPROVED model (Nemotron or GPT-OSS) to emit a complete ProjectSpec as
 strict JSON, then parses + validates it. On ANY failure (model not approved,
 boto3/creds missing, bad JSON, invalid spec) it falls back to the deterministic
-RuleScenarioGenerator, so the feature never breaks the system and the air-gap
-posture holds. The model AUTHORS a scenario; it never touches the correction
+RuleProjectGenerator, so the feature never breaks the system and the air-gap
+posture holds. The model AUTHORS a project; it never touches the correction
 path, and its output is validated before anything is persisted.
 """
 from __future__ import annotations
@@ -14,13 +14,13 @@ import re
 from dataclasses import dataclass
 
 from ..config import settings
-from .generator import ScenarioBrief
+from .generator import ProjectBrief
 from .metrics import RunMetrics, estimate_usd
 from .model_adapters import adapter_for
 from .model_profiles import profile_for
 from .prompts import get_prompt_strategy
-from .rule_generator import RuleScenarioGenerator
-from .schema import ScenarioSpec, salvage_spec, validate_spec
+from .rule_generator import RuleProjectGenerator
+from .schema import ProjectSpec, salvage_spec, validate_spec
 
 
 class ModelNotApprovedError(RuntimeError):
@@ -30,12 +30,12 @@ class ModelNotApprovedError(RuntimeError):
 @dataclass
 class GenerationResult:
     """A generated spec plus the measured score+cost metrics for the run."""
-    spec: ScenarioSpec
+    spec: ProjectSpec
     metrics: RunMetrics
 
 
-def _richness(spec: ScenarioSpec, m: RunMetrics) -> None:
-    """Fill the richness flags: did the scenario demonstrate the hard cases?"""
+def _richness(spec: ProjectSpec, m: RunMetrics) -> None:
+    """Fill the richness flags: did the project demonstrate the hard cases?"""
     # Conflict = 2+ corrections on one target with differing new_value.
     by_target: dict[str, set] = {}
     for c in spec.corrections:
@@ -49,13 +49,13 @@ def _richness(spec: ScenarioSpec, m: RunMetrics) -> None:
 
 
 def get_scenario_model() -> str:
-    """Resolve + enforce the approved scenario-generation model id."""
+    """Resolve + enforce the approved project-generation model id."""
     model = settings.BEDROCK_SCENARIO_MODEL
     if not model:
         raise ModelNotApprovedError("BEDROCK_SCENARIO_MODEL is not set")
     if not is_model_approved(model):
         raise ModelNotApprovedError(
-            f"model '{model}' is not on the scenario allowlist {_allowlist()} "
+            f"model '{model}' is not on the project allowlist {_allowlist()} "
             "(only Nemotron / GPT-OSS are approved)"
         )
     return model
@@ -73,7 +73,7 @@ def is_model_approved(model_id: str) -> bool:
 
 def list_approved_models() -> dict:
     """List the live, approved foundation models available in this account/region
-    for scenario generation. Returns {available, default, allowlist, models:[...]}.
+    for project generation. Returns {available, default, allowlist, models:[...]}.
     Gracefully degrades: if Bedrock/creds are unavailable, `available` is False
     and `models` is empty (the UI then only offers the offline generator)."""
     default = settings.BEDROCK_SCENARIO_MODEL
@@ -230,7 +230,7 @@ def _extract_json(text: str) -> dict:
     raise ValueError("no JSON object found in model output")
 
 
-def _finalize(spec: ScenarioSpec, user: str, adapter, client, max_tokens: int,
+def _finalize(spec: ProjectSpec, user: str, adapter, client, max_tokens: int,
               m: RunMetrics, system: str):
     """Turn a parsed model spec into a VALID spec, or None if unrecoverable,
     recording score metrics (valid_first_try, repair_rounds, salvage_dropped,
@@ -259,7 +259,7 @@ def _finalize(spec: ScenarioSpec, user: str, adapter, client, max_tokens: int,
     m.input_tokens += usage2.input_tokens
     m.output_tokens += usage2.output_tokens
     m.latency_ms += usage2.latency_ms
-    spec2 = ScenarioSpec(**_coerce_spec_dict(_extract_json(raw2)))
+    spec2 = ProjectSpec(**_coerce_spec_dict(_extract_json(raw2)))
     if not validate_spec(spec2):
         return spec2
     spec2 = salvage_spec(spec2)
@@ -268,7 +268,7 @@ def _finalize(spec: ScenarioSpec, user: str, adapter, client, max_tokens: int,
     return spec2 if not validate_spec(spec2) else None
 
 
-class BedrockScenarioGenerator:
+class BedrockProjectGenerator:
     name = "bedrock"
 
     def __init__(self, model_id: str | None = None,
@@ -278,7 +278,7 @@ class BedrockScenarioGenerator:
         if model_id:
             if not is_model_approved(model_id):
                 raise ModelNotApprovedError(
-                    f"model '{model_id}' is not on the scenario allowlist {_allowlist()}")
+                    f"model '{model_id}' is not on the project allowlist {_allowlist()}")
             self.model_id = model_id
         else:
             self.model_id = get_scenario_model()  # enforces allowlist (may raise)
@@ -290,12 +290,12 @@ class BedrockScenarioGenerator:
         self._prompt = get_prompt_strategy(prompt_strategy or self._profile.default_prompt)
         self._client = boto3.client("bedrock-runtime", region_name=settings.BEDROCK_REGION)
         self._adapter = adapter_for(self.model_id)
-        self._fallback = RuleScenarioGenerator()
+        self._fallback = RuleProjectGenerator()
 
-    def generate(self, brief: ScenarioBrief) -> ScenarioSpec:
+    def generate(self, brief: ProjectBrief) -> ProjectSpec:
         return self.generate_with_metrics(brief).spec
 
-    def generate_with_metrics(self, brief: ScenarioBrief) -> GenerationResult:
+    def generate_with_metrics(self, brief: ProjectBrief) -> GenerationResult:
         user = self._build_prompt(brief)
         # Output budget is resolved PER MODEL from its capability profile. The
         # cap bounds reasoning + answer on Converse, so reasoning models get
@@ -309,7 +309,7 @@ class BedrockScenarioGenerator:
             m.input_tokens += usage.input_tokens
             m.output_tokens += usage.output_tokens
             m.latency_ms += usage.latency_ms
-            spec = ScenarioSpec(**_coerce_spec_dict(_extract_json(raw)))
+            spec = ProjectSpec(**_coerce_spec_dict(_extract_json(raw)))
             spec = _finalize(spec, user, self._adapter, self._client, max_tokens, m,
                              self._prompt.system)
             if spec is not None:
@@ -325,7 +325,7 @@ class BedrockScenarioGenerator:
         _richness(fallback_spec, m)
         return GenerationResult(spec=fallback_spec, metrics=m)
 
-    def _build_prompt(self, brief: ScenarioBrief) -> str:
+    def _build_prompt(self, brief: ProjectBrief) -> str:
         # The user message is identical across strategies; the strategy's own
         # builder is the single source of truth.
         return self._prompt.build_user(brief)

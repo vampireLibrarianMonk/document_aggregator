@@ -13,7 +13,7 @@ import random
 
 from ..config import settings
 
-SCEN = settings.SCENARIO_ROOT
+SCEN = settings.BUNDLED_PROJECT_ROOT
 
 
 class PoolExhaustedError(Exception):
@@ -28,8 +28,8 @@ class FactPool:
         self._rng.shuffle(self._remaining)
 
     @classmethod
-    def load(cls, scenario_id: str, seed: int = 0) -> FactPool:
-        path = SCEN / scenario_id / "corpus" / "fact_pool.json"
+    def load(cls, project_id: str, seed: int = 0) -> FactPool:
+        path = SCEN / project_id / "corpus" / "fact_pool.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         return cls(data["records"], data.get("sources", []), seed)
 

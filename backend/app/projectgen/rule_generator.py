@@ -1,19 +1,19 @@
-"""Offline, deterministic scenario generator.
+"""Offline, deterministic project generator.
 
 Given a brief (domain + doc type + optional title), it assembles a complete,
-corpus-grounded ScenarioSpec in the proven incident-report shape: six sections,
+corpus-grounded ProjectSpec in the proven incident-report shape: six sections,
 discrete fields, three figures (relabel / move / insert defects), one table, a
 severity conflict, a classification needs_review, and furniture defects. The
 corpus text it writes CONTAINS every corrected value, so the no-fabrication
-validator passes and the generated scenario is as traceable as a hand-authored
+validator passes and the generated project is as traceable as a hand-authored
 one.
 
 This is the alpha-loop target and the air-gap fallback. It is fully
-deterministic given the same brief, so a generated scenario is reproducible.
+deterministic given the same brief, so a generated project is reproducible.
 """
 from __future__ import annotations
 
-from .generator import ScenarioBrief
+from .generator import ProjectBrief
 from .schema import (
     CorpusDoc,
     CorrectionSpec,
@@ -21,7 +21,7 @@ from .schema import (
     DraftSection,
     FieldSpec,
     GraphicSpec,
-    ScenarioSpec,
+    ProjectSpec,
     SectionBodySpec,
     SectionSpec,
     TableColumnSpec,
@@ -29,10 +29,10 @@ from .schema import (
 )
 
 
-class RuleScenarioGenerator:
+class RuleProjectGenerator:
     name = "rule-based (offline)"
 
-    def generate(self, brief: ScenarioBrief) -> ScenarioSpec:
+    def generate(self, brief: ProjectBrief) -> ProjectSpec:
         domain = brief.domain or "systems reliability"
         subject = brief.title or f"{domain.title()} Event"
         slug = _slug(subject)
@@ -199,7 +199,7 @@ class RuleScenarioGenerator:
             "16. Conflict: two reviewers assign different severities (High vs Medium).",
         ]
 
-        return ScenarioSpec(
+        return ProjectSpec(
             title=subject, domain=domain,
             required_sections=required_sections, fields=fields,
             section_bodies=section_bodies, table=table,

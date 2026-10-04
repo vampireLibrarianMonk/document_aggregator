@@ -1,12 +1,12 @@
 """Real worker ops — the close-to-the-metal processing steps.
 
 Each op is a small, composable function registered by name; the worker loop
-dispatches to them. Ops reuse the existing pipeline modules (scenario /
+dispatches to them. Ops reuse the existing pipeline modules (project /
 reconcile / discipline / layout) so there is one implementation, exercised both
 synchronously (API) and asynchronously (worker).
 
 Ops:
-  reconcile          run reconciliation for a scenario/mode/source_format
+  reconcile          run reconciliation for a project/mode/source_format
   converge           run multi-round convergence
   render_geometry    DOCX -> PDF (LibreOffice, gated) -> vector-layout findings
   generate_document  run the governor (decomposed generation) as a background job
@@ -21,38 +21,38 @@ from .worker import register_op
 
 @register_op("reconcile")
 def op_reconcile(payload: dict[str, Any]) -> dict[str, Any]:
-    from .. import scenario as sc
+    from .. import project as sc
 
     return sc.run_reconciliation(
         mode=payload.get("mode", "draft"),
-        scenario_id=payload.get("scenario_id", sc.DEFAULT_SCENARIO),
+        project_id=payload.get("project_id", sc.DEFAULT_PROJECT),
         source_format=payload.get("source_format"),
     )
 
 
 @register_op("converge")
 def op_converge(payload: dict[str, Any]) -> dict[str, Any]:
-    from .. import scenario as sc
+    from .. import project as sc
 
     return sc.run_convergence(
         mode=payload.get("mode", "draft"),
-        scenario_id=payload.get("scenario_id", sc.DEFAULT_SCENARIO),
+        project_id=payload.get("project_id", sc.DEFAULT_PROJECT),
         source_format=payload.get("source_format"),
     )
 
 
 @register_op("render_geometry")
 def op_render_geometry(payload: dict[str, Any]) -> dict[str, Any]:
-    """Render the scenario's generated document to PDF (if LibreOffice present),
+    """Render the project's generated document to PDF (if LibreOffice present),
     extract element geometry, and inspect it against the discipline layout rules.
     Degrades to a clear 'skipped' result when soffice is unavailable."""
     from pathlib import Path
 
-    from .. import scenario as sc
+    from .. import project as sc
     from ..discipline import load_discipline
     from ..discipline.vector import inspect_vector_layout
 
-    sid = payload.get("scenario_id", sc.DEFAULT_SCENARIO)
+    sid = payload.get("project_id", sc.DEFAULT_PROJECT)
     mode = payload.get("mode", "draft")
     fmt = payload.get("source_format", "docx")
     gen = sc._dir(sid) / "first_attempt" / "generated" / f"{mode}.{fmt}"
@@ -73,19 +73,19 @@ def op_generate_document(payload: dict[str, Any]) -> dict[str, Any]:
     `per_section` authoring mode, and an `adjudicator`.
 
     This is the async counterpart of the synchronous SSE endpoint
-    (/scenario/governed/stream): same governor, same events, but backgrounded via
+    (/project/governed/stream): same governor, same events, but backgrounded via
     the job queue and polled through /jobs/{id}. Never raises for a model failure
     -- the governor degrades to the deterministic path and reports fell_back."""
-    from ..scenariogen.generator import ScenarioBrief
-    from ..scenariogen.governor import (
+    from ..projectgen.generator import ProjectBrief
+    from ..projectgen.governor import (
         make_adjudicator,
         make_section_author,
         run_governed,
     )
 
     freeform = (payload.get("freeform") or "").strip()
-    brief = (ScenarioBrief(freeform=freeform) if freeform
-             else ScenarioBrief(domain=payload.get("domain", ""),
+    brief = (ProjectBrief(freeform=freeform) if freeform
+             else ProjectBrief(domain=payload.get("domain", ""),
                                  doc_type=payload.get("doc_type", "incident report"),
                                  title=payload.get("title", "")))
     model = payload.get("model") or None
@@ -102,15 +102,15 @@ def op_generate_document(payload: dict[str, Any]) -> dict[str, Any]:
             import boto3
 
             from ..config import settings
-            from ..scenariogen.model_adapters import adapter_for
+            from ..projectgen.model_adapters import adapter_for
             client = boto3.client("bedrock-runtime", region_name=settings.BEDROCK_REGION)
             adapter = adapter_for(model)
             author_model = model
             if per_section:
                 section_author = make_section_author(model, client=client, adapter=adapter)
             else:
-                from ..scenariogen.bedrock_gen import BedrockScenarioGenerator
-                author = BedrockScenarioGenerator(model_id=model)
+                from ..projectgen.bedrock_gen import BedrockProjectGenerator
+                author = BedrockProjectGenerator(model_id=model)
                 author_model = author.model_id
         except Exception:
             author = section_author = None
@@ -124,20 +124,20 @@ def op_generate_document(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "summary": res.summary(),
         "events": [e.as_dict() for e in res.events],
-        "scenario_id": res.scenario_id,
+        "project_id": res.project_id,
     }
 
 
 @register_op("pipeline")
 def op_pipeline(payload: dict[str, Any]) -> dict[str, Any]:
-    """Full end-to-end for a scenario document source: reconcile (which already
+    """Full end-to-end for a project document source: reconcile (which already
     merges structural + gated geometric discipline findings) and report the
     summary. This is what the async submit endpoint runs."""
-    from .. import scenario as sc
+    from .. import project as sc
 
     report = sc.run_reconciliation(
         mode=payload.get("mode", "draft"),
-        scenario_id=payload.get("scenario_id", sc.DEFAULT_SCENARIO),
+        project_id=payload.get("project_id", sc.DEFAULT_PROJECT),
         source_format=payload.get("source_format", "docx"),
     )
     return {

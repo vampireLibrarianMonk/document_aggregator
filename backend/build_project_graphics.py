@@ -1,4 +1,4 @@
-"""Generate real PNG figures for EVERY scenario, with a managed naming
+"""Generate real PNG figures for EVERY project, with a managed naming
 convention, a centered title baked into each image, and controlled canvas size.
 
 We deliberately do NOT render full analytic pixels — a simple, deterministic
@@ -6,14 +6,14 @@ sketch is enough. What matters for the pipeline is that these are *real* images
 with (a) a stable managed name, (b) a centered title, and (c) a known
 size/position, so the template/draft/final-output can track and inspect them.
 
-Data-driven: for each scenario it reads the EXISTING corpus/graphics.json (the
+Data-driven: for each project it reads the EXISTING corpus/graphics.json (the
 list of graphic_id/name/caption/source_doc/belongs_in_section), derives a title
 from the caption, picks a sketch style, and rewrites graphics.json enriched with
 title/file/width/height/align. One managed pipeline for all scenarios.
 
 Run:  python backend/build_scenario_graphics.py
-Writes: sample_docs/scenario/<id>/corpus/figures/<name>.png and updates
-        sample_docs/scenario/<id>/corpus/graphics.json
+Writes: sample_docs/project/<id>/corpus/figures/<name>.png and updates
+        sample_docs/project/<id>/corpus/graphics.json
 """
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ import json
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SCEN = REPO / "sample_docs" / "scenario"
+SCEN = REPO / "sample_docs" / "project"
 
-# Standard managed geometry for every scenario figure (one place defines it).
+# Standard managed geometry for every project figure (one place defines it).
 FIG_WIDTH = 640
 FIG_HEIGHT = 360
 FIG_ALIGN = "center"
@@ -134,8 +134,8 @@ def build_figure(title: str, kind: str, w: int = FIG_WIDTH, h: int = FIG_HEIGHT)
     return buf.getvalue()
 
 
-def build_scenario(scenario_id: str) -> int:
-    gjson_path = SCEN / scenario_id / "corpus" / "graphics.json"
+def build_project(project_id: str) -> int:
+    gjson_path = SCEN / project_id / "corpus" / "graphics.json"
     if not gjson_path.exists():
         return 0
     data = json.loads(gjson_path.read_text(encoding="utf-8"))
@@ -143,7 +143,7 @@ def build_scenario(scenario_id: str) -> int:
     if not graphics:
         return 0
 
-    fig_dir = SCEN / scenario_id / "corpus" / "figures"
+    fig_dir = SCEN / project_id / "corpus" / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
 
     enriched = []
@@ -166,7 +166,7 @@ def build_scenario(scenario_id: str) -> int:
             "height": g.get("height", FIG_HEIGHT),
             "align": g.get("align", FIG_ALIGN),
         })
-        print(f"scenario {scenario_id}: wrote figures/{name} "
+        print(f"project {project_id}: wrote figures/{name} "
               f"({FIG_WIDTH}x{FIG_HEIGHT}, title='{title}', style={kind})")
 
     out = {
@@ -177,17 +177,17 @@ def build_scenario(scenario_id: str) -> int:
         "graphics": enriched,
     }
     gjson_path.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
-    print(f"scenario {scenario_id}: updated graphics.json ({len(enriched)} figures)")
+    print(f"project {project_id}: updated graphics.json ({len(enriched)} figures)")
     return len(enriched)
 
 
 def main() -> None:
-    scenario_ids = sorted(p.name for p in SCEN.iterdir()
+    project_ids = sorted(p.name for p in SCEN.iterdir()
                           if (p / "corpus" / "graphics.json").exists())
     total = 0
-    for sid in scenario_ids:
-        total += build_scenario(sid)
-    print(f"\nDone: {total} figures across {len(scenario_ids)} scenarios.")
+    for sid in project_ids:
+        total += build_project(sid)
+    print(f"\nDone: {total} figures across {len(project_ids)} scenarios.")
 
 
 if __name__ == "__main__":

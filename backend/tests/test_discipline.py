@@ -16,7 +16,7 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 from app.convert import convert_document  # noqa: E402
 from app.discipline import learn_discipline, load_discipline  # noqa: E402
 from app.discipline.inject import build_docx_with_violation  # noqa: E402
@@ -30,7 +30,7 @@ def _evidence_for(violation):
 
 
 def _findings(violation):
-    """Placement rules come from scenario 1's template; text-format rules are
+    """Placement rules come from project 1's template; text-format rules are
     learned from the document (no hardcoded default)."""
     evidence = _evidence_for(violation)
     discipline = learn_discipline(load_discipline(sc.load_template("1")), evidence)

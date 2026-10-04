@@ -1,6 +1,6 @@
 """Governor: decomposed, verifiable document generation.
 
-The governor turns a brief into a validated ScenarioSpec by DECOMPOSING the work
+The governor turns a brief into a validated ProjectSpec by DECOMPOSING the work
 into bounded, individually-checked steps (plan -> fill-per-section ->
 proofread-per-section -> reconcile), instead of asking a model for the whole
 document in one shot (which the model evaluation proved never passes first try

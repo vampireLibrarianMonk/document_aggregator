@@ -1,17 +1,17 @@
-"""Deterministic, corpus-grounded scenario generator.
+"""Deterministic, corpus-grounded project generator.
 
 This is the heart of "faithful + deterministic" generation and the reason the
 app exists: the user supplies the REAL source material, and that material becomes
-the scenario's corpus (ground truth). Unlike the model path, nothing is invented
+the project's corpus (ground truth). Unlike the model path, nothing is invented
 -- every asserted value is pulled verbatim from the provided corpus, so
 _check_corpus_grounding passes by construction and there is no fabrication.
 
 It is a pure function of (corpus, brief): no model, no RNG, no clock. The same
-corpus + brief yields a byte-identical ScenarioSpec every time, and once
-persisted the scenario reconciles with no model at all. That closes the drift the
+corpus + brief yields a byte-identical ProjectSpec every time, and once
+persisted the project reconciles with no model at all. That closes the drift the
 model path exhibits (see GOVERNOR_EVAL.md adversarial review).
 
-Shape of the generated scenario (same contract as RuleScenarioGenerator):
+Shape of the generated project (same contract as RuleProjectGenerator):
   - corpus:      the user's documents, used verbatim.
   - sections:    derived from the corpus headings (or a standard fallback set).
   - fields:      labeled values discovered in the corpus (grounded) + one
@@ -24,13 +24,13 @@ from __future__ import annotations
 
 import re
 
-from .generator import ScenarioBrief
+from .generator import ProjectBrief
 from .schema import (
     CorpusDoc,
     CorrectionSpec,
     DraftSection,
     FieldSpec,
-    ScenarioSpec,
+    ProjectSpec,
     SectionBodySpec,
     SectionSpec,
 )
@@ -97,18 +97,18 @@ def _mangle(value: str) -> str:
     return v + " (DRAFT - unverified)"
 
 
-class CorpusScenarioGenerator:
-    """Builds a validated, corpus-grounded ScenarioSpec deterministically from a
+class CorpusProjectGenerator:
+    """Builds a validated, corpus-grounded ProjectSpec deterministically from a
     user-provided corpus. No model, no RNG."""
     name = "corpus-grounded"
 
-    def generate(self, brief: ScenarioBrief) -> ScenarioSpec:
+    def generate(self, brief: ProjectBrief) -> ProjectSpec:
         corpus = _as_corpus_docs(getattr(brief, "corpus", None))
         if not corpus:
             # Nothing to ground in -> defer to the deterministic rule generator
             # (keeps the feature safe rather than emitting an invalid spec).
-            from .rule_generator import RuleScenarioGenerator
-            return RuleScenarioGenerator().generate(brief)
+            from .rule_generator import RuleProjectGenerator
+            return RuleProjectGenerator().generate(brief)
 
         title = brief.title or _derive_title(corpus)
         domain = brief.domain or "document review"
@@ -129,7 +129,7 @@ class CorpusScenarioGenerator:
         fields: list[FieldSpec] = []
         draft_field_vals: dict[str, dict[str, str]] = {k: {} for k in sec_keys}
         corrections: list[CorrectionSpec] = []
-        # Use at most 4 grounded fields so the scenario stays legible.
+        # Use at most 4 grounded fields so the project stays legible.
         for idx, (label, value) in enumerate(pairs[:4]):
             fkey = _field_key(label, idx)
             sec = sec_keys[idx % len(sec_keys)]
@@ -178,14 +178,14 @@ class CorpusScenarioGenerator:
         ]
 
         seeded = [
-            f"Corpus-grounded scenario from {len(corpus)} uploaded document(s).",
+            f"Corpus-grounded project from {len(corpus)} uploaded document(s).",
             f"{len([c for c in corrections if c.id.startswith('corr_') and c.operation == 'replace'])} "
             "value corrections, each grounded in the source.",
             "One needs-review field (reviewer_signoff) with no corpus source.",
             "One conflict (two reviewers disagree on the lead field).",
         ]
 
-        spec = ScenarioSpec(
+        spec = ProjectSpec(
             title=title, domain=domain,
             required_sections=sections, fields=fields,
             section_bodies=section_bodies, table=None,

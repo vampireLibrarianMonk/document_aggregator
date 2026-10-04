@@ -1,11 +1,11 @@
-"""Persist a validated ScenarioSpec to the on-disk scenario tree.
+"""Persist a validated ProjectSpec to the on-disk project tree.
 
 Deterministic: the same spec always writes the same files. After writing the
 JSON + corpus, it generates the real PNG figures and the template/draft DOCX so
-the scenario is immediately usable in every source-fidelity mode.
+the project is immediately usable in every source-fidelity mode.
 
 The write is staged in a temp dir and swapped into place so a half-written
-scenario never appears on disk.
+project never appears on disk.
 """
 from __future__ import annotations
 
@@ -14,25 +14,25 @@ import shutil
 from pathlib import Path
 
 from ..config import settings
-from .schema import ScenarioSpec, validate_spec
+from .schema import ProjectSpec, validate_spec
 
 # Single source of truth lives in config (previously duplicated here).
-SCENARIO_ROOT = settings.SCENARIO_ROOT
+BUNDLED_PROJECT_ROOT = settings.BUNDLED_PROJECT_ROOT
 
 # These filenames are what the loaders expect (kept for compatibility).
 TEMPLATE_FILE = "incident_report_template.json"
 DRAFT_FILE = "incident_report_draft.json"
 
 
-def next_scenario_id() -> str:
-    """The next free numeric scenario id, considering BOTH the legacy bundle and
-    the unified project store so a generated scenario never collides with a demo
+def next_project_id() -> str:
+    """The next free numeric project id, considering BOTH the legacy bundle and
+    the unified project store so a generated project never collides with a demo
     one. (Ids stay numeric for now; the proj_* id model is a later phase.)"""
-    nums = [int(sid) for sid, _ in settings.iter_scenario_dirs() if sid.isdigit()]
+    nums = [int(sid) for sid, _ in settings.iter_project_data_dirs() if sid.isdigit()]
     return str((max(nums) + 1) if nums else 1)
 
 
-def _manifest_json(spec: ScenarioSpec, scenario_id: str) -> dict:
+def _manifest_json(spec: ProjectSpec, project_id: str) -> dict:
     fields = []
     for f in spec.fields:
         fd = {"key": f.key, "label": f.label, "section": f.section, "extract": f.extract}
@@ -50,10 +50,10 @@ def _manifest_json(spec: ScenarioSpec, scenario_id: str) -> dict:
         section_bodies[sb.section] = entry
 
     manifest = {
-        "id": scenario_id,
+        "id": project_id,
         "title": spec.title,
         "domain": spec.domain,
-        "note": "Generated scenario. Everything scenario-specific lives here so the "
+        "note": "Generated project. Everything project-specific lives here so the "
                 "reconciliation engine stays generic.",
         "corpus_docs": [d.name for d in spec.corpus],
         "fields": fields,
@@ -80,7 +80,7 @@ def _manifest_json(spec: ScenarioSpec, scenario_id: str) -> dict:
     return manifest
 
 
-def _template_json(spec: ScenarioSpec) -> dict:
+def _template_json(spec: ProjectSpec) -> dict:
     required = []
     for s in spec.required_sections:
         entry = {"key": s.key, "heading": s.heading}
@@ -123,7 +123,7 @@ def _template_json(spec: ScenarioSpec) -> dict:
     return tmpl
 
 
-def _draft_json(spec: ScenarioSpec) -> dict:
+def _draft_json(spec: ProjectSpec) -> dict:
     sections = []
     for ds in spec.draft_sections:
         entry: dict = {"key": ds.key, "heading": ds.heading}
@@ -153,9 +153,9 @@ def _draft_json(spec: ScenarioSpec) -> dict:
     }
 
 
-def _graphics_json(spec: ScenarioSpec) -> dict:
+def _graphics_json(spec: ProjectSpec) -> dict:
     return {
-        "note": "Graphic references for this scenario; real PNGs are generated under "
+        "note": "Graphic references for this project; real PNGs are generated under "
                 "corpus/figures/ with managed titles and sizes.",
         "graphics": [
             {
@@ -167,7 +167,7 @@ def _graphics_json(spec: ScenarioSpec) -> dict:
     }
 
 
-def _corrections_json(spec: ScenarioSpec) -> dict:
+def _corrections_json(spec: ProjectSpec) -> dict:
     return {
         "note": "Generated reviewer comments/emails. In draft mode these judge value "
                 "defects. Disagreeing corrections on one unit become a conflict.",
@@ -175,23 +175,24 @@ def _corrections_json(spec: ScenarioSpec) -> dict:
     }
 
 
-def persist_spec(spec: ScenarioSpec, scenario_id: str | None = None,
+def persist_spec(spec: ProjectSpec, project_id: str | None = None,
                  build_assets: bool = True) -> str:
-    """Validate + write a scenario to disk and return its id. Raises ValueError
+    """Validate + write a project to disk and return its id. Raises ValueError
     with all problems if the spec is invalid (nothing is written)."""
     problems = validate_spec(spec)
     if problems:
-        raise ValueError("invalid scenario spec:\n  - " + "\n  - ".join(problems))
+        raise ValueError("invalid project spec:\n  - " + "\n  - ".join(problems))
 
-    sid = scenario_id or next_scenario_id()
-    # Write into the UNIFIED project store: a project IS a scenario, so the
-    # scenario payload lives at DATA_DIR/projects/<sid>/scenario. Staging is a
-    # sibling under the same project dir so the rename swap stays atomic (same
-    # filesystem). A minimal project.json is written so the store recognizes it.
+    sid = project_id or next_project_id()
+    # Write into the UNIFIED project store: the correction data (corpus/template/
+    # draft/corrections) lives at DATA_DIR/projects/<sid>/data (matching
+    # settings.project_data_dir). Staging is a sibling under the same project dir
+    # so the rename swap stays atomic (same filesystem). A minimal project.json
+    # is written so the store recognizes it.
     project_root = settings.project_dir(sid)
     project_root.mkdir(parents=True, exist_ok=True)
-    dest = project_root / "scenario"
-    staging = project_root / ".scenario.staging"
+    dest = settings.project_data_dir(sid)
+    staging = project_root / ".data.staging"
     if staging.exists():
         shutil.rmtree(staging)
     (staging / "corpus").mkdir(parents=True)
@@ -201,7 +202,7 @@ def persist_spec(spec: ScenarioSpec, scenario_id: str | None = None,
     def _w(path: Path, data: dict) -> None:
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-    _w(staging / "scenario.json", _manifest_json(spec, sid))
+    _w(staging / "project.json", _manifest_json(spec, sid))
     _w(staging / "first_attempt" / TEMPLATE_FILE, _template_json(spec))
     _w(staging / "first_attempt" / DRAFT_FILE, _draft_json(spec))
     _w(staging / "corpus" / "graphics.json", _graphics_json(spec))
@@ -215,7 +216,7 @@ def persist_spec(spec: ScenarioSpec, scenario_id: str | None = None,
     staging.rename(dest)
 
     # Register the directory as a project so the five tabs can scope to it. Done
-    # best-effort; the scenario payload above is the authoritative artifact.
+    # best-effort; the project payload above is the authoritative artifact.
     _ensure_project_record(sid, spec)
 
     if build_assets:
@@ -223,38 +224,38 @@ def persist_spec(spec: ScenarioSpec, scenario_id: str | None = None,
     return sid
 
 
-def _ensure_project_record(scenario_id: str, spec: ScenarioSpec) -> None:
+def _ensure_project_record(project_id: str, spec: ProjectSpec) -> None:
     """Write a minimal project.json + the standard project subdirs so the unified
-    store treats this scenario directory as a real project the five tabs scope to.
-    Best-effort: the scenario payload is authoritative regardless."""
+    store treats this project directory as a real project the five tabs scope to.
+    Best-effort: the project payload is authoritative regardless."""
     try:
         from ..models import Project
         from ..store import store
-        if store.get_project(scenario_id) is None:
-            store.create_project(Project(id=scenario_id, name=spec.title or scenario_id))
+        if store.get_project(project_id) is None:
+            store.create_project(Project(id=project_id, name=spec.title or project_id))
     except Exception:
         pass
 
 
-def _build_assets(scenario_id: str) -> None:
+def _build_assets(project_id: str) -> None:
     """Generate the real PNG figures and the template/draft DOCX/PPTX/PDF for a
-    freshly-written scenario, reusing the existing build scripts. Resolves the
-    scenario directory via the shared resolver (unified project store first)."""
+    freshly-written project, reusing the existing build scripts. Resolves the
+    project directory via the shared resolver (unified project store first)."""
     import sys
     backend_dir = Path(__file__).resolve().parents[2]
     if str(backend_dir) not in sys.path:
         sys.path.insert(0, str(backend_dir))
-    sdir = settings.resolve_scenario_dir(scenario_id)
+    sdir = settings.resolve_project_data_dir(project_id)
     try:
-        import build_scenario_graphics as bsg
-        bsg.build_scenario(scenario_id)
+        import build_project_graphics as bpg
+        bpg.build_project(project_id)
     except Exception:
-        pass  # figures are best-effort; scenario still reconciles in JSON mode
+        pass  # figures are best-effort; project still reconciles in JSON mode
     try:
         import json as _json
 
         import build_sample_docs as bsd
-        scn = _json.loads((sdir / "scenario.json").read_text(encoding="utf-8"))
+        scn = _json.loads((sdir / "project.json").read_text(encoding="utf-8"))
         out = sdir / "first_attempt" / "generated"
         for kind, jname in (("draft", DRAFT_FILE), ("template", TEMPLATE_FILE)):
             src = _json.loads((sdir / "first_attempt" / jname).read_text(encoding="utf-8"))

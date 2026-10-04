@@ -1,9 +1,9 @@
-"""Named prompt strategies for scenario generation.
+"""Named prompt strategies for project generation.
 
-The model is only an AUTHOR: it emits a ScenarioSpec as strict JSON, which the
+The model is only an AUTHOR: it emits a ProjectSpec as strict JSON, which the
 pipeline then validates, salvages, and persists as fixed data. A "prompt
 strategy" is a (system contract, user-prompt builder) pair. Every strategy MUST
-produce the SAME ScenarioSpec contract -- the strategies differ only in HOW they
+produce the SAME ProjectSpec contract -- the strategies differ only in HOW they
 ask for it, so we can measure whether phrasing lifts the weaker/smaller models
 without changing what counts as a valid result.
 
@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .generator import ScenarioBrief
+    from .generator import ProjectBrief
 
 # --- Baseline (verbatim historical _SPEC_CONTRACT) --------------------------
 
@@ -123,25 +123,25 @@ _REASONING_SUPPRESSED_ADDENDUM = """
 
 ANSWER DIRECTLY. Do not write out a long chain of reasoning before the JSON.
 Spend your output budget on the JSON object itself, not on planning prose. Plan
-briefly if you must, but the bulk of your response MUST be the ScenarioSpec JSON
+briefly if you must, but the bulk of your response MUST be the ProjectSpec JSON
 object, complete and not truncated. The first character of the JSON is '{'.
 """
 
 
-def _build_user(brief: ScenarioBrief) -> str:
+def _build_user(brief: ProjectBrief) -> str:
     """Shared user-message builder (identical across strategies)."""
     if brief.freeform:
         return (
-            "Build a scenario from this description, using your best judgment "
+            "Build a project from this description, using your best judgment "
             "to choose sections, fields, figures, a table, and realistic "
             f"defects:\n\n{brief.freeform}\n\n"
-            "Return the ScenarioSpec JSON only."
+            "Return the ProjectSpec JSON only."
         )
     return (
-        f"Build a '{brief.doc_type}' scenario for the domain "
+        f"Build a '{brief.doc_type}' project for the domain "
         f"'{brief.domain}'"
         + (f", titled '{brief.title}'" if brief.title else "")
-        + ". Return the ScenarioSpec JSON only."
+        + ". Return the ProjectSpec JSON only."
     )
 
 
@@ -154,7 +154,7 @@ class PromptStrategy:
     """
     name: str
     system: str
-    build_user: Callable[[ScenarioBrief], str]
+    build_user: Callable[[ProjectBrief], str]
     description: str = ""
 
 

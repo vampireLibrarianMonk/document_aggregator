@@ -1,7 +1,7 @@
-"""Ad-hoc harness: run the generic reconciliation engine against a scenario
+"""Ad-hoc harness: run the generic reconciliation engine against a project
 in both draft and template mode, and print a status summary per unit.
 
-    python backend/try_reconcile.py [scenario_id]
+    python backend/try_reconcile.py [project_id]
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 
 
 def dump(report: dict, label: str) -> None:
@@ -37,7 +37,7 @@ def dump(report: dict, label: str) -> None:
 
 
 def main() -> None:
-    sid = sys.argv[1] if len(sys.argv) > 1 else sc.DEFAULT_SCENARIO
+    sid = sys.argv[1] if len(sys.argv) > 1 else sc.DEFAULT_PROJECT
     dump(sc.run_reconciliation("draft", sid), f"SCENARIO {sid} — DRAFT MODE")
     dump(sc.run_reconciliation("template", sid), f"SCENARIO {sid} — TEMPLATE MODE")
 

@@ -9,15 +9,15 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 
 
 def all_scenario_ids() -> list[str]:
-    return [s["id"] for s in sc.list_scenarios()]
+    return [s["id"] for s in sc.list_project_cases()]
 
 
 @pytest.fixture(params=all_scenario_ids())
-def scenario_id(request) -> str:
+def project_id(request) -> str:
     return request.param
 
 

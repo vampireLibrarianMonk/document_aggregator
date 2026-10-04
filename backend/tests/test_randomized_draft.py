@@ -1,7 +1,7 @@
 """Randomized-draft test.
 
 Instead of asserting fixed answers, this synthesizes a draft by mutating a
-scenario's template with a seeded RNG: it injects known defects (blank fields,
+project's template with a seeded RNG: it injects known defects (blank fields,
 corrupted values, shuffled/moved/dropped graphics) and then asserts the engine
 (a) resolves or flags every unit legally, (b) fabricates nothing, and (c) does
 not silently keep an injected-wrong value as `unchanged`.
@@ -98,21 +98,21 @@ def synthesize_draft(template: dict, graphics: list[dict], rng: random.Random) -
 
 
 @pytest.mark.parametrize("seed", list(range(10)))
-def test_randomized_draft_no_fabrication_and_catches_defects(scenario_module, scenario_id, seed):
+def test_randomized_draft_no_fabrication_and_catches_defects(scenario_module, project_id, seed):
     from app.reconcile import reconcile
 
     rng = random.Random(seed)
-    template = scenario_module.load_template(scenario_id)
-    corpus = scenario_module.load_corpus(scenario_id)
-    graphics = scenario_module.load_graphics(scenario_id)
-    corrections = scenario_module.load_corrections(scenario_id)
-    manifest = scenario_module.load_manifest(scenario_id)
+    template = scenario_module.load_template(project_id)
+    corpus = scenario_module.load_corpus(project_id)
+    graphics = scenario_module.load_graphics(project_id)
+    corrections = scenario_module.load_corrections(project_id)
+    manifest = scenario_module.load_manifest(project_id)
 
     draft, injected = synthesize_draft(template, graphics, rng)
 
     report = reconcile(
         first_attempt=draft, corpus=corpus, graphics_manifest=graphics,
-        corrections=corrections, template=template, scenario=manifest,
+        corrections=corrections, template=template, project=manifest,
     ).model_dump()
 
     fields = {f["key"]: f for f in _all_fields(report)}

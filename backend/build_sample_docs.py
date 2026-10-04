@@ -1,15 +1,15 @@
-"""Author real DOCX/PPTX/PDF template + draft documents for every scenario.
+"""Author real DOCX/PPTX/PDF template + draft documents for every project.
 
 Clients submit real documents, so we generate realistic ones (grounded in
 common incident-report template structure: numbered sections, a management
 briefing / corrective-actions table, sign-off fields, and a header/footer with
-page numbers and a classification marking). Content comes from each scenario's
+page numbers and a classification marking). Content comes from each project's
 existing JSON draft/template so the converted result can be compared against the
 JSON-authored baseline.
 
     python backend/build_sample_docs.py
 
-Writes into sample_docs/scenario/<id>/first_attempt/generated/.
+Writes into sample_docs/project/<id>/first_attempt/generated/.
 """
 from __future__ import annotations
 
@@ -19,14 +19,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-SCEN = Path(__file__).resolve().parents[1] / "sample_docs" / "scenario"
+SCEN = Path(__file__).resolve().parents[1] / "sample_docs" / "project"
 
 
 def _load(sid: str, name: str) -> dict:
     return json.loads((SCEN / sid / "first_attempt" / name).read_text(encoding="utf-8"))
 
 
-def _artifact_sections(artifact: dict, scenario: dict) -> list[dict]:
+def _artifact_sections(artifact: dict, project: dict) -> list[dict]:
     """Normalize either a draft (has sections) or a template (has
     required_sections rubric) into a renderable section list."""
     if artifact.get("sections"):
@@ -34,11 +34,11 @@ def _artifact_sections(artifact: dict, scenario: dict) -> list[dict]:
     # Template: render required sections as headings with blank field labels and
     # empty bodies/tables (a blank template a client would fill in).
     fields_by_section: dict[str, list[str]] = {}
-    for f in scenario.get("fields", []):
+    for f in project.get("fields", []):
         fields_by_section.setdefault(f["section"], []).append(f["key"])
     # Map required graphic id -> its managed name, so the template can show the
     # correctly-titled figure placeholder each section requires.
-    gid_to_name = {g["graphic_id"]: g["name"] for g in _graphics_list(scenario)}
+    gid_to_name = {g["graphic_id"]: g["name"] for g in _graphics_list(project)}
     out: list[dict] = []
     for spec in artifact.get("required_sections", []):
         sec: dict = {"key": spec["key"], "heading": spec["heading"],
@@ -59,8 +59,8 @@ def _artifact_sections(artifact: dict, scenario: dict) -> list[dict]:
     return out
 
 
-def _graphics_list(scenario: dict) -> list[dict]:
-    sid = str(scenario.get("id", ""))
+def _graphics_list(project: dict) -> list[dict]:
+    sid = str(project.get("id", ""))
     gjson = SCEN / sid / "corpus" / "graphics.json"
     if gjson.exists():
         return json.loads(gjson.read_text(encoding="utf-8")).get("graphics", [])
@@ -71,7 +71,7 @@ def _graphics_list(scenario: dict) -> list[dict]:
 # DOCX
 # --------------------------------------------------------------------------
 
-def build_docx(draft: dict, scenario: dict, path: Path) -> None:
+def build_docx(draft: dict, project: dict, path: Path) -> None:
     import docx
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml import OxmlElement
@@ -97,7 +97,7 @@ def build_docx(draft: dict, scenario: dict, path: Path) -> None:
 
     d.add_heading(draft.get("title", "Report"), level=0)
 
-    for sec in _artifact_sections(draft, scenario):
+    for sec in _artifact_sections(draft, project):
         d.add_heading(sec["heading"], level=1)
         # fields as "Label: value" lines
         for fkey, fval in (sec.get("fields") or {}).items():
@@ -106,7 +106,7 @@ def build_docx(draft: dict, scenario: dict, path: Path) -> None:
         if sec.get("body"):
             d.add_paragraph(sec["body"])
         for g in sec.get("graphics", []) or []:
-            _embed_graphic(d, g, scenario)
+            _embed_graphic(d, g, project)
         tbl = sec.get("table")
         if tbl and tbl.get("columns"):
             if tbl.get("title"):
@@ -127,10 +127,10 @@ def build_docx(draft: dict, scenario: dict, path: Path) -> None:
 _GRAPHICS_CACHE: dict[str, dict] = {}
 
 
-def _graphics_meta(scenario: dict) -> dict[str, dict]:
-    """Load the scenario's managed figure metadata (name -> {file,title,w,h}).
-    Cached per scenario id."""
-    sid = str(scenario.get("id", ""))
+def _graphics_meta(project: dict) -> dict[str, dict]:
+    """Load the project's managed figure metadata (name -> {file,title,w,h}).
+    Cached per project id."""
+    sid = str(project.get("id", ""))
     if sid in _GRAPHICS_CACHE:
         return _GRAPHICS_CACHE[sid]
     meta: dict[str, dict] = {}
@@ -143,7 +143,7 @@ def _graphics_meta(scenario: dict) -> dict[str, dict]:
     return meta
 
 
-def _embed_graphic(d, g: dict, scenario: dict) -> None:
+def _embed_graphic(d, g: dict, project: dict) -> None:
     """Embed a real PNG (centered, sized) with a centered title paragraph above
     it. Falls back to a text placeholder if the file is missing. The draft may
     override title/width to seed a defect (wrong/missing title, wrong size)."""
@@ -151,8 +151,8 @@ def _embed_graphic(d, g: dict, scenario: dict) -> None:
     from docx.shared import Inches
 
     name = g.get("ref_name") or g.get("name") or ""
-    meta = _graphics_meta(scenario).get(name, {})
-    sid = str(scenario.get("id", ""))
+    meta = _graphics_meta(project).get(name, {})
+    sid = str(project.get("id", ""))
 
     # Title: draft entry can override (or blank) it to seed a defect; otherwise
     # use the managed title from graphics.json.
@@ -198,7 +198,7 @@ def _set_docpr_name(paragraph, name: str) -> None:
 # PPTX
 # --------------------------------------------------------------------------
 
-def build_pptx(draft: dict, scenario: dict, path: Path) -> None:
+def build_pptx(draft: dict, project: dict, path: Path) -> None:
     from pptx import Presentation
 
     prs = Presentation()
@@ -210,7 +210,7 @@ def build_pptx(draft: dict, scenario: dict, path: Path) -> None:
     classif = draft.get("furniture", {}).get("classification", "")
     s.placeholders[1].text = classif or ""
 
-    for sec in _artifact_sections(draft, scenario):
+    for sec in _artifact_sections(draft, project):
         slide = prs.slides.add_slide(body_layout)
         slide.shapes.title.text = sec["heading"]
         tf = slide.placeholders[1].text_frame
@@ -237,14 +237,14 @@ def build_pptx(draft: dict, scenario: dict, path: Path) -> None:
 # PDF
 # --------------------------------------------------------------------------
 
-def build_pdf(draft: dict, scenario: dict, path: Path) -> None:
+def build_pdf(draft: dict, project: dict, path: Path) -> None:
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table
 
     styles = getSampleStyleSheet()
     flow = [Paragraph(draft.get("title", "Report"), styles["Title"]), Spacer(1, 10)]
-    for sec in _artifact_sections(draft, scenario):
+    for sec in _artifact_sections(draft, project):
         flow.append(Paragraph(sec["heading"], styles["Heading1"]))
         for fkey, fval in (sec.get("fields") or {}).items():
             flow.append(Paragraph(f"{fkey.replace('_', ' ').title()}: {fval}", styles["BodyText"]))
@@ -263,7 +263,7 @@ def build_pdf(draft: dict, scenario: dict, path: Path) -> None:
     SimpleDocTemplate(str(path), pagesize=letter).build(flow)
 
 
-def build_docx_multipage(draft: dict, scenario: dict, pages: int, path: Path) -> None:
+def build_docx_multipage(draft: dict, project: dict, pages: int, path: Path) -> None:
     """Render a multi-page DOCX: a page break between each page's section block,
     repeated header/footer with page numbers, denser content — closer to a real
     human submission. `draft` is a build_multipage draft (page-suffixed keys)."""
@@ -317,7 +317,7 @@ def build_docx_multipage(draft: dict, scenario: dict, pages: int, path: Path) ->
     d.save(str(path))
 
 
-def build_pdf_multipage(draft: dict, scenario: dict, pages: int, path: Path) -> None:
+def build_pdf_multipage(draft: dict, project: dict, pages: int, path: Path) -> None:
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table
@@ -384,36 +384,36 @@ def docx_to_pdf(docx_path: Path) -> Path | None:
 
 
 def generate_multipage_samples(pages: int = 3, seed: int = 7) -> None:
-    """Generate a multi-page DOCX + PDF for scenario 1 grown to `pages` pages."""
+    """Generate a multi-page DOCX + PDF for project 1 grown to `pages` pages."""
     import sys as _sys
 
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from app import scenario as sc
+    from app import project as sc
     from app.knowledge.pagegrow import build_multipage
 
     b = build_multipage(sc.load_manifest("1"), sc.load_template("1"),
                         sc.load_first_attempt("1", "draft"), sc.load_corpus("1"),
                         sc.load_graphics("1"), sc.load_corrections("1"), pages, seed)
     out = SCEN / "1" / "first_attempt" / "generated" / "multipage"
-    build_docx_multipage(b["draft"], b["scenario"], pages, out / f"draft_{pages}p.docx")
-    build_pdf_multipage(b["draft"], b["scenario"], pages, out / f"draft_{pages}p.pdf")
+    build_docx_multipage(b["draft"], b["project"], pages, out / f"draft_{pages}p.docx")
+    build_pdf_multipage(b["draft"], b["project"], pages, out / f"draft_{pages}p.pdf")
     print(f"wrote {pages}-page draft.docx/.pdf ({len(b['draft']['sections'])} sections)")
 
 
 def main() -> None:
-    scenario_ids = [p.name for p in sorted(SCEN.iterdir()) if (p / "scenario.json").exists()]
-    for sid in scenario_ids:
-        scenario = json.loads((SCEN / sid / "scenario.json").read_text(encoding="utf-8"))
+    project_ids = [p.name for p in sorted(SCEN.iterdir()) if (p / "project.json").exists()]
+    for sid in project_ids:
+        project = json.loads((SCEN / sid / "project.json").read_text(encoding="utf-8"))
         out = SCEN / sid / "first_attempt" / "generated"
         for kind, jname in (("draft", "incident_report_draft.json"),
                             ("template", "incident_report_template.json")):
             src = _load(sid, jname)
-            build_docx(src, scenario, out / f"{kind}.docx")
-            build_pptx(src, scenario, out / f"{kind}.pptx")
-            build_pdf(src, scenario, out / f"{kind}.pdf")
-            print(f"scenario {sid}: wrote {kind}.docx/.pptx/.pdf")
+            build_docx(src, project, out / f"{kind}.docx")
+            build_pptx(src, project, out / f"{kind}.pptx")
+            build_pdf(src, project, out / f"{kind}.pdf")
+            print(f"project {sid}: wrote {kind}.docx/.pptx/.pdf")
 
-    # Multi-page human-like samples for scenario 1 at a few page counts.
+    # Multi-page human-like samples for project 1 at a few page counts.
     for pages in (2, 3, 5):
         generate_multipage_samples(pages=pages, seed=7)
 

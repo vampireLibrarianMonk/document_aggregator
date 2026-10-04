@@ -44,8 +44,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.scenariogen.generator import ScenarioBrief  # noqa: E402
-from app.scenariogen.governor import (  # noqa: E402
+from app.projectgen.generator import ProjectBrief  # noqa: E402
+from app.projectgen.governor import (  # noqa: E402
     ADJUDICATORS,
     make_adjudicator,
     run_governed,
@@ -53,17 +53,17 @@ from app.scenariogen.governor import (  # noqa: E402
 
 # Reuse the differentiated document types from the model eval, deterministic.
 BRIEFS = [
-    ScenarioBrief(domain="avionics interface validation",
+    ProjectBrief(domain="avionics interface validation",
                   doc_type="interface control document", title="Nav Bus ICD"),
-    ScenarioBrief(domain="hardware reliability / incident response",
+    ProjectBrief(domain="hardware reliability / incident response",
                   doc_type="incident report", title="Gateway Outage Report"),
-    ScenarioBrief(domain="clinical laboratory safety",
+    ProjectBrief(domain="clinical laboratory safety",
                   doc_type="safety event report", title="Reagent Spill Report"),
-    ScenarioBrief(domain="environmental field sampling",
+    ProjectBrief(domain="environmental field sampling",
                   doc_type="test report", title="Groundwater Sampling Test Report"),
-    ScenarioBrief(domain="manufacturing quality assurance",
+    ProjectBrief(domain="manufacturing quality assurance",
                   doc_type="standard operating procedure", title="Line Changeover SOP"),
-    ScenarioBrief(domain="structural engineering review",
+    ProjectBrief(domain="structural engineering review",
                   doc_type="analysis memo", title="Beam Deflection Analysis Memo"),
 ]
 
@@ -76,7 +76,7 @@ def _build_adjudicator(name: str, live: bool, model_id: str | None):
     # Live path: construct a Bedrock client + adapter for the judge model.
     import boto3
     from app.config import settings
-    from app.scenariogen.model_adapters import adapter_for
+    from app.projectgen.model_adapters import adapter_for
     client = boto3.client("bedrock-runtime", region_name=settings.BEDROCK_REGION)
     jm = model_id or settings.BEDROCK_SCENARIO_MODEL
     return make_adjudicator(name, model_id=jm, client=client,
@@ -86,10 +86,10 @@ def _build_adjudicator(name: str, live: bool, model_id: str | None):
 def _author(live: bool, model_id: str | None):
     """Offline: deterministic generator. Live: a Bedrock generator."""
     if not live:
-        from app.scenariogen.rule_generator import RuleScenarioGenerator
-        return RuleScenarioGenerator(), "offline"
-    from app.scenariogen.bedrock_gen import BedrockScenarioGenerator
-    gen = BedrockScenarioGenerator(model_id=model_id)
+        from app.projectgen.rule_generator import RuleProjectGenerator
+        return RuleProjectGenerator(), "offline"
+    from app.projectgen.bedrock_gen import BedrockProjectGenerator
+    gen = BedrockProjectGenerator(model_id=model_id)
     return gen, gen.model_id
 
 

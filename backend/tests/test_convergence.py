@@ -15,14 +15,14 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-from app import scenario as sc  # noqa: E402
+from app import project as sc  # noqa: E402
 from app.reconcile import collapse_rounds  # noqa: E402
 
 RESOLVED_WITH_VALUE = {"unchanged", "filled", "corrected"}
 
 
 def _rounds_scenarios() -> list[str]:
-    return [s["id"] for s in sc.list_scenarios() if sc.has_rounds(s["id"])]
+    return [s["id"] for s in sc.list_project_cases() if sc.has_rounds(s["id"])]
 
 
 def test_scenario_1_converges():

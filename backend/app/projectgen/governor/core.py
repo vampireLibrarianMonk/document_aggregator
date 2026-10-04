@@ -78,8 +78,8 @@ class GovernorEvent:
 class GovernorResult:
     """The outcome of a governed run: the spec, the event log, and aggregate
     accounting (per-document, not per-call)."""
-    spec: Any                      # ScenarioSpec (typed loosely to avoid a cycle)
-    scenario_id: str | None = None
+    spec: Any                      # ProjectSpec (typed loosely to avoid a cycle)
+    project_id: str | None = None
     events: list[GovernorEvent] = field(default_factory=list)
     adjudicator: str = ""
     author_model: str = ""

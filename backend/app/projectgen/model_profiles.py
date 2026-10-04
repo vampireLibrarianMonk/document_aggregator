@@ -1,6 +1,6 @@
 """Per-model capability profiles (size-aware generation settings).
 
-Why this exists: the scenario contract is a large JSON document, and the output
+Why this exists: the project contract is a large JSON document, and the output
 token budget is a HARD CAP on everything the model emits -- including the
 internal reasoning block that reasoning models (GPT-OSS) produce before the
 answer. On the Bedrock Converse API a small reasoning model can spend its whole
@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Baseline budget: enough for a full ScenarioSpec from a non-reasoning model.
+# Baseline budget: enough for a full ProjectSpec from a non-reasoning model.
 # Reasoning models get more headroom because reasoning tokens are counted
 # against (and bounded by) the same cap. These tiers are informed by the eval
 # harness: small reasoning models (gpt-oss *20b*) routinely hit an 8192 cap and

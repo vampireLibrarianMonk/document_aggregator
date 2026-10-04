@@ -23,13 +23,13 @@ from app.embeddings import (  # noqa: E402
     tokenize,
 )
 
-SC = Path(__file__).resolve().parents[1] / "sample_docs" / "scenario" / "corpus"
+SC = Path(__file__).resolve().parents[1] / "sample_docs" / "project" / "corpus"
 
 
 # ---- Corpus: chunk once, stable IDs (so every model embeds identical text) ----
 
 def build_chunks() -> dict[str, str]:
-    """Split the scenario corpus into paragraph-ish chunks with stable IDs."""
+    """Split the project corpus into paragraph-ish chunks with stable IDs."""
     chunks: dict[str, str] = {}
     for fname in ("field_report_2026-03-02.txt", "root_cause_notes_2026-03-15.md"):
         text = (SC / fname).read_text(encoding="utf-8")

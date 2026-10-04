@@ -46,25 +46,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.scenariogen.bedrock_gen import BedrockScenarioGenerator, list_approved_models  # noqa: E402
-from app.scenariogen.generator import ScenarioBrief  # noqa: E402
-from app.scenariogen.metrics import PRICE_TABLE_PINNED  # noqa: E402
-from app.scenariogen.prompts import list_prompt_strategies  # noqa: E402
+from app.projectgen.bedrock_gen import BedrockProjectGenerator, list_approved_models  # noqa: E402
+from app.projectgen.generator import ProjectBrief  # noqa: E402
+from app.projectgen.metrics import PRICE_TABLE_PINNED  # noqa: E402
+from app.projectgen.prompts import list_prompt_strategies  # noqa: E402
 
 # Fixed, deterministic briefs covering a spread of document types. Ordered so
 # `--briefs K` takes a stable prefix (ICD, incident, lab-safety are the core 3).
 BRIEFS = [
-    ScenarioBrief(domain="avionics interface validation",
+    ProjectBrief(domain="avionics interface validation",
                   doc_type="interface control document", title="Nav Bus ICD"),
-    ScenarioBrief(domain="hardware reliability / incident response",
+    ProjectBrief(domain="hardware reliability / incident response",
                   doc_type="incident report", title="Gateway Outage Report"),
-    ScenarioBrief(domain="clinical laboratory safety",
+    ProjectBrief(domain="clinical laboratory safety",
                   doc_type="safety event report", title="Reagent Spill Report"),
-    ScenarioBrief(domain="environmental field sampling",
+    ProjectBrief(domain="environmental field sampling",
                   doc_type="test report", title="Groundwater Sampling Test Report"),
-    ScenarioBrief(domain="manufacturing quality assurance",
+    ProjectBrief(domain="manufacturing quality assurance",
                   doc_type="standard operating procedure", title="Line Changeover SOP"),
-    ScenarioBrief(domain="structural engineering review",
+    ProjectBrief(domain="structural engineering review",
                   doc_type="analysis memo", title="Beam Deflection Analysis Memo"),
 ]
 
@@ -245,7 +245,7 @@ def main() -> None:
         for prompt in prompts:
             print(f"\n== {mid.split('.')[-1]}  [{prompt}] ==")
             try:
-                gen = BedrockScenarioGenerator(model_id=mid, prompt_strategy=prompt)
+                gen = BedrockProjectGenerator(model_id=mid, prompt_strategy=prompt)
             except Exception as exc:
                 print(f"  skip ({exc})")
                 report["cells"].append(

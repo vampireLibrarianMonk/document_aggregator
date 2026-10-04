@@ -1,16 +1,16 @@
 """Corpus-grounded generation: faithful + deterministic (fully offline).
 
 Proves the core claim: when the user's document IS the corpus, generation is
-deterministic (same corpus -> identical scenario) and faithful (no fabrication;
+deterministic (same corpus -> identical project) and faithful (no fabrication;
 every asserted value is grounded in the provided text). This closes the drift
 the model path exhibits (see GOVERNOR_EVAL.md adversarial review).
 """
 from __future__ import annotations
 
-from app.scenariogen.corpus_generator import CorpusScenarioGenerator
-from app.scenariogen.corpus_intake import corpus_from_texts, corpus_from_upload
-from app.scenariogen.generator import ScenarioBrief, get_generator_for_brief
-from app.scenariogen.schema import validate_spec
+from app.projectgen.corpus_generator import CorpusProjectGenerator
+from app.projectgen.corpus_intake import corpus_from_texts, corpus_from_upload
+from app.projectgen.generator import ProjectBrief, get_generator_for_brief
+from app.projectgen.schema import validate_spec
 
 SAMPLE = """# Incident Summary
 Site: West Campus Facility
@@ -26,14 +26,14 @@ Upgrade affected units to the validated firmware revision.
 """
 
 
-def _brief(corpus) -> ScenarioBrief:
-    return ScenarioBrief(domain="hardware reliability", title="Gateway Incident",
+def _brief(corpus) -> ProjectBrief:
+    return ProjectBrief(domain="hardware reliability", title="Gateway Incident",
                          corpus=corpus)
 
 
 def test_corpus_scenario_is_valid_and_grounded():
     corpus = corpus_from_texts([{"name": "incident.md", "text": SAMPLE}])
-    spec = CorpusScenarioGenerator().generate(_brief(corpus))
+    spec = CorpusProjectGenerator().generate(_brief(corpus))
     assert validate_spec(spec) == []                         # persistable
     # the uploaded text is used verbatim as the ground truth
     assert any(d.text == SAMPLE for d in spec.corpus)
@@ -47,14 +47,14 @@ def test_corpus_scenario_is_valid_and_grounded():
 
 def test_corpus_scenario_is_deterministic():
     corpus = corpus_from_texts([{"name": "incident.md", "text": SAMPLE}])
-    a = CorpusScenarioGenerator().generate(_brief(corpus)).model_dump_json()
-    b = CorpusScenarioGenerator().generate(_brief(corpus)).model_dump_json()
+    a = CorpusProjectGenerator().generate(_brief(corpus)).model_dump_json()
+    b = CorpusProjectGenerator().generate(_brief(corpus)).model_dump_json()
     assert a == b, "same corpus + brief must yield a byte-identical spec"
 
 
 def test_no_fabrication_every_replacement_is_grounded():
     corpus = corpus_from_texts([{"name": "incident.md", "text": SAMPLE}])
-    spec = CorpusScenarioGenerator().generate(_brief(corpus))
+    spec = CorpusProjectGenerator().generate(_brief(corpus))
     blob = " ".join(d.text for d in spec.corpus).lower()
     for c in spec.corrections:
         if c.operation == "replace" and c.new_value:
@@ -68,7 +68,7 @@ def test_brief_with_corpus_routes_to_corpus_generator():
     corpus = corpus_from_texts([{"name": "incident.md", "text": SAMPLE}])
     assert get_generator_for_brief(_brief(corpus)).name == "corpus-grounded"
     # without a corpus, the normal (offline) generator is used
-    assert get_generator_for_brief(ScenarioBrief(domain="x")).name != "corpus-grounded"
+    assert get_generator_for_brief(ProjectBrief(domain="x")).name != "corpus-grounded"
 
 
 def test_corpus_from_upload_parses_text_bytes():
@@ -86,5 +86,5 @@ def test_empty_document_is_rejected():
 def test_thin_corpus_falls_back_safely():
     # No corpus at all -> the generator must not emit an invalid spec; it defers
     # to the deterministic rule generator.
-    spec = CorpusScenarioGenerator().generate(ScenarioBrief(domain="x", title="y"))
+    spec = CorpusProjectGenerator().generate(ProjectBrief(domain="x", title="y"))
     assert validate_spec(spec) == []

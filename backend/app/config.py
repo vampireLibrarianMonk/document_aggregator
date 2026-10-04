@@ -52,11 +52,11 @@ class Settings:
     # Use a cross-region inference profile ID (required for on-demand newer models).
     BEDROCK_MODEL: str = os.getenv("BEDROCK_MODEL", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
 
-    # Scenario-generation model: separate from the feedback-interpreter model so
+    # Project-generation model: separate from the feedback-interpreter model so
     # the two roles can use different approved models. Must be on the allowlist.
     BEDROCK_SCENARIO_MODEL: str = os.getenv(
         "BEDROCK_SCENARIO_MODEL", os.getenv("BEDROCK_MODEL", ""))
-    # Approved models for scenario generation (comma-separated model ids or
+    # Approved models for project generation (comma-separated model ids or
     # substrings). Only Nemotron and GPT-OSS families are approved by default;
     # the generator refuses any model id not matching the allowlist.
     BEDROCK_SCENARIO_MODEL_ALLOWLIST: str = os.getenv(
@@ -65,51 +65,51 @@ class Settings:
     PIPELINE_VERSION: str = "0.1.0"
     SCHEMA_VERSION: str = "1.0"
 
-    # Single source of truth for the scenario storage root. Previously this path
-    # was recomputed independently in scenario.py, scenariogen/persist.py, and
+    # Single source of truth for the project storage root. Previously this path
+    # was recomputed independently in project.py, projectgen/persist.py, and
     # knowledge/factpool.py (with different parents[] indices), which risked
     # drift; they now all import this. Repo-relative (parents[2] = repo root
     # from backend/app/config.py).
-    SCENARIO_ROOT: Path = Path(__file__).resolve().parents[2] / "sample_docs" / "scenario"
+    # Legacy bundle of the committed demo projects (read-only fallback).
+    BUNDLED_PROJECT_ROOT: Path = Path(__file__).resolve().parents[2] / "sample_docs" / "project"
 
     def project_dir(self, project_id: str) -> Path:
         return self.DATA_DIR / "projects" / project_id
 
-    def project_scenario_dir(self, scenario_id: str) -> Path:
-        """Where a scenario's data lives inside its project (the unified home).
-        A project IS a scenario, so the scenario id is the project id and the
-        scenario payload sits under the project dir."""
-        return self.DATA_DIR / "projects" / scenario_id / "scenario"
+    def project_data_dir(self, project_id: str) -> Path:
+        """Where a project's correction data (corpus/template/draft/corrections)
+        lives inside its project dir in the unified store."""
+        return self.DATA_DIR / "projects" / project_id / "data"
 
-    def resolve_scenario_dir(self, scenario_id: str) -> Path:
-        """Locate a scenario's directory, preferring the unified project store
-        and falling back to the legacy bundled sample_docs/scenario/<id> (so the
-        committed demo scenarios keep working through the migration). Returns the
-        project-store path for a brand-new id so writers land in the new home."""
-        proj = self.project_scenario_dir(scenario_id)
-        if (proj / "scenario.json").exists():
-            return proj
-        legacy = self.SCENARIO_ROOT / scenario_id
-        if (legacy / "scenario.json").exists():
+    def resolve_project_data_dir(self, project_id: str) -> Path:
+        """Locate a project's correction-data directory, preferring the unified
+        store and falling back to the committed demo bundle, so the demo projects
+        keep working. Returns the store path for a brand-new id so writers land
+        in the new home."""
+        store_dir = self.project_data_dir(project_id)
+        if (store_dir / "project.json").exists():
+            return store_dir
+        legacy = self.BUNDLED_PROJECT_ROOT / project_id
+        if (legacy / "project.json").exists():
             return legacy
-        return proj  # new scenario -> write under the project store
+        return store_dir  # new project -> write under the store
 
-    def iter_scenario_dirs(self):
-        """Yield (scenario_id, dir) for every scenario in either store, project
-        store taking precedence over a legacy bundle of the same id."""
+    def iter_project_data_dirs(self):
+        """Yield (project_id, dir) for every project in either store, the unified
+        store taking precedence over a demo bundle of the same id."""
         seen: set[str] = set()
         proj_root = self.DATA_DIR / "projects"
         if proj_root.exists():
             for pdir in sorted(proj_root.iterdir()):
-                sdir = pdir / "scenario"
-                if (sdir / "scenario.json").exists():
+                ddir = pdir / "data"
+                if (ddir / "project.json").exists():
                     seen.add(pdir.name)
-                    yield pdir.name, sdir
-        if self.SCENARIO_ROOT.exists():
-            for d in sorted(self.SCENARIO_ROOT.iterdir()):
+                    yield pdir.name, ddir
+        if self.BUNDLED_PROJECT_ROOT.exists():
+            for d in sorted(self.BUNDLED_PROJECT_ROOT.iterdir()):
                 if d.name in seen:
                     continue
-                if (d / "scenario.json").exists():
+                if (d / "project.json").exists():
                     yield d.name, d
 
     def ensure_dirs(self) -> None:

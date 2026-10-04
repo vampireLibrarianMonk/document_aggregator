@@ -1,22 +1,22 @@
 """Governor state-machine + adjudicator tests (fully offline, no Bedrock)."""
 from __future__ import annotations
 
-from app.scenariogen.generator import ScenarioBrief
-from app.scenariogen.governor import (
+from app.projectgen.generator import ProjectBrief
+from app.projectgen.governor import (
     ADJUDICATORS,
     DeterministicAdjudicator,
     make_adjudicator,
     run_governed,
 )
-from app.scenariogen.governor.adjudicators import grounded_value
-from app.scenariogen.governor.core import (
+from app.projectgen.governor.adjudicators import grounded_value
+from app.projectgen.governor.core import (
     Decision,
     DecisionKind,
     VerdictKind,
 )
-from app.scenariogen.schema import validate_spec
+from app.projectgen.schema import validate_spec
 
-BRIEF = ScenarioBrief(domain="avionics interface validation",
+BRIEF = ProjectBrief(domain="avionics interface validation",
                       doc_type="interface control document", title="Nav Bus ICD")
 
 
@@ -58,7 +58,7 @@ def test_decision_quality_tracks_agreement_with_truth():
 
 
 def test_per_section_authoring_offline():
-    from app.scenariogen.governor import make_section_author
+    from app.projectgen.governor import make_section_author
     sa = make_section_author()  # offline deterministic section author
     res = run_governed(BRIEF, section_author=sa)
     s = res.summary()
@@ -73,7 +73,7 @@ def test_per_section_authoring_offline():
 
 
 def test_section_author_assembles_same_contract():
-    from app.scenariogen.governor import DeterministicSectionAuthor
+    from app.projectgen.governor import DeterministicSectionAuthor
     sa = DeterministicSectionAuthor()
     plan = sa.plan(BRIEF)
     assert plan and all("key" in s for s in plan)
@@ -85,7 +85,7 @@ def test_section_author_assembles_same_contract():
 
 
 def test_recommend_model_is_earned_and_overridable():
-    from app.scenariogen.model_profiles import recommend_model
+    from app.projectgen.model_profiles import recommend_model
     full = ["openai.gpt-oss-20b-1:0", "nvidia.nemotron-super-3-120b",
             "openai.gpt-oss-120b-1:0"]
     r = recommend_model(full)
@@ -150,7 +150,7 @@ def test_deterministic_adjudicator_verdicts():
 def test_decision_layer_escalates_on_low_confidence(monkeypatch):
     # Build a decision_layer with a fake adapter that returns low-confidence
     # garbage; it must escalate to the deterministic truth.
-    from app.scenariogen.governor.adjudicators import DecisionLayerAdjudicator
+    from app.projectgen.governor.adjudicators import DecisionLayerAdjudicator
 
     class FakeAdapter:
         def complete_with_usage(self, client, system, user, max_tokens):

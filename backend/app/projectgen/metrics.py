@@ -1,4 +1,4 @@
-"""Objective score + cost metrics for a scenario-generation run.
+"""Objective score + cost metrics for a project-generation run.
 
 Every signal here is measured from the pipeline itself (the strict validator and
 the Bedrock response), not a subjective quality rating. The one estimate is the
