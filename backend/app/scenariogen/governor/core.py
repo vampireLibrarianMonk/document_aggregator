@@ -83,6 +83,7 @@ class GovernorResult:
     events: list[GovernorEvent] = field(default_factory=list)
     adjudicator: str = ""
     author_model: str = ""
+    authoring_mode: str = "whole_doc"   # whole_doc | per_section
     # accounting (summed across all steps of the document)
     sections_planned: int = 0
     sections_filled: int = 0
@@ -107,6 +108,7 @@ class GovernorResult:
         return {
             "adjudicator": self.adjudicator,
             "author_model": self.author_model,
+            "authoring_mode": self.authoring_mode,
             "sections_planned": self.sections_planned,
             "sections_filled": self.sections_filled,
             "sections_needs_review": self.sections_needs_review,

@@ -57,6 +57,33 @@ def test_decision_quality_tracks_agreement_with_truth():
     assert res.summary()["decision_agreement"] == 1.0
 
 
+def test_per_section_authoring_offline():
+    from app.scenariogen.governor import make_section_author
+    sa = make_section_author()  # offline deterministic section author
+    res = run_governed(BRIEF, section_author=sa)
+    s = res.summary()
+    assert s["authoring_mode"] == "per_section"
+    assert s["sections_planned"] > 0
+    assert s["sections_filled"] > 0
+    assert validate_spec(res.spec) == []           # still persistable
+    # per-section mode must still emit the ordered fill/proofread events
+    steps = [e.step for e in res.events]
+    assert any(st.startswith("fill:") for st in steps)
+    assert any(st.startswith("proofread:") for st in steps)
+
+
+def test_section_author_assembles_same_contract():
+    from app.scenariogen.governor import DeterministicSectionAuthor
+    sa = DeterministicSectionAuthor()
+    plan = sa.plan(BRIEF)
+    assert plan and all("key" in s for s in plan)
+    spec = sa.assemble()
+    assert validate_spec(spec) == []
+    # authoring one section returns a bounded payload for that key
+    one = sa.author_section(plan[0]["key"])
+    assert one["key"] == plan[0]["key"]
+
+
 def test_recommend_model_is_earned_and_overridable():
     from app.scenariogen.model_profiles import recommend_model
     full = ["openai.gpt-oss-20b-1:0", "nvidia.nemotron-super-3-120b",

@@ -73,17 +73,21 @@ def _spec_sections(spec: ScenarioSpec) -> list[dict]:
 class Governor:
     """Runs the decomposed state machine for one document."""
 
-    def __init__(self, author, adjudicator: Adjudicator | None = None,
+    def __init__(self, author=None, adjudicator: Adjudicator | None = None,
                  budget: GovernorBudget | None = None,
-                 author_model: str = "offline", on_event=None) -> None:
-        self.author = author                       # a ScenarioGenerator
+                 author_model: str = "offline", on_event=None,
+                 section_author=None) -> None:
+        self.author = author                       # a whole-document ScenarioGenerator
+        self.section_author = section_author       # a SectionAuthor (per_section mode)
         self.adjudicator = adjudicator or DeterministicAdjudicator()
         self.budget = budget or GovernorBudget()
         self.author_model = author_model
         self.on_event = on_event                   # optional callback(GovernorEvent)
+        self.mode = "per_section" if section_author is not None else "whole_doc"
         self.result = GovernorResult(
             spec=None, adjudicator=self.adjudicator.name,
             author_model=author_model)
+        self.result.authoring_mode = self.mode
 
     def account_usage(self, usage) -> None:
         """Fold a model call's measured usage into the per-document totals, and
@@ -135,27 +139,15 @@ class Governor:
     # -- the state machine --------------------------------------------------
     def run(self, brief) -> GovernorResult:
         self._wire_sink()
-        # PLAN + authoring: the author produces a complete candidate spec. (In a
-        # fully section-wise live path the author would fill one section at a
-        # time; the governor's decision/budget logic is identical either way.)
-        self._emit(step="plan", status="start", detail="authoring candidate",
-                   model=self.author_model)
-        # Capture the author's own token/latency usage when it supports metrics.
-        if hasattr(self.author, "generate_with_metrics"):
-            author_res = self.author.generate_with_metrics(brief)
-            spec = author_res.spec
-            am = author_res.metrics
-            self.result.input_tokens += am.input_tokens
-            self.result.output_tokens += am.output_tokens
-            self.result.latency_ms += am.latency_ms
-            self.result.est_usd += am.est_usd
-            if am.fell_back:
-                self.result.fell_back = True
-        else:
-            spec = self.author.generate(brief)
-        sections = _spec_sections(spec)
-        self.result.sections_planned = len(sections)
+        self._emit(step="plan", status="start",
+                   detail=f"authoring candidate ({self.mode})", model=self.author_model)
 
+        if self.mode == "per_section":
+            spec, sections = self._plan_per_section(brief)
+        else:
+            spec, sections = self._plan_whole_doc(brief)
+
+        self.result.sections_planned = len(sections)
         plan_decision = Decision(
             kind=DecisionKind.plan, unit_id="plan",
             payload={"sections": sections}, corpus=self._corpus(spec))
@@ -163,7 +155,6 @@ class Governor:
         self._emit(step="plan", status="done",
                    detail=f"{len(sections)} sections", model=self.author_model)
         if plan_verdict.kind == VerdictKind.retry:
-            # Empty/invalid plan -> deterministic author is the floor.
             self.result.fell_back = True
 
         # FILL + PROOFREAD per section.
@@ -190,10 +181,50 @@ class Governor:
                    model=self.author_model)
         return self.result
 
+    def _plan_whole_doc(self, brief):
+        """Whole-document authoring: one call produces the full candidate spec."""
+        if hasattr(self.author, "generate_with_metrics"):
+            author_res = self.author.generate_with_metrics(brief)
+            spec = author_res.spec
+            am = author_res.metrics
+            self.result.input_tokens += am.input_tokens
+            self.result.output_tokens += am.output_tokens
+            self.result.latency_ms += am.latency_ms
+            self.result.est_usd += am.est_usd
+            if am.fell_back:
+                self.result.fell_back = True
+        else:
+            spec = self.author.generate(brief)
+        return spec, _spec_sections(spec)
+
+    def _plan_per_section(self, brief):
+        """Per-section authoring: plan the skeleton, then the spec is assembled
+        from section fills. The SectionAuthor's own usage is accounted via the
+        wired sink (plan() calls it)."""
+        self.section_author._sink = self.account_usage if hasattr(
+            self.section_author, "_sink") else None
+        sections = self.section_author.plan(brief)
+        spec = self.section_author.assemble()
+        return spec, sections
+
+    def _author_one_section(self, key: str, model: str | None = None) -> None:
+        """Re-author a single section (per_section mode) on retry/downshift. The
+        deterministic author is stable; a live author would refill the section
+        here (optionally on a downshifted `model`)."""
+        if self.mode != "per_section":
+            return
+        self.section_author.author_section(key, model=model)
+
     def _run_section(self, decision: Decision, spec: ScenarioSpec):
-        """Fill -> adjudicate -> retry/downshift/accept for one section."""
+        """Fill -> adjudicate -> retry/downshift/accept for one section.
+
+        In per_section mode a retry/downshift RE-AUTHORS the section (small call)
+        rather than only re-judging; in whole_doc mode the content is already
+        authored, so a retry re-adjudicates the stable content."""
         self._emit(step=f"fill:{decision.unit_id}", status="start",
                    detail=decision.payload.get("heading", ""), model=self.author_model)
+        if self.mode == "per_section":
+            self._author_one_section(decision.unit_id)
         attempts = 0
         verdict = self._decide(decision)
         while verdict.kind in (VerdictKind.retry, VerdictKind.downshift):
@@ -205,12 +236,14 @@ class Governor:
                 self.result.retries += 1
                 self._emit(step=f"fill:{decision.unit_id}", status="retry",
                            detail=verdict.reason, model=self.author_model)
+                self._author_one_section(decision.unit_id)        # re-author same model
             else:
                 self.result.downshifts += 1
                 self._emit(step=f"fill:{decision.unit_id}", status="downshift",
                            detail=verdict.reason, model=self.author_model)
-            # Re-adjudicate (in the offline path the content is stable; in a live
-            # path the author would re-author the section here on the chosen model).
+                # Re-author this one section on a smaller/cheaper model.
+                self._author_one_section(decision.unit_id, model="downshift")
+            # Re-adjudicate the (possibly re-authored) section.
             verdict = self._decide(decision)
 
         # PROOFREAD: re-check grounding of the section's asserted values.
@@ -251,11 +284,18 @@ class Governor:
 
 def run_governed(brief, *, author=None, adjudicator: Adjudicator | None = None,
                  budget: GovernorBudget | None = None,
-                 author_model: str = "offline", on_event=None) -> GovernorResult:
+                 author_model: str = "offline", on_event=None,
+                 section_author=None) -> GovernorResult:
     """Synchronous entry point. Defaults to the deterministic author +
     deterministic adjudicator, so this runs fully offline with no Bedrock.
     `on_event` is an optional callback invoked with each GovernorEvent as it is
-    emitted (used by the streaming API)."""
+    emitted (used by the streaming API). Pass `section_author` to run in
+    per-section authoring mode (one section per call) instead of whole-document;
+    `author` is then only the fallback and may be omitted."""
+    if section_author is not None:
+        gov = Governor(section_author=section_author, adjudicator=adjudicator,
+                       budget=budget, author_model=author_model, on_event=on_event)
+        return gov.run(brief)
     if author is None:
         from ..rule_generator import RuleScenarioGenerator
         author = RuleScenarioGenerator()

@@ -34,7 +34,12 @@ from .core import (
     Verdict,
     VerdictKind,
 )
-from .engine import Governor, run_governed
+from .engine import Governor, GovernorBudget, run_governed
+from .section_author import (
+    DeterministicSectionAuthor,
+    SectionAuthor,
+    make_section_author,
+)
 
 __all__ = [
     "ADJUDICATORS",
@@ -42,11 +47,15 @@ __all__ = [
     "Decision",
     "DecisionKind",
     "DeterministicAdjudicator",
+    "DeterministicSectionAuthor",
     "Governor",
+    "GovernorBudget",
     "GovernorEvent",
     "GovernorResult",
+    "SectionAuthor",
     "Verdict",
     "VerdictKind",
     "make_adjudicator",
+    "make_section_author",
     "run_governed",
 ]
