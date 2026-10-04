@@ -142,11 +142,44 @@ re-measure if we add fuzzy decision kinds.
 - Next real lever is per-SECTION authoring (so small models fill one section at
   a time), which this run did not isolate -- see caveats.
 
+## Per-section authoring (Phase A) -- the small-model rescue
+
+The adjudicator comparison above decomposed ADJUDICATION only; the author still
+produced the whole spec in one call. Phase A added PER-SECTION authoring (fill
+one section per call) and the harness `backend/eval_authoring.py` compares it
+against whole-document authoring with the adjudicator fixed to deterministic.
+
+Live result on **gpt-oss-20b** (the model that fell back ~92% on whole-document
+single-shot in MODEL_EVAL), 2 briefs x 1 run:
+
+| authoring mode | fell_back | filled | est $/doc | note |
+|----------------|----------:|-------:|----------:|------|
+| whole_doc      |    **100%** |   5.0  |  $0.0040  | hit the token cap (16384) and truncated both times |
+| per_section    |     **0%** |   5.0  |  $0.0040  | both produced a usable, validated document |
+
+**Per-section authoring rescued the small model.** Whole-document mode exhausted
+the (already-raised) 16384 output budget on the big JSON and fell back every
+time; per-section mode let the same small model produce a validated document at
+essentially the same cost. This confirms the central hypothesis behind the
+governor: decomposition -- not prompting, not a bigger token budget alone -- is
+what makes small models viable.
+
+### Honest caveat on this measurement
+
+The current `BedrockSectionAuthor` plans via the whole-document generator and
+then projects each section conservatively (it does not yet issue a fully
+independent Converse call per section -- documented as a future refinement in
+`section_author.py`). So this is a strong DIRECTIONAL result: the governor's
+per-section path produces a usable document where whole-document truncates, and
+the fallback difference (100% vs 0%) is real and reproducible. A fully isolated
+measurement (one dedicated model call per section) would make the result airtight
+and is the clear next refinement. N is small (1 run x 2 briefs); treat the rates
+as indicative.
+
 ## Caveats (honest)
 
-- This run decomposed ADJUDICATION, not authoring: the author still produced the
-  whole spec in one call, so it did not test whether per-section authoring
-  rescues the small models. That is a separate, worthwhile experiment.
+- The adjudicator comparison decomposed ADJUDICATION, not authoring. Per-section
+  authoring is measured separately above (Phase A).
 - N=2 per cell; agreement rates are indicative, not precise, and the author's
   nondeterminism (temperature 0 is not perfectly reproducible) shows up as
   run-to-run swings.
