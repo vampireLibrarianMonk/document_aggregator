@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CanonicalViewer } from './components/CanonicalViewer'
 import { CorrectionPipeline } from './components/CorrectionPipeline'
 import { DiagnosticsPanel } from './components/DiagnosticsPanel'
@@ -21,6 +21,21 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'diagnostics', label: 'Diagnostics' },
 ]
 
+const TAB_IDS = new Set<Tab>(TABS.map((t) => t.id))
+
+/** Map a URL path to a tab. The Correction Pipeline is the root ('/'); every
+ *  other tab is '/<id>' (e.g. '/diagnostics'). Unknown paths fall back to the
+ *  Correction Pipeline so a stray URL never shows a blank screen. */
+function tabFromPath(pathname: string): Tab {
+  const seg = pathname.replace(/^\/+|\/+$/g, '').split('/')[0]
+  if (!seg) return 'correction'
+  return TAB_IDS.has(seg as Tab) ? (seg as Tab) : 'correction'
+}
+
+function pathForTab(tab: Tab): string {
+  return tab === 'correction' ? '/' : `/${tab}`
+}
+
 export default function App() {
   return (
     <ProjectProvider>
@@ -41,10 +56,27 @@ function AppShell() {
     refresh,
     deleteProject,
   } = useProject()
-  const [tab, setTab] = useState<Tab>('correction')
+  // Tab state is URL-aware so views deep-link (e.g. /diagnostics opens the
+  // Diagnostics tab) and browser back/forward work.
+  const [tab, setTabState] = useState<Tab>(() => tabFromPath(window.location.pathname))
   const [inspecting, setInspecting] = useState<string | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showGenerate, setShowGenerate] = useState(false)
+
+  const setTab = useCallback((next: Tab) => {
+    setTabState(next)
+    const path = pathForTab(next)
+    if (window.location.pathname !== path) {
+      window.history.pushState({ tab: next }, '', path)
+    }
+  }, [])
+
+  // Reflect browser back/forward (and the initial deep link) into tab state.
+  useEffect(() => {
+    const onPop = () => setTabState(tabFromPath(window.location.pathname))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   const reload = () => activeId && void refresh(activeId)
   const isEmpty = projects.length === 0
