@@ -109,8 +109,11 @@ export const api = {
     return fetch(`${BASE}/scenarios`).then((r) => json<ScenarioInfo[]>(r))
   },
 
-  scenarioComponents(scenarioId: string): Promise<ScenarioComponent[]> {
-    return fetch(`${BASE}/scenario/components?scenario_id=${scenarioId}`).then((r) =>
+  // Scenario operations are now project-scoped: the scenarioId IS the project
+  // id, passed in the path (/projects/{id}/scenario/...). A project is a
+  // scenario in the unified model.
+  scenarioComponents(projectId: string): Promise<ScenarioComponent[]> {
+    return fetch(`${BASE}/projects/${projectId}/scenario/components`).then((r) =>
       json<ScenarioComponent[]>(r),
     )
   },
@@ -118,31 +121,31 @@ export const api = {
   scenarioComponent(
     componentId: string,
     mode: string,
-    scenarioId: string,
+    projectId: string,
     sourceFormat: string,
   ): Promise<{ data: unknown }> {
     return fetch(
-      `${BASE}/scenario/component/${componentId}?mode=${mode}&scenario_id=${scenarioId}&source_format=${sourceFormat}`,
+      `${BASE}/projects/${projectId}/scenario/component/${componentId}?mode=${mode}&source_format=${sourceFormat}`,
     ).then((r) => json<{ data: unknown }>(r))
   },
 
   scenarioReconcile(
     mode: 'draft' | 'template',
-    scenarioId: string,
+    projectId: string,
     sourceFormat: string,
   ): Promise<CorrectedReport> {
     return fetch(
-      `${BASE}/scenario/reconcile?mode=${mode}&scenario_id=${scenarioId}&source_format=${sourceFormat}`,
+      `${BASE}/projects/${projectId}/scenario/reconcile?mode=${mode}&source_format=${sourceFormat}`,
     ).then((r) => json<CorrectedReport>(r))
   },
 
   scenarioConverge(
     mode: 'draft' | 'template',
-    scenarioId: string,
+    projectId: string,
     sourceFormat: string,
   ): Promise<Convergence> {
     return fetch(
-      `${BASE}/scenario/converge?mode=${mode}&scenario_id=${scenarioId}&source_format=${sourceFormat}`,
+      `${BASE}/projects/${projectId}/scenario/converge?mode=${mode}&source_format=${sourceFormat}`,
     ).then((r) => json<Convergence>(r))
   },
 
@@ -152,17 +155,16 @@ export const api = {
     target: string,
     value: string,
     mode: 'draft' | 'template',
-    scenarioId: string,
+    projectId: string,
     sourceFormat: string,
   ): Promise<CorrectedReport> {
-    return fetch(`${BASE}/scenario/resolve`, {
+    return fetch(`${BASE}/projects/${projectId}/scenario/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         target,
         value,
         mode,
-        scenario_id: scenarioId,
         source_format: sourceFormat,
       }),
     }).then((r) => json<CorrectedReport>(r))

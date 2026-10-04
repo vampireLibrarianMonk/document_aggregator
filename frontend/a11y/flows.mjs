@@ -64,7 +64,7 @@ export const flows = [
     title: 'Correction Pipeline — Generate scenario panel (model picker + brief)',
     async setup(page) {
       await openTab(page, 'Correction Pipeline')
-      await clickRole(page, 'button', '+ New scenario')
+      await clickRole(page, 'button', '+ New project')
       await page.waitForTimeout(400)
     },
   },
@@ -73,7 +73,7 @@ export const flows = [
     title: 'Correction Pipeline — Governed run live progress log',
     async setup(page) {
       await openTab(page, 'Correction Pipeline')
-      await clickRole(page, 'button', '+ New scenario')
+      await clickRole(page, 'button', '+ New project')
       await page.waitForTimeout(300)
       // Provide a domain so the run can start, then trigger the governed stream.
       const domain = page.getByPlaceholder(/domain/i)
@@ -90,7 +90,7 @@ export const flows = [
     title: 'Correction Pipeline — Generate from uploaded document',
     async setup(page) {
       await openTab(page, 'Correction Pipeline')
-      await clickRole(page, 'button', '+ New scenario')
+      await clickRole(page, 'button', '+ New project')
       await page.waitForTimeout(300)
       // Switch to the From-document mode so the file input + help render.
       await clickRole(page, 'button', 'From document')

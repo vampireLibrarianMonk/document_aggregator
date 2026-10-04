@@ -48,6 +48,16 @@ header.app-header {
 header.app-header h1 { font-size: 20px; margin: 0; }
 .subtitle { color: var(--muted); font-size: 13px; }
 
+/* Global project selector: one project scopes every tab. */
+.project-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  align-self: flex-start;
+}
+.project-selector select { padding: 4px 8px; min-width: 220px; }
+
 .tabs {
   display: flex;
   gap: 4px;

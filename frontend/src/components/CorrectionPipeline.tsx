@@ -3,7 +3,6 @@ import { api } from '../api/client'
 import type {
   CorrectedReport,
   ScenarioComponent,
-  ScenarioInfo,
 } from '../api/types'
 import { ConvergenceView } from './ConvergenceView'
 import { GenerateScenario } from './GenerateScenario'
@@ -12,10 +11,15 @@ import { ReportView } from './ReportView'
 type Mode = 'draft' | 'template'
 type View = 'single' | 'rounds'
 
-/** The four-component correction pipeline and the corrected intermediate JSON. */
-export function CorrectionPipeline() {
-  const [scenarios, setScenarios] = useState<ScenarioInfo[]>([])
-  const [scenarioId, setScenarioId] = useState<string>('1')
+interface Props {
+  projectId: string | null
+  onProjectsChanged: () => Promise<void> | void
+  onSelectProject: (id: string) => void
+}
+
+/** The four-component correction pipeline and the corrected intermediate JSON,
+ *  scoped to the globally-selected project (a project IS a scenario). */
+export function CorrectionPipeline({ projectId, onProjectsChanged, onSelectProject }: Props) {
   const [sourceFormat, setSourceFormat] = useState<string>('json')
   const [components, setComponents] = useState<ScenarioComponent[]>([])
   const [mode, setMode] = useState<Mode>('draft')
@@ -26,21 +30,15 @@ export function CorrectionPipeline() {
   const [err, setErr] = useState<string | null>(null)
   const [showGenerate, setShowGenerate] = useState(false)
 
-  const refreshScenarios = useCallback(() => {
-    return api.scenarios().then(setScenarios).catch((e) =>
-      setErr(e instanceof Error ? e.message : String(e)),
-    )
-  }, [])
-
   const onGenerated = useCallback(async (newId: string) => {
-    await refreshScenarios()
-    setScenarioId(newId)   // jump to the freshly generated scenario
+    await onProjectsChanged()      // refresh the global project list
+    onSelectProject(newId)         // jump the global selector to the new project
     setShowGenerate(false)
-  }, [refreshScenarios])
+  }, [onProjectsChanged, onSelectProject])
 
-  const loadReport = useCallback((m: Mode, sid: string, fmt: string) => {
+  const loadReport = useCallback((m: Mode, pid: string, fmt: string) => {
     setErr(null)
-    api.scenarioReconcile(m, sid, fmt).then(setReport).catch((e) =>
+    api.scenarioReconcile(m, pid, fmt).then(setReport).catch((e) =>
       setErr(e instanceof Error ? e.message : String(e)),
     )
   }, [])
@@ -49,37 +47,36 @@ export function CorrectionPipeline() {
   // updated report returned by the backend.
   const handleResolve = useCallback(
     async (target: string, value: string) => {
+      if (!projectId) return
       setErr(null)
       try {
-        const updated = await api.scenarioResolve(target, value, mode, scenarioId, sourceFormat)
+        const updated = await api.scenarioResolve(target, value, mode, projectId, sourceFormat)
         setReport(updated)
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e))
       }
     },
-    [mode, scenarioId, sourceFormat],
+    [mode, projectId, sourceFormat],
   )
 
   useEffect(() => {
-    api.scenarios().then(setScenarios).catch((e) =>
+    if (!projectId) return
+    api.scenarioComponents(projectId).then(setComponents).catch((e) =>
       setErr(e instanceof Error ? e.message : String(e)),
     )
-  }, [])
+  }, [projectId])
 
   useEffect(() => {
-    api.scenarioComponents(scenarioId).then(setComponents).catch((e) =>
-      setErr(e instanceof Error ? e.message : String(e)),
-    )
-  }, [scenarioId])
-
-  useEffect(() => loadReport(mode, scenarioId, sourceFormat), [mode, scenarioId, sourceFormat, loadReport])
+    if (projectId) loadReport(mode, projectId, sourceFormat)
+  }, [mode, projectId, sourceFormat, loadReport])
 
   useEffect(() => {
+    if (!projectId) { setRaw(null); return }
     api
-      .scenarioComponent(selected, mode, scenarioId, sourceFormat)
+      .scenarioComponent(selected, mode, projectId, sourceFormat)
       .then((r) => setRaw(r.data))
       .catch(() => setRaw(null))
-  }, [selected, mode, scenarioId, sourceFormat])
+  }, [selected, mode, projectId, sourceFormat])
 
   return (
     <>
@@ -87,23 +84,12 @@ export function CorrectionPipeline() {
       <div className="panel">
         <div className="row">
           <strong>Correction pipeline</strong>
-          <select
-            aria-label="Scenario"
-            value={scenarioId}
-            onChange={(e) => setScenarioId(e.target.value)}
-          >
-            {scenarios.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.id}. {s.title}
-              </option>
-            ))}
-          </select>
           <button
             className="btn secondary small"
             aria-expanded={showGenerate}
             onClick={() => setShowGenerate((v) => !v)}
           >
-            {showGenerate ? 'Close generator' : '+ New scenario'}
+            {showGenerate ? 'Close generator' : '+ New project'}
           </button>
           <div className="spacer" />
           <label htmlFor="source-fidelity" className="muted small" title="Which pre-converted copy of the demo first-attempt document to read (this tab does not convert an uploaded file). Higher fidelity = more structure preserved.">source fidelity</label>
@@ -205,8 +191,8 @@ export function CorrectionPipeline() {
         {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
       </div>
 
-      {view === 'rounds' && (
-        <ConvergenceView scenarioId={scenarioId} mode={mode} sourceFormat={sourceFormat} />
+      {view === 'rounds' && projectId && (
+        <ConvergenceView scenarioId={projectId} mode={mode} sourceFormat={sourceFormat} />
       )}
 
       {view === 'single' && selected === 'intermediate_json' && report ? (

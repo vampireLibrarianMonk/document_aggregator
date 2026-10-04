@@ -5,7 +5,7 @@ import { PipelineBoard } from './components/PipelineBoard'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
 import { SupplementalsPanel } from './components/SupplementalsPanel'
-import { useProject } from './hooks/useProject'
+import { ProjectProvider, useProject } from './hooks/useProject'
 
 type Tab = 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report'
 
@@ -18,11 +18,28 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export default function App() {
-  const { project, documents, supplementals, error, refresh } = useProject()
+  return (
+    <ProjectProvider>
+      <AppShell />
+    </ProjectProvider>
+  )
+}
+
+function AppShell() {
+  const {
+    projects,
+    activeId,
+    documents,
+    supplementals,
+    error,
+    setActiveId,
+    refreshProjects,
+    refresh,
+  } = useProject()
   const [tab, setTab] = useState<Tab>('correction')
   const [inspecting, setInspecting] = useState<string | null>(null)
 
-  const reload = () => project && void refresh(project.id)
+  const reload = () => activeId && void refresh(activeId)
 
   return (
     <div className="app">
@@ -35,23 +52,37 @@ export default function App() {
             and every rule the template sets is checked.
           </div>
         </div>
+        {/* Global project selector: one project scopes every tab. */}
+        <div className="project-selector">
+          <label htmlFor="active-project" className="small muted">Project</label>
+          <select
+            id="active-project"
+            value={activeId ?? ''}
+            onChange={(e) => setActiveId(e.target.value)}
+          >
+            {projects.length === 0 && <option value="">No projects yet</option>}
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
       </header>
 
       <div className="panel intro">
         <strong>What this does</strong>
         <p className="small">
-          You provide the raw source documents (the <b>corpus</b>), a{' '}
-          <b>template</b> that defines the required structure and formatting, a
-          first attempt at the report, and any reviewer comments. The platform
-          reads the template to learn its rules, then produces a{' '}
-          <b>corrected report</b>: fixing wrong values, filling gaps, applying
-          the formatting rules, and flagging anything it cannot resolve on its
-          own. Nothing is invented. Every change traces back to a source, and
-          anything left unresolved is yours to decide.
+          A <b>project</b> brings together the raw source documents (the{' '}
+          <b>corpus</b>), a <b>template</b> that defines the required structure
+          and formatting, a first attempt at the report, and any reviewer
+          comments. The platform reads the template to learn its rules, then
+          produces a <b>corrected report</b>: fixing wrong values, filling gaps,
+          applying the formatting rules, and flagging anything it cannot resolve
+          on its own. Nothing is invented. Every change traces back to a source,
+          and anything left unresolved is yours to decide.
         </p>
         <p className="small muted">
-          New here? Start on <b>Correction Pipeline</b> to see a worked example,
-          or open <b>Ingestion</b> to upload your own documents.
+          Pick a <b>project</b> above, then use the tabs: Correction Pipeline for
+          the worked reconciliation, or Ingestion to add your own documents.
         </p>
       </div>
 
@@ -74,25 +105,13 @@ export default function App() {
             id={`tab-${t.id}`}
             role="tab"
             aria-selected={tab === t.id}
-            // Only reference the panel when it is actually in the DOM: a panel
-            // renders only for the active tab, and the project-gated tabs
-            // render nothing until a project resolves. A dangling aria-controls
-            // is itself an a11y violation.
-            aria-controls={
-              tab === t.id && (t.id === 'correction' || project)
-                ? `panel-${t.id}`
-                : undefined
-            }
+            aria-controls={tab === t.id ? `panel-${t.id}` : undefined}
             tabIndex={tab === t.id ? 0 : -1}
             className={`tab ${tab === t.id ? 'active' : ''}`}
             onClick={() => setTab(t.id)}
             onKeyDown={(e) => {
               if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
               e.preventDefault()
-              // Move relative to THIS tab (the focused one), not the selected
-              // tab — the ARIA tabs pattern is roving focus. Using the focused
-              // tab's own index keeps arrow-nav correct even when focus and
-              // selection differ.
               const i = TABS.findIndex((x) => x.id === t.id)
               const next =
                 e.key === 'ArrowRight'
@@ -109,30 +128,32 @@ export default function App() {
 
       {tab === 'correction' && (
         <div id="panel-correction" role="tabpanel" aria-labelledby="tab-correction">
-          <CorrectionPipeline />
+          <CorrectionPipeline
+            projectId={activeId}
+            onProjectsChanged={refreshProjects}
+            onSelectProject={setActiveId}
+          />
         </div>
       )}
 
-      {project && (
+      {activeId ? (
         <>
           {tab === 'pipeline' && (
             <div id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline">
               <PipelineBoard
-                projectId={project.id}
+                projectId={activeId}
                 documents={documents}
                 onChange={reload}
-                onInspect={(id) => {
-                  setInspecting(id)
-                }}
+                onInspect={(id) => setInspecting(id)}
               />
-              <CanonicalViewer projectId={project.id} documentId={inspecting} />
+              <CanonicalViewer projectId={activeId} documentId={inspecting} />
             </div>
           )}
 
           {tab === 'supplementals' && (
             <div id="panel-supplementals" role="tabpanel" aria-labelledby="tab-supplementals">
               <SupplementalsPanel
-                projectId={project.id}
+                projectId={activeId}
                 supplementals={supplementals}
                 documents={documents}
                 onChange={reload}
@@ -142,31 +163,26 @@ export default function App() {
 
           {tab === 'search' && (
             <div id="panel-search" role="tabpanel" aria-labelledby="tab-search">
-              <SearchPanel projectId={project.id} />
+              <SearchPanel projectId={activeId} />
             </div>
           )}
 
           {tab === 'report' && (
             <div id="panel-report" role="tabpanel" aria-labelledby="tab-report">
-              <ReportPanel projectId={project.id} />
+              <ReportPanel projectId={activeId} />
             </div>
           )}
         </>
-      )}
-
-      {/* Avoid a blank dead-end: these four tabs need a project. If none has
-          resolved yet (and no error is already shown), say so instead of
-          rendering nothing. */}
-      {!project && tab !== 'correction' && !error && (
-        <div className="panel" role="status">
-          <strong>Connecting to your project…</strong>
-          <p className="small muted">
-            This view needs a project. If this doesn&apos;t clear, the backend
-            may be unreachable, or you may need to seed the demo data
-            (<span className="mono">python backend/seed.py</span>). The{' '}
-            <b>Correction Pipeline</b> tab works without a project.
-          </p>
-        </div>
+      ) : (
+        tab !== 'correction' && !error && (
+          <div className="panel" role="status">
+            <strong>No project selected</strong>
+            <p className="small muted">
+              Pick a project from the selector above (or create one on the
+              Correction Pipeline tab) to use this view.
+            </p>
+          </div>
+        )
       )}
     </div>
   )
