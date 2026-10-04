@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 # --- Baseline (verbatim historical _SPEC_CONTRACT) --------------------------
 
-_BASELINE_CONTRACT = """You generate a document-correction SCENARIO as strict JSON.
+_BASELINE_CONTRACT = """You generate a document-correction PROJECT as strict JSON.
 
 Return ONE JSON object with these keys (no prose, no markdown fence):
   title (str), domain (str),

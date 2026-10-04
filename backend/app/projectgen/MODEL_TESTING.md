@@ -1,21 +1,21 @@
-# Scenario generation: testing with real Bedrock models
+# Project generation: testing with real Bedrock models
 
-The scenario generator runs against the offline deterministic
-`RuleScenarioGenerator` by default and, when AWS Bedrock credentials resolve,
+The project generator runs against the offline deterministic
+`RuleProjectGenerator` by default and, when AWS Bedrock credentials resolve,
 against the approved models (NVIDIA Nemotron, OpenAI GPT-OSS). Both the live
 single-generation path and the model-comparison eval harness have been exercised
 against real models in `us-east-1`.
 
 ## What is already proven (offline, deterministic)
 
-- `ScenarioSpec` schema + `validate_spec` (no-fabrication grounding, resolvable
+- `ProjectSpec` schema + `validate_spec` (no-fabrication grounding, resolvable
   targets, engine-consumability).
-- `persist_spec` writes a complete scenario tree + figures + DOCX.
-- A generated scenario reconciles with the healthy shape (conflict + needs_review
+- `persist_spec` writes a complete project tree + figures + DOCX.
+- A generated project reconciles with the healthy shape (conflict + needs_review
   + corrected/filled) and passes the full invariant suite, indistinguishable
-  from a hand-authored scenario.
-- Two API endpoints: `POST /scenario/generate` (structured brief) and
-  `POST /scenario/generate/from-text` (freeform, model best-judgment), both with
+  from a hand-authored project.
+- Two API endpoints: `POST /project/generate` (structured brief) and
+  `POST /project/generate/from-text` (freeform, model best-judgment), both with
   a `dry_run` preview.
 - Model allowlist enforcement: only Nemotron / GPT-OSS model ids are accepted;
   anything else is refused. On any Bedrock failure the generator falls back to
@@ -47,7 +47,7 @@ is a substring match against the model id; set it explicitly if your ids differ.
 
 1. Dry-run a structured brief and inspect the returned spec:
    ```
-   POST /scenario/generate
+   POST /project/generate
    {"domain":"avionics interface validation",
     "doc_type":"interface control document",
     "title":"Nav Bus ICD Review","dry_run":true}
@@ -57,7 +57,7 @@ is a substring match against the model id; set it explicitly if your ids differ.
 
 2. Dry-run the freeform path:
    ```
-   POST /scenario/generate/from-text
+   POST /project/generate/from-text
    {"text":"<describe a real situation and its document>","dry_run":true}
    ```
 
@@ -71,9 +71,9 @@ is a substring match against the model id; set it explicitly if your ids differ.
    - Are the defects realistic and the conflict/needs_review present?
    - Latency and token cost.
 
-4. When satisfied, drop `dry_run` to persist. The scenario is then a FIXED
+4. When satisfied, drop `dry_run` to persist. The project is then a FIXED
    artifact: it reconciles deterministically and joins the invariant suite like
-   any hand-authored scenario. Review the generated JSON before committing it.
+   any hand-authored project. Review the generated JSON before committing it.
 
 ## Model-invocation seam
 
@@ -85,17 +85,17 @@ Add a model-specific adapter here if a family needs a different payload shape.
 
 ## Reproducibility note
 
-The LLM is a scenario AUTHOR, never part of the correction path. Its output is
+The LLM is a project AUTHOR, never part of the correction path. Its output is
 validated and written to disk as fixed JSON; from then on the deterministic
-engine runs it. So a generated scenario is as reproducible and traceable as a
+engine runs it. So a generated project is as reproducible and traceable as a
 hand-authored one, and nothing about correctness depends on the model at
 runtime.
 
 ## Choosing a model in the UI
 
-The Correction Pipeline tab has a **"+ New scenario"** button that opens the
+The Correction Pipeline tab has a **"+ New project"** button that opens the
 generator panel. There you pick a **model** (the offline deterministic generator,
-or any live approved Bedrock model from `GET /scenario/models`), enter a brief
+or any live approved Bedrock model from `GET /project/models`), enter a brief
 (structured domain/doc-type/title, or freeform), and either **Dry run (preview)**
 or **Generate & save**. After each run the panel shows the per-run score + cost
 readout (outcome, fabrications caught, tokens, latency, estimated $).

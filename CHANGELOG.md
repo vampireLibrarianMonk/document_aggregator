@@ -10,7 +10,7 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Human-in-the-loop resolution for unresolved units in the Correction Pipeline.
   A `conflict` row now offers a "Use <value>" button per candidate, and a
   `needs_review` row offers an input + "Set value". The decision is recorded via
-  a new `POST /scenario/resolve` endpoint as a fresh correction round, so the
+  a new `POST /project/resolve` endpoint as a fresh correction round, so the
   engine's last-good-wins collapse supersedes the conflict (or fills the
   needs_review) while leaving the rest of the report unchanged. Never fabricates:
   a value is required, and the target must be a resolvable unit.
@@ -36,8 +36,8 @@ frontend, and an air-gapped RHEL/UBI container stack.
   rather than fabricated.
 - Multi-round convergence view (last-good-wins across correction rounds).
 
-**Document-driven scenarios**
-- Scenarios are driven by real documents: a well-formatted template DOCX is the
+**Document-driven projects**
+- Projects are driven by real documents: a well-formatted template DOCX is the
   authoritative rubric, and the build discipline (formatting/placement rules) is
   learned from the template document's own evidence, falling back to a pinned
   `gov_standard` profile only where the template is silent (no silent defaults).
@@ -46,7 +46,7 @@ frontend, and an air-gapped RHEL/UBI container stack.
 - Real PNG figures with a managed naming convention, a centered title baked into
   each image, and controlled size/position, tracked across template, draft, and
   the final intermediate JSON, and inspected against the template-derived rubric.
-- Five scenarios (telemetry incident, security incident, lab-safety event, QC
+- Five projects (telemetry incident, security incident, lab-safety event, QC
   defect, reliability failure), each with corpus docs, figures, corrections, and
   a template + draft.
 

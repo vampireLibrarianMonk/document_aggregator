@@ -15,7 +15,7 @@ required. Cloud pieces would slot in as adapters behind the same interfaces.
 - [User Guide](docs/USER_GUIDE.md) - using the app: the tabs, the correction
   pipeline, what statuses/colors mean, what to submit and where.
 - [Developer Guide](docs/DEVELOPER_GUIDE.md) - architecture, running it, the
-  reconciliation + discipline engine, the scenario data model, testing.
+  reconciliation + discipline engine, the project data model, testing.
 - [Air-gapped RHEL deployment](deploy/AIRGAP_RHEL.md) - the enclave checklist.
 - [Accessibility toolkit](frontend/a11y/ACCESSIBILITY.md) - the transferable
   axe-core + keyboard/focus audit.
@@ -48,7 +48,7 @@ Source docs (PDF/DOCX/PPTX/TXT/MD/PNG/JPEG)
 - **Assembly, not generation.** The report is built from source words ordered
   and grouped — nothing is invented.
 
-## The correction pipeline (primary scenario)
+## The correction pipeline (primary project)
 
 Beyond raw ingestion, the platform models a **four-component correction
 pipeline** that takes a messy first attempt to a clean, output-neutral
@@ -62,7 +62,7 @@ intermediate JSON:
 ```
 
 A **project** is the top-level container for one such correction case (a project
-IS a scenario): it owns the corpus, template, first attempt, comments, and the
+IS a project): it owns the corpus, template, first attempt, comments, and the
 corrected output. The global project selector in the UI scopes every tab to the
 chosen project; generating or uploading creates a new project.
 
@@ -72,7 +72,7 @@ and comment corrections are layered on top. Every corrected unit carries a
 and **provenance** (which corpus doc, which correction, which template rule), at
 the smallest asserted unit (field / graphic / table cell / furniture element).
 
-The demo scenario (TGX-9 telemetry incident) seeds 16 traceable defects across
+The demo project (TGX-9 telemetry incident) seeds 16 traceable defects across
 four classes:
 
 - **value** — wrong firmware version, wrong outage duration, blank corrective actions
@@ -81,12 +81,12 @@ four classes:
 - **furniture** — dangling cross-reference, stale figure numbering, missing table
   title, missing page numbers, missing classification marking
 
-Guardrails proven by the scenario: values are literal fills from corpus spans —
+Guardrails proven by the project: values are literal fills from corpus spans —
 never computed; disagreeing corrections become a `conflict` with all candidates
 preserved (never auto-resolved); required-but-unsupported fields (classification,
 approvals) become `needs_review` rather than fabricated.
 
-Verify it: `python backend\verify_scenario.py` (15 assertions over the defect
+Verify it: `python backend\verify_project.py` (15 assertions over the defect
 inventory). Inspect it: the **Correction Pipeline** tab in the frontend.
 
 ## Build discipline (document inspection)
@@ -194,7 +194,7 @@ pipeline never depends on it at runtime.
 
 ## Fact pools and page-growth (stress testing)
 
-Each scenario has a `corpus/fact_pool.json` — a compact, withdrawable store of
+Each project has a `corpus/fact_pool.json` — a compact, withdrawable store of
 source-cited records seeded once from real **public-domain** reports (NTSB for
 aviation, CISA advisories for security, FDA/CDC patterns for clinical, CPSC/NHTSA
 for manufacturing, utility/telecom outage structure for hardware). Only
@@ -217,13 +217,13 @@ at every size.
 backend/            FastAPI app (modular)
   app/
     reconcile/      the correction/reconciliation engine (models, corpus_facts, engine)
-    scenario.py     loads the four components and runs reconciliation
+    project.py     loads the four components and runs reconciliation
     parsers, embeddings, search, aggregate, exporters, store
   seed.py           generates sample binaries and ingests the ingestion demo corpus
-  verify_scenario.py  asserts all 16 defects resolve as expected
+  verify_project.py  asserts all 16 defects resolve as expected
 frontend/           React + Vite + TypeScript (modular components + api client)
 sample_docs/
-  scenario/         the four-component correction corpus:
+  project/         the four-component correction corpus:
     corpus/         source docs + graphics.json (named graphic refs)
     first_attempt/  incident_report_draft.json + incident_report_template.json
     corrections/    comments.json (incl. a conflicting severity pair)
@@ -284,45 +284,45 @@ See `deploy/AIRGAP_RHEL.md` for enclave specifics.
 
 Heavy work runs through a job queue (`app/jobs/`), so the API stays responsive:
 
-- `POST /jobs` `{ "op": "pipeline", "payload": {"scenario_id":"1","mode":"draft","source_format":"docx"} }` → `{job_id}`
+- `POST /jobs` `{ "op": "pipeline", "payload": {"project_id":"1","mode":"draft","source_format":"docx"} }` → `{job_id}`
 - `GET /jobs/{job_id}` → state + result
 - `GET /jobs` → queue counts
 
 Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`. The worker
 (`backend/worker_main.py`) processes them; `WORKER_CONCURRENCY` sets thread count.
 
-Correction endpoints are **project-scoped** (a project IS a correction scenario
-in the unified model), under `/projects/{project_id}/scenario/...`:
+Correction endpoints are **project-scoped** (a project IS a correction project
+in the unified model), under `/projects/{project_id}/project/...`:
 
-- `GET /projects/{id}/scenario/components` — the four components and their contents
-- `GET /projects/{id}/scenario/component/{cid}?mode=draft|template` — raw contents of one component
-- `GET /projects/{id}/scenario/reconcile?mode=draft|template` — the corrected intermediate JSON
-- `POST /projects/{id}/scenario/convert` — convert an uploaded real DOCX/PPTX/PDF
+- `GET /projects/{id}/project/components` — the four components and their contents
+- `GET /projects/{id}/project/component/{cid}?mode=draft|template` — raw contents of one component
+- `GET /projects/{id}/project/reconcile?mode=draft|template` — the corrected intermediate JSON
+- `POST /projects/{id}/project/convert` — convert an uploaded real DOCX/PPTX/PDF
   into the internal first-attempt shape (the file-submission path)
-- `POST /projects/{id}/scenario/interpret` — turn freeform reviewer feedback into
+- `POST /projects/{id}/project/interpret` — turn freeform reviewer feedback into
   constrained, validated correction operations (optionally Bedrock-backed); never
   invents values
 
-The legacy flat `/scenario/*` routes still exist as deprecated aliases during the
+The legacy flat `/project/*` routes still exist as deprecated aliases during the
 transition. `GET /projects` lists every project, including the bundled demo
-scenarios (which are surfaced as projects); the global project selector in the UI
+projects (which are surfaced as projects); the global project selector in the UI
 scopes all five tabs to the chosen project.
 
 ### What the UI surfaces vs. what's API-only
 
 To set expectations honestly: the **frontend exercises the synchronous path** —
-the Correction Pipeline tab calls the project-scoped `.../scenario/reconcile` and
-`.../scenario/converge` directly, and all five tabs scope to the selected project.
+the Correction Pipeline tab calls the project-scoped `.../project/reconcile` and
+`.../project/converge` directly, and all five tabs scope to the selected project.
 The following are implemented and tested at the **API/worker level but not yet
 wired into the UI**:
 
-- the **async job queue** (`POST /jobs` … ) — the UI runs scenarios
+- the **async job queue** (`POST /jobs` … ) — the UI runs projects
   synchronously; jobs are for the worker/headless path;
-- **`/scenario/convert`** — uploading a real DOCX/PPTX/PDF as the first attempt.
+- **`/project/convert`** — uploading a real DOCX/PPTX/PDF as the first attempt.
   In the Correction Pipeline tab, the "source fidelity" selector chooses which
-  **pre-converted** scenario artifact to read (JSON/DOCX/PPTX/PDF), so you can
+  **pre-converted** project artifact to read (JSON/DOCX/PPTX/PDF), so you can
   see how fidelity affects extraction; it does not convert a file you upload;
-- **`/scenario/interpret`** — the feedback-to-operations interpreter.
+- **`/project/interpret`** — the feedback-to-operations interpreter.
 
 These are roadmap items for the frontend, not hidden features. Nothing in the UI
 depends on them.

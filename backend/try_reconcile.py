@@ -38,8 +38,8 @@ def dump(report: dict, label: str) -> None:
 
 def main() -> None:
     sid = sys.argv[1] if len(sys.argv) > 1 else sc.DEFAULT_PROJECT
-    dump(sc.run_reconciliation("draft", sid), f"SCENARIO {sid} — DRAFT MODE")
-    dump(sc.run_reconciliation("template", sid), f"SCENARIO {sid} — TEMPLATE MODE")
+    dump(sc.run_reconciliation("draft", sid), f"PROJECT {sid} — DRAFT MODE")
+    dump(sc.run_reconciliation("template", sid), f"PROJECT {sid} — TEMPLATE MODE")
 
 
 if __name__ == "__main__":

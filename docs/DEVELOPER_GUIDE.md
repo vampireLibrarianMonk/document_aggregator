@@ -22,14 +22,14 @@ backend/
     knowledge/    fact pool + page-growth stress harnesses
     layout/       vector-layout (PDF geometry) tier
     main.py       FastAPI app (routes)
-    scenario.py   scenario loading + run_reconciliation / run_convergence
+    project.py   project loading + run_reconciliation / run_convergence
     store.py      JSON/SQLite-on-disk store (Postgres-ready interface)
     config.py     settings (DATA_DIR, embedding backend, flags)
   tests/          pytest suite (13 modules)
-  build_scenario_graphics.py  generate real PNG figures + enrich graphics.json
-  build_sample_docs.py        generate template/draft DOCX/PPTX/PDF from scenarios
+  build_project_graphics.py  generate real PNG figures + enrich graphics.json
+  build_sample_docs.py        generate template/draft DOCX/PPTX/PDF from projects
   seed.py                     seed the demo project
-  verify_scenario.py          15 assertions over scenario 1's defect inventory
+  verify_project.py          15 assertions over project 1's defect inventory
   worker_main.py              worker entrypoint
 frontend/
   src/            React + Vite SPA (components, api client, styles)
@@ -38,7 +38,7 @@ deploy/
   docker/         Dockerfile.api / Dockerfile.rhel (worker) / Dockerfile.frontend / nginx.conf
   AIRGAP_RHEL.md  enclave deployment checklist
 sample_docs/
-  scenario/<id>/  corpus (+ figures/), corrections, first_attempt (+ generated/)
+  project/<id>/  corpus (+ figures/), corrections, first_attempt (+ generated/)
 docs/             this guide + the user guide
 docker-compose.yml
 ```
@@ -93,13 +93,13 @@ docker compose exec api python backend/seed.py   # seed the shared volume
 
 Key invariant: **no fabrication, no auto-resolution of genuine conflicts, no
 silent defaults.** These are enforced by `tests/test_invariants.py` and
-`verify_scenario.py`.
+`verify_project.py`.
 
-## Scenario data model
+## Project data model
 
-Each scenario under `sample_docs/scenario/<id>/`:
+Each project under `sample_docs/project/<id>/`:
 
-- `scenario.json` - manifest: `fields` (key/label/section/extract/hint),
+- `project.json` - manifest: `fields` (key/label/section/extract/hint),
   `section_bodies`, `table`.
 - `first_attempt/incident_report_template.json` - the rubric (required sections,
   table specs, furniture rules, `build_discipline` profile reference).
@@ -113,27 +113,27 @@ Each scenario under `sample_docs/scenario/<id>/`:
   `fact_pool.json` (for the page-growth harness).
 - `corrections/comments.json` (single round) and `rounds.json` (multi-round).
 
-### Regenerating scenario assets
+### Regenerating project assets
 
-After changing figures or scenario JSON, regenerate the derived assets:
+After changing figures or project JSON, regenerate the derived assets:
 
 ```powershell
-.\.venv\Scripts\python.exe backend\build_scenario_graphics.py   # real PNGs + graphics.json
+.\.venv\Scripts\python.exe backend\build_project_graphics.py   # real PNGs + graphics.json
 .\.venv\Scripts\python.exe backend\build_sample_docs.py         # template/draft docx/pptx/pdf
 ```
 
-`build_scenario_graphics.py` is data-driven: it reads each scenario's existing
+`build_project_graphics.py` is data-driven: it reads each project's existing
 `graphics.json`, derives a title from the caption, generates a real PNG with a
 centered baked-in title at a controlled size, and rewrites `graphics.json`
 enriched with `title`/`file`/`width`/`height`/`align`.
 
-### Adding a scenario
+### Adding a project
 
-1. Create `sample_docs/scenario/<id>/` with `scenario.json`, a template + draft
+1. Create `sample_docs/project/<id>/` with `project.json`, a template + draft
    JSON, corpus docs, a `graphics.json`, and `corrections/comments.json`.
 2. Run the two generators above.
-3. The scenario appears automatically (loaders discover any dir with a
-   `scenario.json`).
+3. The project appears automatically (loaders discover any dir with a
+   `project.json`).
 
 ## Async jobs
 
@@ -149,7 +149,7 @@ Heavy work runs through a job queue (`app/jobs/`):
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest backend/tests -q      # ~244 tests
-.\.venv\Scripts\python.exe backend\verify_scenario.py       # 15 scenario assertions
+.\.venv\Scripts\python.exe backend\verify_project.py       # 15 project assertions
 .\.venv\Scripts\ruff.exe check backend                      # lint
 
 cd frontend

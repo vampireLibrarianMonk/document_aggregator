@@ -3,7 +3,7 @@
 ## Why
 
 The model evaluation (`MODEL_EVAL.md`) proved that single-shot generation never
-produces a valid scenario on the first try (0% across all models and prompts),
+produces a valid project on the first try (0% across all models and prompts),
 and that small models truncate the one-giant-JSON contract and fall back ~92% of
 the time. Prompting did not help. The evidence points at one remedy: **decompose
 the work into small, bounded, individually verifiable steps** so each step fits
@@ -17,8 +17,8 @@ single-shot generator; it sits **alongside** it as a higher-quality mode.
 - **Air-gap / offline first.** Everything degrades to the deterministic generator
   with no Bedrock.
 - **Determinism of the artifact.** The model is an AUTHOR only. Every step's
-  output is validated; the final scenario is persisted as fixed JSON and the
-  deterministic engine remains authoritative at runtime. A governed scenario is
+  output is validated; the final project is persisted as fixed JSON and the
+  deterministic engine remains authoritative at runtime. A governed project is
   as reproducible as a hand-authored one.
 - **Approved models only** (Nemotron / GPT-OSS allowlist).
 - **No fabrication.** The proofread step strengthens, not weakens, the existing
@@ -29,12 +29,12 @@ single-shot generator; it sits **alongside** it as a higher-quality mode.
 - `jobs/queue.py` — `JobQueue` protocol + `SqliteJobQueue` (atomic claim, retry,
   priority, Postgres-ready). `jobs/worker.py` — generic `Worker` loop dispatching
   named `WorkerOp`s via `register_op`. `jobs/runtime.py` — shared queue singleton.
-- `scenariogen/schema.py` — `ScenarioSpec`, `validate_spec`, `salvage_spec`.
-- `scenariogen/bedrock_gen.py` — `BedrockScenarioGenerator` (per-model profile +
+- `projectgen/schema.py` — `ProjectSpec`, `validate_spec`, `salvage_spec`.
+- `projectgen/bedrock_gen.py` — `BedrockProjectGenerator` (per-model profile +
   prompt), `generate_with_metrics` -> `GenerationResult(spec, metrics)`.
-- `scenariogen/model_profiles.py` — size-aware budgets + recommended prompt.
-- `scenariogen/persist.py` — `persist_spec` (validate + write + build assets).
-- `scenariogen/rule_generator.py` — the deterministic fallback.
+- `projectgen/model_profiles.py` — size-aware budgets + recommended prompt.
+- `projectgen/persist.py` — `persist_spec` (validate + write + build assets).
+- `projectgen/rule_generator.py` — the deterministic fallback.
 
 ## The governed pipeline (state machine)
 
@@ -55,10 +55,10 @@ PROOFREAD[i] re-read each filled section AGAINST the corpus: every asserted valu
             else mark needs_review or drop. This is the content check the current
             pipeline lacks (today only schema validity + salvage).
    |
-RECONCILE   assemble the validated sections into a ScenarioSpec, run the existing
+RECONCILE   assemble the validated sections into a ProjectSpec, run the existing
             validate_spec + salvage_spec, then persist_spec. Deterministic.
    |
-DONE        scenario_id, with the full step log attached.
+DONE        project_id, with the full step log attached.
 ```
 
 Every step records objective metrics (reusing `RunMetrics`): model, prompt,
@@ -74,7 +74,7 @@ tokens, latency, est $, outcome, fabrications caught.
    same model; if still bad, DOWNSHIFT to a cheaper/smaller model for that step
    (decomposition makes small models viable per section); if still bad, use the
    deterministic result for that step. The job NEVER hard-fails -- worst case is
-   a fully-deterministic scenario, exactly today's floor.
+   a fully-deterministic project, exactly today's floor.
 4. **Accounting** — aggregate per-step metrics into a job-level report.
 5. **Progress events** — emit a structured, append-only event per step
    transition for the live log (task 7).
@@ -88,7 +88,7 @@ tokens, latency, est $, outcome, fabrications caught.
   logic stays in the `governor/` package the op calls; it is unit-tested without
   the queue.
 - IMPLEMENTED: a synchronous entry (`run_governed(brief, ...)`) for tests and the
-  live SSE endpoint (`GET /scenario/governed/stream`), plus the async enqueue
+  live SSE endpoint (`GET /project/governed/stream`), plus the async enqueue
   path above for backgrounded runs. The op accepts `per_section` to select
   per-section authoring and degrades to the deterministic/offline path on any
   model failure, so a backgrounded job never hard-fails.
@@ -99,7 +99,7 @@ Each step appends a `GovernorEvent{ts, step, status, model, prompt, detail,
 metrics?}` to a per-job event log (persisted with the job). The API streams these
 (SSE) so the frontend shows a live cumulative log: "planned 5 sections",
 "filling 'Signal Definitions' with gpt-oss-20b", "proofread: 2 values unmatched
--> needs_review", "reconciled -> scenario_7". Offline: same events, deterministic
+-> needs_review", "reconciled -> project_7". Offline: same events, deterministic
 models, no Bedrock.
 
 ## Auto-pick (task 8 preview)

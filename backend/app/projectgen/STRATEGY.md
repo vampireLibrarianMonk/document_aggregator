@@ -1,6 +1,6 @@
-# Scenario generation: strategy + handoff
+# Project generation: strategy + handoff
 
-Status as of this writing: the LLM scenario generator is **built and wired**, the
+Status as of this writing: the LLM project generator is **built and wired**, the
 **offline/deterministic path is fully proven**, and the **live Bedrock path runs
 against real approved models but does not yet reliably keep the models' output**
 (it falls back to the deterministic generator). This doc captures exactly where
@@ -10,16 +10,16 @@ things are and the plan to finish it.
 
 ## Goal (unchanged)
 
-Generate complete, schema-valid correction scenarios (corpus + template + draft +
+Generate complete, schema-valid correction projects (corpus + template + draft +
 graphics + corrections + a known defect inventory), like the hand-authored
-scenario 1, via two entry points:
+project 1, via two entry points:
 
-1. **Per-scenario** generation from a structured brief (domain + doc type).
+1. **Per-project** generation from a structured brief (domain + doc type).
 2. **On-the-fly** from freeform user text, using the model's best judgment.
 
-Reproducibility guardrail (non-negotiable): the LLM is a scenario **author**, not
+Reproducibility guardrail (non-negotiable): the LLM is a project **author**, not
 part of the correction path. Its output is validated and persisted as **fixed
-JSON**; from then on the deterministic engine runs it. A generated scenario must
+JSON**; from then on the deterministic engine runs it. A generated project must
 be as traceable/reproducible as a hand-authored one, and must honor **no
 fabrication** (every asserted value grounded in the corpus text or stated in a
 correction body).
@@ -28,21 +28,21 @@ correction body).
 
 ## What is DONE and proven
 
-- **Schema + validator** (`schema.py`): `ScenarioSpec` maps 1:1 to the on-disk
-  scenario tree; `validate_spec` enforces engine-consumability (resolvable
+- **Schema + validator** (`schema.py`): `ProjectSpec` maps 1:1 to the on-disk
+  project tree; `validate_spec` enforces engine-consumability (resolvable
   targets, section/graphic references, corpus grounding / no fabrication).
-- **Persister** (`persist.py`): atomic write of the full scenario tree, then
-  generates figures (`build_scenario_graphics`) + DOCX (`build_sample_docs`).
+- **Persister** (`persist.py`): atomic write of the full project tree, then
+  generates figures (`build_project_graphics`) + DOCX (`build_sample_docs`).
 - **Deterministic generator** (`rule_generator.py`): corpus-grounded,
   incident-shaped, parameterized by domain/title. This is the air-gap fallback
   AND the proven baseline.
-- **PROVEN end-to-end (offline):** generated a scenario -> persisted ->
+- **PROVEN end-to-end (offline):** generated a project -> persisted ->
   reconciled with the healthy shape (17 units, 1 conflict, 1 needs_review, 8
-  corrected, 4 filled) -> auto-joined the scenario list -> **passed the full
+  corrected, 4 filled) -> auto-joined the project list -> **passed the full
   invariant suite** (indistinguishable from hand-authored).
-- **API** (`main.py`): `POST /scenario/generate` and
-  `POST /scenario/generate/from-text`, both with a `dry_run` preview.
-- **Model allowlist** (`config.py` + `bedrock_gen.get_scenario_model`): only
+- **API** (`main.py`): `POST /project/generate` and
+  `POST /project/generate/from-text`, both with a `dry_run` preview.
+- **Model allowlist** (`config.py` + `bedrock_gen.get_project_model`): only
   Nemotron / GPT-OSS ids accepted; verified it rejects others.
 - **Model adapters** (`model_adapters.py`): `ConverseAdapter` (default) correctly
   extracts text from both Nemotron and GPT-OSS (GPT-OSS emits a
@@ -59,7 +59,7 @@ correction body).
     `openai.gpt-oss-safeguard-120b/20b`
 - Converse works for both. **GPT-OSS needs a large token budget** (reasoning
   block consumes tokens before the answer); generation uses `max_tokens=8192`.
-- Both models produce coherent, substantial ICD scenarios (~8-12KB JSON,
+- Both models produce coherent, substantial ICD projects (~8-12KB JSON,
   12-28s). They are doing good work.
 
 ---
@@ -124,24 +124,24 @@ the actual corrections/sections that survive.
    recorded note), not fall back. Ensure salvage also: drops orphan graphics /
    sections that reference nothing, and guarantees at least one conflict + one
    needs_review survive (re-inject from the deterministic generator if the model
-   produced none, so the scenario still demonstrates the hard cases).
+   produced none, so the project still demonstrates the hard cases).
 
-4. **Decide the quality bar.** A salvaged scenario must still be *interesting*
+4. **Decide the quality bar.** A salvaged project must still be *interesting*
    (has the conflict + needs_review + graphic defects). Add a post-salvage
    "richness" check; if too thin, either repair-prompt again or merge in
    deterministic defects. Document the bar.
 
 5. **Compare the two model families** on: valid-first-try rate, repair rounds
-   needed, fabrication-rejection rate, latency, token cost, and scenario
+   needed, fabrication-rejection rate, latency, token cost, and project
    realism. Pick a default `BEDROCK_SCENARIO_MODEL`. Record findings in
    `MODEL_TESTING.md`.
 
-6. **UI (optional, after backend is solid):** a "Generate scenario" affordance
+6. **UI (optional, after backend is solid):** a "Generate project" affordance
    (brief form + freeform box) calling the two endpoints with a dry-run preview
    before persist. Not started.
 
 7. **Guardrail re-audit before shipping:** confirm a persisted generated
-   scenario (a) reconciles, (b) passes the invariant suite, (c) contains no
+   project (a) reconciles, (b) passes the invariant suite, (c) contains no
    ungrounded values, (d) is deterministic on re-reconcile. Run full pytest +
    ruff + a11y.
 
@@ -150,23 +150,23 @@ the actual corrections/sections that survive.
 ## Files (all UNCOMMITTED)
 
 ```
-backend/app/scenariogen/
-  __init__.py          exports ScenarioSpec, validate_spec
-  schema.py            ScenarioSpec + validate_spec + salvage_spec (+ tolerant validators)
+backend/app/projectgen/
+  __init__.py          exports ProjectSpec, validate_spec
+  schema.py            ProjectSpec + validate_spec + salvage_spec (+ tolerant validators)
   persist.py           persist_spec -> on-disk tree + figures + docx
-  generator.py         ScenarioBrief, ScenarioGenerator Protocol, get_generator()
+  generator.py         ProjectBrief, ProjectGenerator Protocol, get_generator()
   rule_generator.py    deterministic offline generator (proven)
   model_adapters.py    ConverseAdapter (default) + InvokeModelAdapter
-  bedrock_gen.py       BedrockScenarioGenerator + _finalize + _coerce_spec_dict
+  bedrock_gen.py       BedrockProjectGenerator + _finalize + _coerce_spec_dict
   MODEL_TESTING.md     how to enable + test real Bedrock models
   STRATEGY.md          this file
 backend/app/config.py  + BEDROCK_SCENARIO_MODEL, BEDROCK_SCENARIO_MODEL_ALLOWLIST
-backend/app/main.py    + POST /scenario/generate, /scenario/generate/from-text
+backend/app/main.py    + POST /project/generate, /project/generate/from-text
 backend/_probe_gen.py  TEMPORARY live-model probe (delete before commit)
 ```
 
 Also still uncommitted from earlier UI-polish work: header subtitle/intro copy,
-"Page elements" rename, scenario-JSON jargon cleanup, project-name header
+"Page elements" rename, project-JSON jargon cleanup, project-name header
 removal, redundant flow-label removal, mode-description em-dash fixes, and the
 human-in-the-loop resolve feature was already committed (2799e70).
 

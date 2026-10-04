@@ -1,9 +1,9 @@
-# Scenario generation: model evaluation findings
+# Project generation: model evaluation findings
 
 A controlled, objective experiment across the full approved model set (NVIDIA
 Nemotron + OpenAI GPT-OSS families) to answer three questions:
 
-1. Which models can actually author a valid scenario, and which fall over?
+1. Which models can actually author a valid project, and which fall over?
 2. Does a better prompt lift the weaker / smaller models?
 3. What should the default be, and can we pick a model for the user?
 
@@ -19,7 +19,7 @@ truth.
 - Models (8 approved, `us-east-1`, ON_DEMAND): gpt-oss-120b, gpt-oss-20b,
   gpt-oss-safeguard-120b, gpt-oss-safeguard-20b, nemotron-super-3-120b,
   nemotron-nano-3-30b, nemotron-nano-12b-v2, nemotron-nano-9b-v2.
-- Prompt strategies (`backend/app/scenariogen/prompts.py`): `baseline`,
+- Prompt strategies (`backend/app/projectgen/prompts.py`): `baseline`,
   `strict_schema`, `few_shot`, `reasoning_suppressed`.
 - Briefs: fixed, deterministic document types (ICD, incident report, lab-safety
   event report were the core three used for this run).
@@ -95,7 +95,7 @@ On the Bedrock Converse API the output-token cap bounds **everything** the model
 emits, including the internal reasoning block of reasoning models. A single flat
 cap (the old hardcoded 8192) therefore starves exactly the models that reason
 most: gpt-oss-20b hit 8192 on 20/24 runs and truncated. The fix is
-`backend/app/scenariogen/model_profiles.py`, which resolves the budget **per
+`backend/app/projectgen/model_profiles.py`, which resolves the budget **per
 model** from a capability profile (reasoning models get more headroom; a model
 that finishes early is not billed for the ceiling). This removes the artificial
 truncation without scattering model-name checks through the generator. The

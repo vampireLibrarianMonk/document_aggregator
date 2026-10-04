@@ -188,19 +188,19 @@ as indicative.
   which is exactly right for FABRICATION but conservative for `needs_review`
   nuance; a human spot-check is worthwhile before trusting any cheap judge.
 
-## Adversarial reproducibility review (recommended model vs committed scenarios)
+## Adversarial reproducibility review (recommended model vs committed projects)
 
 Harness: `backend/eval_adversarial.py`. Question: if we regenerate the EXISTING
-committed scenarios with the recommended model (gpt-oss-120b), do we get the
+committed projects with the recommended model (gpt-oss-120b), do we get the
 same results, or does the model drift? Adversarial intent: look for failure and
-drift, not confirmation. For each committed scenario we derive a brief from its
+drift, not confirmation. For each committed project we derive a brief from its
 own metadata, regenerate N times, and compare objective properties (validity,
 no-fabrication, conflict presence, needs-review presence, section count,
 fallback) against the committed reference.
 
-Live result (gpt-oss-120b, 6 scenarios x 2 runs):
+Live result (gpt-oss-120b, 6 projects x 2 runs):
 
-| scenario (domain)     | valid | fell_back | reproduced conflict | reproduced needs-review | stable |
+| project (domain)     | valid | fell_back | reproduced conflict | reproduced needs-review | stable |
 |-----------------------|------:|----------:|--------------------:|------------------------:|:------:|
 | 1 hardware incident   | 100%  |     0%    |        100%         |          100%           |  yes   |
 | 2 IT security         | 100%  |     0%    |        100%         |          100%           |  yes   |
@@ -212,15 +212,15 @@ Live result (gpt-oss-120b, 6 scenarios x 2 runs):
 ### Findings (honest)
 
 - **Validity: 100%, no fabrication, every run.** The safety floor holds: a
-  regenerated scenario is always persistable or cleanly falls back. This is the
+  regenerated project is always persistable or cleanly falls back. This is the
   non-negotiable guarantee and it never broke.
 - **needs-review: 100% reproduced** across all six domains. The model reliably
   produces "a required field with no corpus source."
-- **Conflicts DRIFT.** Scenario 6 (ICD) reproduced the conflict 0% of the time
-  (the model consistently authors a clean document where the committed scenario
-  has a disagreement). Scenario 3 (lab safety) was unstable: one run dropped the
+- **Conflicts DRIFT.** Project 6 (ICD) reproduced the conflict 0% of the time
+  (the model consistently authors a clean document where the committed project
+  has a disagreement). Project 3 (lab safety) was unstable: one run dropped the
   conflict, the other fell back.
-- **Scenario 5 (aviation) fell back 100%** -- the model output was never usable;
+- **Project 5 (aviation) fell back 100%** -- the model output was never usable;
   the deterministic generator carried both runs. "It works" there is the safety
   net, not the model.
 - **Section counts vary** (4-7 vs the deterministic 6). Expected latitude in how
@@ -228,14 +228,14 @@ Live result (gpt-oss-120b, 6 scenarios x 2 runs):
 
 ### Conclusion
 
-New scenarios generated with the recommended model are **valid and safe but not
+New projects generated with the recommended model are **valid and safe but not
 faithful reproductions** of the committed ones: needs-review reproduces reliably,
 conflicts drift (notably skipped on the ICD), and some domains fall back
 entirely. This is consistent with the model evaluation (0% valid-first-try;
 salvage/fallback carry the feature) and reinforces the standing design rule: a
-generated scenario must be REVIEWED and persisted as fixed data, never trusted as
-a drop-in equivalent of a hand-authored one. Caveat: N=2 per scenario, so treat
-the per-scenario rates as indicative; the drift on scenarios 3 and 6 was
+generated project must be REVIEWED and persisted as fixed data, never trusted as
+a drop-in equivalent of a hand-authored one. Caveat: N=2 per project, so treat
+the per-project rates as indicative; the drift on projects 3 and 6 was
 consistent enough across runs to be a real signal, not noise.
 
 ## Corpus-grounded generation: the faithful + deterministic path
@@ -243,7 +243,7 @@ consistent enough across runs to be a real signal, not noise.
 The adversarial review above showed the MODEL path drifts (conflicts skipped,
 some domains fall back) because the model INVENTS the ground-truth corpus. The
 fix, and the app's core purpose, is to let the user's real document BE the
-corpus. `CorpusScenarioGenerator` (`corpus_generator.py`) builds a scenario
+corpus. `CorpusProjectGenerator` (`corpus_generator.py`) builds a project
 deterministically from provided corpus text:
 
 - **Faithful / no fabrication by construction.** Every asserted value is a
@@ -251,20 +251,20 @@ deterministically from provided corpus text:
   `_check_corpus_grounding` passes without the model needing to be trusted. The
   uploaded document is written to `corpus/*.txt` as the fixed ground truth.
 - **Deterministic.** It is a pure function of (corpus, brief) with no model, no
-  RNG, no clock: the same document yields a byte-identical ScenarioSpec every
-  time (`test_corpus_generator.py::test_corpus_scenario_is_deterministic`). This
+  RNG, no clock: the same document yields a byte-identical ProjectSpec every
+  time (`test_corpus_generator.py::test_corpus_project_is_deterministic`). This
   is the opposite of the model path's run-to-run drift.
 - **Model-free replay (already true).** Once persisted, reconcile replays purely
   from the on-disk corpus with a deterministic local embedder and no LLM, so the
-  scenario is reproducible forever.
+  project is reproducible forever.
 
 Intake: `corpus_intake.corpus_from_upload` parses an uploaded .txt/.md/.docx/
 .pdf/.pptx via the existing ingestion parsers and renders its text (headings
-preserved) as a CorpusDoc; the API endpoint `POST /scenario/generate/
+preserved) as a CorpusDoc; the API endpoint `POST /project/generate/
 from-document` wires upload -> corpus -> deterministic generation -> persist. The
 UI adds a "From document" mode.
 
-Recommendation: for a scenario that must match a specific real document, use the
+Recommendation: for a project that must match a specific real document, use the
 From-document (corpus-grounded) path, not the model path. The model path remains
-useful for inventing plausible NEW scenarios where faithfulness to a specific
+useful for inventing plausible NEW projects where faithfulness to a specific
 source is not required.

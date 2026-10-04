@@ -29,7 +29,7 @@ The app has five tabs across the top. You can use them in any order, but the
 
 ### 1. Correction Pipeline (start here)
 
-This is the heart of the tool. It shows a worked example (a "scenario") going
+This is the heart of the tool. It shows a worked example (a "project") going
 through four stages, left to right:
 
 1. **Original corpus** - the raw source documents (the ground truth).
@@ -39,7 +39,7 @@ through four stages, left to right:
 
 Controls:
 
-- **Scenario** dropdown - pick which worked example to view.
+- **Project** dropdown - pick which worked example to view.
 - **Draft mode vs Template mode** - Draft mode fixes a completed-but-flawed
   report; Template mode fills a blank report template from the source material.
 - **Single pass vs Rounds** - Single pass shows one round of corrections; Rounds
