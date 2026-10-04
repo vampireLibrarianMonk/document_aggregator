@@ -105,9 +105,15 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
             </option>
           ))}
         </select>
-        {models && !models.available && (
-          <span className="small muted">
-            (Bedrock unavailable here — only the offline generator is offered)
+        {models && (
+          <span className="small muted bedrock-status">
+            <span
+              className={`status-dot ${models.available ? 'ok' : 'offline'}`}
+              aria-hidden="true"
+            />
+            {models.available
+              ? `Bedrock connected (${models.models.length} approved model${models.models.length === 1 ? '' : 's'})`
+              : 'Bedrock unavailable here; only the offline generator is offered'}
           </span>
         )}
       </div>

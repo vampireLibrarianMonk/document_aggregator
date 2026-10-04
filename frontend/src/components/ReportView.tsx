@@ -238,7 +238,7 @@ function DocField({ field, onResolve }: { field: CorrectedField; onResolve: Reso
       {' '}
       <Annotation field={field} onResolve={onResolve} />
       {field.note && field.status !== 'unchanged' && (
-        <span className="small muted doc-field-note"> — {field.note}</span>
+        <span className="small muted doc-field-note">{field.note}</span>
       )}
     </p>
   )

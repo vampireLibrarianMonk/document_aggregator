@@ -66,11 +66,14 @@ export function ResolveControls({ field, onResolve }: { field: CorrectedField; o
     }
   }
 
+  const isConflict = field.status === 'conflict' && field.candidates.length > 0
   return (
     <div className="resolve-controls">
-      {field.status === 'conflict' && field.candidates.length > 0 ? (
-        <>
-          <span className="small muted">Resolve:</span>
+      <span className="resolve-prompt small">
+        {isConflict ? 'Choose a value' : 'Enter a value'}
+      </span>
+      {isConflict ? (
+        <div className="resolve-choices">
           {field.candidates.map((c, i) => (
             <button
               key={i}
@@ -79,14 +82,14 @@ export function ResolveControls({ field, onResolve }: { field: CorrectedField; o
               onClick={() => void submit(String(c.value))}
               aria-label={`Resolve ${field.label} to ${String(c.value)}`}
             >
-              Use {String(c.value)}
+              {String(c.value)}
             </button>
           ))}
-        </>
+        </div>
       ) : (
-        <>
-          <label htmlFor={`resolve-${field.key}`} className="small muted">
-            Resolve — enter a value:
+        <div className="resolve-entry">
+          <label htmlFor={`resolve-${field.key}`} className="sr-only">
+            Value for {field.label}
           </label>
           <input
             id={`resolve-${field.key}`}
@@ -95,16 +98,16 @@ export function ResolveControls({ field, onResolve }: { field: CorrectedField; o
             disabled={busy}
             onChange={(e) => setManual(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void submit(manual)}
-            placeholder={`${field.label} value`}
+            placeholder="Enter a value…"
           />
           <button
             className="btn secondary small"
             disabled={busy || !manual.trim()}
             onClick={() => void submit(manual)}
           >
-            {busy ? 'Saving…' : 'Set value'}
+            {busy ? 'Saving…' : 'Set'}
           </button>
-        </>
+        </div>
       )}
     </div>
   )
@@ -120,7 +123,7 @@ export function FieldRow({ field, onResolve }: { field: CorrectedField; onResolv
       <div className="val">
         <StatusTag status={field.status} />{' '}
         {field.status === 'conflict' ? (
-          <span className="mono muted">unresolved — choose a candidate below</span>
+          <span className="mono muted">unresolved; choose a candidate below</span>
         ) : (
           <span className="mono">{displayValue(field.value)}</span>
         )}
@@ -132,8 +135,10 @@ export function FieldRow({ field, onResolve }: { field: CorrectedField; onResolv
               .join('  vs  ')}
           </div>
         )}
-        {field.note && <div className="small muted">{field.note}</div>}
+        {/* The reason this unit is open reads as context ABOVE the control. */}
+        {field.note && resolvable && <div className="resolve-reason small muted">{field.note}</div>}
         {resolvable && onResolve && <ResolveControls field={field} onResolve={onResolve} />}
+        {field.note && !resolvable && <div className="small muted">{field.note}</div>}
         <Prov provenance={field.provenance} />
       </div>
     </div>
