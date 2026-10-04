@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 import random
-from pathlib import Path
 
-SCEN = Path(__file__).resolve().parents[3] / "sample_docs" / "scenario"
+from ..config import settings
+
+SCEN = settings.SCENARIO_ROOT
 
 
 class PoolExhaustedError(Exception):

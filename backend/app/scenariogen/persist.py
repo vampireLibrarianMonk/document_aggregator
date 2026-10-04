@@ -13,9 +13,11 @@ import json
 import shutil
 from pathlib import Path
 
+from ..config import settings
 from .schema import ScenarioSpec, validate_spec
 
-SCENARIO_ROOT = Path(__file__).resolve().parents[3] / "sample_docs" / "scenario"
+# Single source of truth lives in config (previously duplicated here).
+SCENARIO_ROOT = settings.SCENARIO_ROOT
 
 # These filenames are what the loaders expect (kept for compatibility).
 TEMPLATE_FILE = "incident_report_template.json"

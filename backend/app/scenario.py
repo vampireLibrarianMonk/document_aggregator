@@ -16,9 +16,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .config import settings
 from .reconcile import reconcile
 
-SCENARIO_ROOT = Path(__file__).resolve().parents[2] / "sample_docs" / "scenario"
+# Single source of truth lives in config; re-exported here for existing callers.
+SCENARIO_ROOT = settings.SCENARIO_ROOT
 DEFAULT_SCENARIO = "1"
 
 

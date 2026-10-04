@@ -65,6 +65,13 @@ class Settings:
     PIPELINE_VERSION: str = "0.1.0"
     SCHEMA_VERSION: str = "1.0"
 
+    # Single source of truth for the scenario storage root. Previously this path
+    # was recomputed independently in scenario.py, scenariogen/persist.py, and
+    # knowledge/factpool.py (with different parents[] indices), which risked
+    # drift; they now all import this. Repo-relative (parents[2] = repo root
+    # from backend/app/config.py).
+    SCENARIO_ROOT: Path = Path(__file__).resolve().parents[2] / "sample_docs" / "scenario"
+
     def project_dir(self, project_id: str) -> Path:
         return self.DATA_DIR / "projects" / project_id
 
