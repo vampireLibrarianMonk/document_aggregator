@@ -1,0 +1,61 @@
+# API service — LOCAL image (Debian base) with FULL capability installed.
+#
+# This is the image the default docker-compose uses for LOCAL / developer runs.
+# The deployment target for the enclave is deploy/docker/Dockerfile.api (UBI),
+# which bakes the same embedding model but gets tesseract + LibreOffice from the
+# enclave's mirrored RHEL AppStream. Here on a Debian base those two install
+# freely via apt, so a plain `docker compose up` gives the complete local/
+# air-gap capability: real embeddings, OCR, and the DOCX->PDF geometry tier.
+#
+# Everything still runs fully offline at runtime (the model weights are baked;
+# the offline flags are a hard guard). Network is used only at build time.
+
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+# --- System binaries: OCR engine, LibreOffice headless, fonts ----------------
+# tesseract-ocr: OCR for scanned/flattened PDFs and images.
+# libreoffice-writer/calc: DOCX/XLSX -> PDF for the vector-layout geometry tier.
+# The Liberation + Carlito/Caladea fonts are metric-compatible with
+# Arial/Times/Courier and Calibri/Cambria, so documents render to the SAME box
+# geometry regardless of the proprietary font they name.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        tesseract-ocr \
+        libreoffice-writer libreoffice-calc \
+        fonts-liberation fonts-crosextra-carlito fonts-crosextra-caladea \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# --- Python deps -------------------------------------------------------------
+COPY backend/requirements-api.txt /app/backend/requirements-api.txt
+# CPU-only torch first (sentence-transformers pulls torch; the default wheel
+# drags in unused CUDA). The CPU index gives a small wheel.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install --no-cache-dir -r /app/backend/requirements-api.txt
+
+# --- Bake the embedding model so the image is fully offline ------------------
+ENV HF_HOME=/opt/hf-cache \
+    SENTENCE_TRANSFORMERS_HOME=/opt/hf-cache
+ARG EMBEDDING_ST_MODEL=all-MiniLM-L6-v2
+RUN python -c "from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('${EMBEDDING_ST_MODEL}')" \
+    && echo "[build] baked ${EMBEDDING_ST_MODEL} into ${HF_HOME}"
+
+# --- Application -------------------------------------------------------------
+COPY backend /app/backend
+COPY sample_docs /app/sample_docs
+
+ENV APP_ENV=production \
+    DATA_DIR=/data \
+    EMBEDDING_BACKEND=sentence-transformers \
+    EMBEDDINGS_ENABLED=true \
+    OCR_ENABLED=true \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    BEDROCK_ENABLED=false \
+    PYTHONUNBUFFERED=1
+
+RUN mkdir -p /data
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "backend"]

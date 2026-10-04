@@ -1,30 +1,89 @@
-# API service — lean RHEL/UBI image (no LibreOffice).
-# Serves the FastAPI app; enqueues jobs for the worker. The heavy rendering
-# dependency lives only in the worker image (modular per endpoint).
+# API service — RHEL/UBI image with FULL local capability baked in.
+#
+# The api ingests documents IN-PROCESS (upload -> parse -> chunk -> embed ->
+# index) and runs reconciliation, so for maximal local/air-gap capability this
+# image carries everything the pipeline can use with NO network at runtime:
+#   - tesseract (OCR for scanned/flattened PDFs and images)
+#   - the all-MiniLM-L6-v2 sentence-transformers weights, baked at build time
+#     (real semantic search offline, not the hashing fallback)
+#   - LibreOffice headless + the pinned metric-compatible fonts (the DOCX->PDF
+#     vector-layout / geometry-discipline tier)
+#
+# Everything degrades gracefully if a piece is absent, but here they are all
+# present, so a local run has the same capability the enclave would.
 
 FROM registry.access.redhat.com/ubi9/python-312:latest
 
 USER 0
 WORKDIR /app
 
-COPY backend/requirements-api.txt /app/backend/requirements-api.txt
-# Enclave: pip install --no-index --find-links=/wheels -r backend/requirements-api.txt
-RUN pip install --no-cache-dir -r /app/backend/requirements-api.txt
+# --- System binaries: OCR engine, fonts, LibreOffice headless ----------------
+# tesseract is in EPEL/RHEL AppStream; the enclave mirrors these. LibreOffice +
+# the full Liberation/Carlito/Caladea font set give metric-compatible rendering
+# so a document specifying a proprietary font renders to the SAME box geometry.
+# Best-effort per group (|| true / echo) so a stock-UBI build still succeeds; in
+# the enclave, point dnf at the internal mirror and set REQUIRE_* to hard-fail.
+ARG REQUIRE_LIBREOFFICE=0
+ARG REQUIRE_TESSERACT=0
+RUN dnf install -y --setopt=install_weak_deps=False tesseract \
+      || echo "[build] tesseract not in active repos (enclave mirror provides it)" \
+    && dnf install -y --setopt=install_weak_deps=False \
+        liberation-fonts-common liberation-mono-fonts \
+      || true \
+    && dnf install -y --setopt=install_weak_deps=False \
+        liberation-sans-fonts liberation-serif-fonts \
+        google-carlito-fonts google-crosextra-caladea-fonts \
+      || echo "[build] full font set not in active repos (enclave mirror provides it)" \
+    && dnf install -y --setopt=install_weak_deps=False \
+        libreoffice-headless libreoffice-writer libreoffice-calc \
+      || echo "[build] LibreOffice not in active repos (enclave mirror provides it)" \
+    && dnf clean all && rm -rf /var/cache/dnf \
+    && if [ "$REQUIRE_TESSERACT" = "1" ]; then \
+         command -v tesseract >/dev/null 2>&1 || (echo "tesseract required but missing" && exit 1); \
+       fi \
+    && if [ "$REQUIRE_LIBREOFFICE" = "1" ]; then \
+         command -v soffice >/dev/null 2>&1 || (echo "soffice required but missing" && exit 1); \
+       fi
 
+# --- Python deps -------------------------------------------------------------
+COPY backend/requirements-api.txt /app/backend/requirements-api.txt
+# CPU-ONLY torch first (sentence-transformers pulls torch; the default wheel
+# drags in ~2.5GB of unused CUDA). The CPU index gives a small wheel. In an
+# enclave, point at the mirrored CPU wheelhouse instead.
+# Enclave: pip install --no-index --find-links=/wheels -r backend/requirements-api.txt
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install --no-cache-dir -r /app/backend/requirements-api.txt
+
+# --- Bake the embedding model so the image is fully offline ------------------
+# Pre-download all-MiniLM-L6-v2 into a baked cache dir at build time (the ONLY
+# point network is used). At runtime HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE=1
+# guarantee no request ever leaves the host; the model loads from this cache.
+ENV HF_HOME=/opt/hf-cache \
+    SENTENCE_TRANSFORMERS_HOME=/opt/hf-cache
+ARG EMBEDDING_ST_MODEL=all-MiniLM-L6-v2
+RUN python -c "from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('${EMBEDDING_ST_MODEL}')" \
+    && echo "[build] baked ${EMBEDDING_ST_MODEL} into ${HF_HOME}"
+
+# --- Application -------------------------------------------------------------
 COPY backend /app/backend
 COPY sample_docs /app/sample_docs
 
-# Writable data dir owned by group 0 (OpenShift runs as an arbitrary UID in
-# group 0, so group-write is the portable pattern).
+# Writable data dir + readable model cache owned by group 0 (OpenShift runs as
+# an arbitrary UID in group 0, so group-write is the portable pattern).
 RUN useradd -u 10001 -r -g 0 appuser || true \
     && mkdir -p /data \
-    && chgrp -R 0 /data /app \
-    && chmod -R g=u /data /app
+    && chgrp -R 0 /data /app /opt/hf-cache \
+    && chmod -R g=u /data /app /opt/hf-cache
 USER 10001
 
 ENV APP_ENV=production \
     DATA_DIR=/data \
-    EMBEDDING_BACKEND=auto \
+    EMBEDDING_BACKEND=sentence-transformers \
+    EMBEDDINGS_ENABLED=true \
+    OCR_ENABLED=true \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
     BEDROCK_ENABLED=false \
     PYTHONUNBUFFERED=1
 

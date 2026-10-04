@@ -1,10 +1,19 @@
-# Document Aggregation Platform — modular RHEL/UBI stack.
+# Document Aggregation Platform — LOCAL developer stack (full capability).
+#
+# This compose file targets LOCAL runs and uses Debian-based images that bake in
+# the complete offline capability: real MiniLM embeddings, tesseract OCR, and
+# LibreOffice (DOCX->PDF geometry tier). A plain `docker compose up` gives a
+# fully capable, fully offline stack.
+#
+# The ENCLAVE / OpenShift deployment target uses the UBI images instead
+# (deploy/docker/Dockerfile.api, Dockerfile.rhel) — same baked embedding model,
+# with tesseract + LibreOffice coming from the enclave's mirrored RHEL
+# AppStream. Point the build.dockerfile keys at those for an enclave build.
 #
 # Four concerns, four images (modular per software endpoint):
-#   api       lean FastAPI (no LibreOffice); serves HTTP, enqueues jobs
-#   worker    heavy image (LibreOffice + pinned fonts), runs the templated
-#             worker loop against the shared job queue
-#   frontend  nginx (UBI) serving the built React app, proxies /api -> api
+#   api       FastAPI; ingests in-process; serves HTTP, enqueues jobs
+#   worker    runs the templated worker loop against the shared job queue
+#   frontend  nginx serving the built React app, proxies /api -> api
 #   data      a shared named volume for DATA_DIR (jobs.db, projects, indexes)
 #
 # JSON/SQLite store now; a PostgreSQL service is stubbed below for the upgrade.
@@ -13,12 +22,15 @@ services:
   api:
     build:
       context: .
-      dockerfile: deploy/docker/Dockerfile.api
+      dockerfile: deploy/docker/Dockerfile.api.local
     environment:
       DATA_DIR: /data
-      # The api image has no embedding stack, so it runs on the hashing embedder
-      # regardless; set it explicitly and guard the network for parity.
-      EMBEDDING_BACKEND: hashing
+      # Full local capability baked into the api image: real MiniLM embeddings,
+      # OCR, and LibreOffice. The MiniLM weights are baked at build time; the
+      # offline flags are a hard guard so no request ever leaves the host.
+      EMBEDDING_BACKEND: "${EMBEDDING_BACKEND:-sentence-transformers}"
+      EMBEDDINGS_ENABLED: "true"
+      OCR_ENABLED: "${OCR_ENABLED:-true}"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       # Bedrock scenario generation off by default (air-gap). To use the SAME
@@ -54,16 +66,17 @@ services:
   worker:
     build:
       context: .
-      dockerfile: deploy/docker/Dockerfile.rhel
+      dockerfile: deploy/docker/Dockerfile.worker.local
     environment:
       DATA_DIR: /data
-      # Air-gap default: the deterministic hashing embedder (no network, always
-      # available). The worker image ships sentence-transformers, but its weights
-      # are NOT baked in, so we must not attempt a live model download. To use
-      # the real model in the enclave, bake/mount the weights and set
-      # EMBEDDING_BACKEND=sentence-transformers. The offline flags below are a
-      # hard guard: even on "auto", no request ever leaves the enclave.
-      EMBEDDING_BACKEND: hashing
+      # Full local capability: the worker image bakes the MiniLM weights at
+      # build time, so real embeddings run fully offline. OCR + LibreOffice are
+      # installed too. The offline flags are a hard guard: no request ever
+      # leaves the host. Override EMBEDDING_BACKEND=hashing to force the
+      # deterministic fallback.
+      EMBEDDING_BACKEND: "${EMBEDDING_BACKEND:-sentence-transformers}"
+      EMBEDDINGS_ENABLED: "true"
+      OCR_ENABLED: "${OCR_ENABLED:-true}"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       BEDROCK_ENABLED: "false"

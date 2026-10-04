@@ -1,8 +1,6 @@
-# Worker service dependencies — the api set plus the local embedding stack.
-# The worker does the heavy processing (render/geometry/reconcile) and is the
-# only service that needs the embedding model.
+# Worker service dependencies — identical to the api set.
+# The full stack (embeddings, OCR, parsers) now lives in requirements-api.txt
+# so both services are equally capable offline. The worker image additionally
+# installs CPU torch + the baked MiniLM weights + LibreOffice in its Dockerfile.
 
 -r requirements-api.txt
-
-# Local embedding model (Apache-2.0, CPU, air-gap after first pull).
-sentence-transformers>=3.0,<7.0

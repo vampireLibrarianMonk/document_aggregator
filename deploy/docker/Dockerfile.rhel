@@ -28,7 +28,10 @@ USER 0
 # In the enclave, point dnf at the internal mirror (full RHEL AppStream) and
 # these all install; set REQUIRE_LIBREOFFICE=1 to hard-fail if missing.
 ARG REQUIRE_LIBREOFFICE=0
-RUN dnf install -y --setopt=install_weak_deps=False \
+ARG REQUIRE_TESSERACT=0
+RUN dnf install -y --setopt=install_weak_deps=False tesseract \
+      || echo "[build] tesseract not in active repos (enclave mirror provides it)" \
+    && dnf install -y --setopt=install_weak_deps=False \
         liberation-fonts-common liberation-mono-fonts \
       || true \
     && dnf install -y --setopt=install_weak_deps=False \
@@ -39,6 +42,9 @@ RUN dnf install -y --setopt=install_weak_deps=False \
         libreoffice-headless libreoffice-writer libreoffice-calc \
       || echo "[build] LibreOffice not in active repos (enclave mirror provides it)" \
     && dnf clean all && rm -rf /var/cache/dnf \
+    && if [ "$REQUIRE_TESSERACT" = "1" ]; then \
+         command -v tesseract >/dev/null 2>&1 || (echo "tesseract required but missing" && exit 1); \
+       fi \
     && if [ "$REQUIRE_LIBREOFFICE" = "1" ]; then \
          command -v soffice >/dev/null 2>&1 || (echo "soffice required but missing" && exit 1); \
        fi
@@ -53,19 +59,33 @@ COPY backend/requirements-worker.txt /app/backend/requirements-worker.txt
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
     && pip install --no-cache-dir -r /app/backend/requirements-worker.txt
 
+# --- Bake the embedding model so the image is fully offline ------------------
+# Pre-download all-MiniLM-L6-v2 at build time (the ONLY point network is used).
+# At runtime the offline flags guarantee no request leaves the host.
+ENV HF_HOME=/opt/hf-cache \
+    SENTENCE_TRANSFORMERS_HOME=/opt/hf-cache
+ARG EMBEDDING_ST_MODEL=all-MiniLM-L6-v2
+RUN python -c "from sentence_transformers import SentenceTransformer; \
+SentenceTransformer('${EMBEDDING_ST_MODEL}')" \
+    && echo "[build] baked ${EMBEDDING_ST_MODEL} into ${HF_HOME}"
+
 COPY backend /app/backend
 COPY sample_docs /app/sample_docs
 
 # Non-root, OpenShift-compatible: writable data dir owned by group 0.
 RUN useradd -u 10001 -r -g 0 appuser || true \
     && mkdir -p /data \
-    && chgrp -R 0 /data /app \
-    && chmod -R g=u /data /app
+    && chgrp -R 0 /data /app /opt/hf-cache \
+    && chmod -R g=u /data /app /opt/hf-cache
 USER 10001
 
 ENV APP_ENV=production \
     DATA_DIR=/data \
-    EMBEDDING_BACKEND=auto \
+    EMBEDDING_BACKEND=sentence-transformers \
+    EMBEDDINGS_ENABLED=true \
+    OCR_ENABLED=true \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
     BEDROCK_ENABLED=false
 
 ENV WORKER_CONCURRENCY=2
