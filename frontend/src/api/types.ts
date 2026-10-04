@@ -315,3 +315,56 @@ export interface Convergence {
   final_unresolved: number | null
   trajectory: ConvergenceStep[]
 }
+
+// ---- Diagnostics (live service status) ----
+
+export type ServiceState = 'ok' | 'degraded' | 'error' | 'offline'
+
+export interface EmbeddingStatus {
+  state: ServiceState
+  enabled: boolean
+  configured_backend: string
+  provider: string
+  is_real_model: boolean
+  model: string | null
+  dimensions: number | null
+  detail: string
+}
+
+export interface OcrStatus {
+  state: ServiceState
+  enabled: boolean
+  text_engine: string | null
+  pdf_rasterizer: string | null
+  available: boolean
+  lang: string
+}
+
+export interface GeometryStatus {
+  state: ServiceState
+  soffice_available: boolean
+  note: string
+}
+
+export interface BedrockStatus {
+  state: ServiceState
+  enabled: boolean
+  available: boolean
+  region: string
+  models: ApprovedModel[]
+  default?: string
+  allowlist?: string[]
+}
+
+export interface Diagnostics {
+  overall: ServiceState
+  services: {
+    embedding: EmbeddingStatus
+    ocr: OcrStatus
+    geometry: GeometryStatus
+    bedrock: BedrockStatus
+  }
+  versions: { pipeline: string; schema: string }
+  offline_guard: { hf_hub_offline: boolean; transformers_offline: boolean }
+  data_dir: string
+}

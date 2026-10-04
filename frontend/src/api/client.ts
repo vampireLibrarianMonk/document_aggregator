@@ -3,6 +3,7 @@
 import type {
   Convergence,
   CorrectedReport,
+  Diagnostics,
   DocumentRecord,
   ExportFormat,
   GenerateResult,
@@ -180,6 +181,12 @@ export const api = {
         source_format: sourceFormat,
       }),
     }).then((r) => json<CorrectedReport>(r))
+  },
+
+  // ---- Diagnostics (live service status) ----
+
+  getDiagnostics(): Promise<Diagnostics> {
+    return fetch(`${BASE}/diagnostics`).then((r) => json<Diagnostics>(r))
   },
 
   // ---- Project generation (model picker + per-run metrics) ----

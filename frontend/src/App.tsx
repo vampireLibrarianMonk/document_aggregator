@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CanonicalViewer } from './components/CanonicalViewer'
 import { CorrectionPipeline } from './components/CorrectionPipeline'
+import { DiagnosticsPanel } from './components/DiagnosticsPanel'
 import { PipelineBoard } from './components/PipelineBoard'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
@@ -8,7 +9,7 @@ import { SupplementalsPanel } from './components/SupplementalsPanel'
 import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report'
+type Tab = 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'diagnostics'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'correction', label: 'Correction Pipeline' },
@@ -16,6 +17,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'supplementals', label: 'Supplementals' },
   { id: 'search', label: 'Search' },
   { id: 'report', label: 'Report & Export' },
+  { id: 'diagnostics', label: 'Diagnostics' },
 ]
 
 export default function App() {
@@ -162,6 +164,12 @@ function AppShell() {
         </div>
       )}
 
+      {tab === 'diagnostics' && (
+        <div id="panel-diagnostics" role="tabpanel" aria-labelledby="tab-diagnostics">
+          <DiagnosticsPanel />
+        </div>
+      )}
+
       {activeId ? (
         <>
           {tab === 'pipeline' && (
@@ -200,7 +208,7 @@ function AppShell() {
           )}
         </>
       ) : (
-        tab !== 'correction' && !error && (
+        tab !== 'correction' && tab !== 'diagnostics' && !error && (
           <div className="panel" role="status">
             <strong>{isEmpty ? 'No projects yet' : 'No project selected'}</strong>
             <p className="small muted">

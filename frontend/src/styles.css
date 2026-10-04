@@ -231,6 +231,11 @@ pre.json {
 .status-tag.corrected { color: var(--ok); border-color: var(--ok); }
 .status-tag.needs_review { color: var(--warn); border-color: var(--warn); }
 .status-tag.conflict { color: var(--err); border-color: var(--err); }
+/* Diagnostics indicators */
+.status-tag.ok { color: var(--ok); border-color: var(--ok); }
+.status-tag.warn { color: var(--warn); border-color: var(--warn); }
+.status-tag.err { color: var(--err); border-color: var(--err); }
+.status-tag.muted { color: var(--muted); }
 
 /* A table cell the corpus couldn't supply: show a readable chip, not the raw
    internal "[needs_review]" token. */

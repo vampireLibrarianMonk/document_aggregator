@@ -45,6 +45,16 @@ def ready() -> dict:
     return {"status": "ready", "data_dir": str(settings.DATA_DIR)}
 
 
+@app.get("/diagnostics")
+def diagnostics() -> dict:
+    """A live snapshot of what the pipeline can actually do (embeddings, OCR,
+    LibreOffice geometry tier, Bedrock, versions), so silent degradations are
+    visible. Rendered by the Diagnostics page."""
+    from .diagnostics import collect
+
+    return collect()
+
+
 # --------------------------------------------------------------------------
 # Projects
 # --------------------------------------------------------------------------

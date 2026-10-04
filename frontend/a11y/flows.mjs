@@ -190,4 +190,13 @@ export const flows = [
       await openTab(page, 'Report & Export')
     },
   },
+  {
+    id: 'diagnostics',
+    title: 'Diagnostics — live service status',
+    async setup(page) {
+      // Project-independent: audit the service-status page directly.
+      await openTab(page, 'Diagnostics')
+      await page.waitForTimeout(600)
+    },
+  },
 ]
