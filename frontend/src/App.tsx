@@ -5,6 +5,7 @@ import { PipelineBoard } from './components/PipelineBoard'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
 import { SupplementalsPanel } from './components/SupplementalsPanel'
+import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
 type Tab = 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report'
@@ -38,8 +39,10 @@ function AppShell() {
   } = useProject()
   const [tab, setTab] = useState<Tab>('correction')
   const [inspecting, setInspecting] = useState<string | null>(null)
+  const [showTemplates, setShowTemplates] = useState(false)
 
   const reload = () => activeId && void refresh(activeId)
+  const isEmpty = projects.length === 0
 
   return (
     <div className="app">
@@ -59,12 +62,20 @@ function AppShell() {
             id="active-project"
             value={activeId ?? ''}
             onChange={(e) => setActiveId(e.target.value)}
+            disabled={isEmpty}
           >
-            {projects.length === 0 && <option value="">No projects yet</option>}
+            {isEmpty && <option value="">No projects yet</option>}
             {projects.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+          <button
+            className="btn secondary small"
+            aria-expanded={showTemplates}
+            onClick={() => setShowTemplates((v) => !v)}
+          >
+            {showTemplates ? 'Hide samples' : 'Start from a sample'}
+          </button>
         </div>
       </header>
 
@@ -81,10 +92,25 @@ function AppShell() {
           and anything left unresolved is yours to decide.
         </p>
         <p className="small muted">
-          Pick a <b>project</b> above, then use the tabs: Correction Pipeline for
-          the worked reconciliation, or Ingestion to add your own documents.
+          The app starts empty. Create a project two ways:{' '}
+          <b>Start from a sample</b> to instantiate a complete worked case, or
+          open <b>Ingestion</b> to upload your own documents. Everything you see
+          after that is a project you created.
         </p>
       </div>
+
+      {/* The app starts empty: show the sample picker prominently when there
+          are no projects, or on demand via the header toggle. */}
+      {(isEmpty || showTemplates) && (
+        <TemplatePicker
+          onInstantiated={() => {
+            // instantiateTemplate already refreshed the list and selected the
+            // new project; just close the picker and land on the pipeline.
+            setShowTemplates(false)
+            setTab('correction')
+          }}
+        />
+      )}
 
       {error && (
         <div className="panel" role="alert" style={{ borderColor: 'var(--err)' }}>
@@ -176,10 +202,11 @@ function AppShell() {
       ) : (
         tab !== 'correction' && !error && (
           <div className="panel" role="status">
-            <strong>No project selected</strong>
+            <strong>{isEmpty ? 'No projects yet' : 'No project selected'}</strong>
             <p className="small muted">
-              Pick a project from the selector above (or create one on the
-              Correction Pipeline tab) to use this view.
+              {isEmpty
+                ? 'Use "Start from a sample" above to instantiate a worked case, or open the Ingestion tab to upload your own documents.'
+                : 'Pick a project from the selector above to use this view.'}
             </p>
           </div>
         )

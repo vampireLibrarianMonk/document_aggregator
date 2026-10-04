@@ -151,7 +151,15 @@ export function CorrectionPipeline({ projectId, onProjectsChanged, onSelectProje
           Uploading your own file uses the API&apos;s convert endpoint, not this tab.
         </div>
 
-        {components.length === 0 && !err && (
+        {!projectId && !err && (
+          <div className="muted small" style={{ marginTop: 12 }}>
+            No project selected. Use &quot;Start from a sample&quot; at the top to
+            instantiate a worked case, click &quot;+ New project&quot; to generate
+            one, or open the Ingestion tab to upload your own documents.
+          </div>
+        )}
+
+        {projectId && components.length === 0 && !err && (
           <div className="muted small" style={{ marginTop: 12 }}>Loading project…</div>
         )}
 

@@ -103,11 +103,23 @@ export const api = {
     return `${BASE}/projects/${projectId}/export?format=${format}`
   },
 
-  // ---- Correction project (four-component pipeline) ----
+  // ---- Sample-case templates ----
+  // The app starts empty. These bundled cases are templates the user can
+  // instantiate into a real, persisted project on demand.
 
-  projectCases(): Promise<ProjectInfo[]> {
-    return fetch(`${BASE}/project-cases`).then((r) => json<ProjectInfo[]>(r))
+  listTemplates(): Promise<ProjectInfo[]> {
+    return fetch(`${BASE}/templates`).then((r) => json<ProjectInfo[]>(r))
   },
+
+  instantiateTemplate(caseId: string, name?: string): Promise<Project> {
+    return fetch(`${BASE}/projects/from-template/${caseId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(name ? { name } : {}),
+    }).then((r) => json<Project>(r))
+  },
+
+  // ---- Correction project (four-component pipeline) ----
 
   // Project operations are now project-scoped: the projectId IS the project
   // id, passed in the path (/projects/{id}/project/...). A project is a

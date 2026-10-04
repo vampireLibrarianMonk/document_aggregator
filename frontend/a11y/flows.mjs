@@ -29,7 +29,28 @@ async function openTab(page, name) {
   return clickRole(page, 'tab', name)
 }
 
+/** The app starts EMPTY. Flows that need a live project first instantiate a
+ *  bundled sample case via the TemplatePicker, which creates + selects a real
+ *  project. No-op if a project already exists (the picker is hidden). */
+async function ensureProject(page) {
+  // When empty, the picker renders automatically with "Use this sample" buttons.
+  const useBtn = page.getByRole('button', { name: 'Use this sample' })
+  if (await useBtn.count()) {
+    await useBtn.first().click().catch(() => {})
+    // Instantiation copies fixtures + reconciles; give it a moment.
+    await page.waitForTimeout(1500)
+  }
+}
+
 export const flows = [
+  {
+    id: 'empty-start-templates',
+    title: 'Empty start — sample case picker (first-run state)',
+    async setup() {
+      // Default render on a fresh/empty app: the TemplatePicker is shown.
+      // No action needed; audit the first-run empty state + picker controls.
+    },
+  },
   {
     id: 'correction-default',
     title: 'Correction Pipeline — default (single pass, reconciled report)',
@@ -102,6 +123,7 @@ export const flows = [
     title: 'Ingestion — document board',
     needsProject: true,
     async setup(page) {
+      await ensureProject(page)
       await openTab(page, 'Ingestion')
     },
   },
@@ -110,6 +132,7 @@ export const flows = [
     title: 'Ingestion — canonical inspector open',
     needsProject: true,
     async setup(page) {
+      await ensureProject(page)
       await openTab(page, 'Ingestion')
       // Open the canonical inspector for the first document, if any.
       const canonicalBtn = page.getByRole('button', { name: 'Canonical' })
@@ -124,6 +147,7 @@ export const flows = [
     title: 'Supplementals — form + list',
     needsProject: true,
     async setup(page) {
+      await ensureProject(page)
       await openTab(page, 'Supplementals')
     },
   },
@@ -132,6 +156,7 @@ export const flows = [
     title: 'Search — results rendered',
     needsProject: true,
     async setup(page) {
+      await ensureProject(page)
       await openTab(page, 'Search')
       const input = page.getByPlaceholder(/search the source documents/i)
       if (await input.count()) {
@@ -146,6 +171,7 @@ export const flows = [
     title: 'Search — no-results state',
     needsProject: true,
     async setup(page) {
+      await ensureProject(page)
       await openTab(page, 'Search')
       const input = page.getByPlaceholder(/search the source documents/i)
       if (await input.count()) {
@@ -160,6 +186,7 @@ export const flows = [
     title: 'Report & Export — assembled report',
     needsProject: true,
     async setup(page) {
+      await ensureProject(page)
       await openTab(page, 'Report & Export')
     },
   },

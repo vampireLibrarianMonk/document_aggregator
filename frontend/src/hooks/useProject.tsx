@@ -27,6 +27,7 @@ interface ProjectCtx {
   setActiveId: (id: string) => void
   refreshProjects: () => Promise<void>
   refresh: (projectId: string) => Promise<void>
+  instantiateTemplate: (caseId: string) => Promise<string | null>
 }
 
 const Ctx = createContext<ProjectCtx | null>(null)
@@ -55,15 +56,29 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       const list = await api.listProjects()
       setProjects(list)
-      // Keep an active selection: prefer the current one, else proj_demo, else
-      // the first available.
+      // The app starts empty. Keep the current selection if it still exists,
+      // else select the first available (or none when there are no projects).
       setActiveId((cur) => {
         if (cur && list.some((p) => p.id === cur)) return cur
-        const demo = list.find((p) => p.id === 'proj_demo')
-        return demo?.id ?? list[0]?.id ?? null
+        return list[0]?.id ?? null
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
+  // Instantiate a bundled sample case into a new persisted project, then
+  // refresh the list and jump the selector to it.
+  const instantiateTemplate = useCallback(async (caseId: string) => {
+    try {
+      const proj = await api.instantiateTemplate(caseId)
+      const list = await api.listProjects()
+      setProjects(list)
+      setActiveId(proj.id)
+      return proj.id
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      return null
     }
   }, [])
 
@@ -103,6 +118,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setActiveId,
     refreshProjects,
     refresh,
+    instantiateTemplate,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
