@@ -237,3 +237,34 @@ generated scenario must be REVIEWED and persisted as fixed data, never trusted a
 a drop-in equivalent of a hand-authored one. Caveat: N=2 per scenario, so treat
 the per-scenario rates as indicative; the drift on scenarios 3 and 6 was
 consistent enough across runs to be a real signal, not noise.
+
+## Corpus-grounded generation: the faithful + deterministic path
+
+The adversarial review above showed the MODEL path drifts (conflicts skipped,
+some domains fall back) because the model INVENTS the ground-truth corpus. The
+fix, and the app's core purpose, is to let the user's real document BE the
+corpus. `CorpusScenarioGenerator` (`corpus_generator.py`) builds a scenario
+deterministically from provided corpus text:
+
+- **Faithful / no fabrication by construction.** Every asserted value is a
+  verbatim substring of the uploaded text (or stated in a correction body), so
+  `_check_corpus_grounding` passes without the model needing to be trusted. The
+  uploaded document is written to `corpus/*.txt` as the fixed ground truth.
+- **Deterministic.** It is a pure function of (corpus, brief) with no model, no
+  RNG, no clock: the same document yields a byte-identical ScenarioSpec every
+  time (`test_corpus_generator.py::test_corpus_scenario_is_deterministic`). This
+  is the opposite of the model path's run-to-run drift.
+- **Model-free replay (already true).** Once persisted, reconcile replays purely
+  from the on-disk corpus with a deterministic local embedder and no LLM, so the
+  scenario is reproducible forever.
+
+Intake: `corpus_intake.corpus_from_upload` parses an uploaded .txt/.md/.docx/
+.pdf/.pptx via the existing ingestion parsers and renders its text (headings
+preserved) as a CorpusDoc; the API endpoint `POST /scenario/generate/
+from-document` wires upload -> corpus -> deterministic generation -> persist. The
+UI adds a "From document" mode.
+
+Recommendation: for a scenario that must match a specific real document, use the
+From-document (corpus-grounded) path, not the model path. The model path remains
+useful for inventing plausible NEW scenarios where faithfulness to a specific
+source is not required.

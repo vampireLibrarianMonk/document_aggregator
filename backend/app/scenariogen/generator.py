@@ -18,12 +18,17 @@ class ScenarioBrief:
     optional section plan) or a freeform description the generator interprets."""
 
     def __init__(self, domain: str = "", doc_type: str = "incident report",
-                 title: str = "", freeform: str = "", seed: int = 0) -> None:
+                 title: str = "", freeform: str = "", seed: int = 0,
+                 corpus: list | None = None) -> None:
         self.domain = domain
         self.doc_type = doc_type
         self.title = title
         self.freeform = freeform
         self.seed = seed
+        # Optional user-provided ground-truth corpus (list of CorpusDoc | dict |
+        # (name, text)). When present, the scenario is built FROM this real
+        # source material deterministically, instead of a model inventing it.
+        self.corpus = corpus
 
 
 class ScenarioGenerator(Protocol):
@@ -49,3 +54,15 @@ def get_generator(model_id: str | None = None,
         except Exception:
             return RuleScenarioGenerator()
     return RuleScenarioGenerator()
+
+
+def get_generator_for_brief(brief: ScenarioBrief, model_id: str | None = None,
+                            prompt_strategy: str | None = None) -> ScenarioGenerator:
+    """Select the generator for a specific brief. When the brief carries a
+    user-provided corpus, use the deterministic corpus-grounded generator (the
+    real source material is the ground truth; no model invents facts, and the
+    result is reproducible). Otherwise fall back to the normal selection."""
+    if getattr(brief, "corpus", None):
+        from .corpus_generator import CorpusScenarioGenerator
+        return CorpusScenarioGenerator()
+    return get_generator(model_id=model_id, prompt_strategy=prompt_strategy)

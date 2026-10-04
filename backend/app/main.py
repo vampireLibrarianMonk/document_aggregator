@@ -309,17 +309,21 @@ class GenerateFromTextRequest(BaseModel):
 
 def _generate_scenario(brief_kwargs: dict, dry_run: bool, model: str | None) -> dict:
     from .scenariogen.bedrock_gen import ModelNotApprovedError
-    from .scenariogen.generator import ScenarioBrief, get_generator
+    from .scenariogen.generator import (
+        ScenarioBrief,
+        get_generator_for_brief,
+    )
     from .scenariogen.metrics import PRICE_META
     from .scenariogen.persist import next_scenario_id, persist_spec
     from .scenariogen.schema import validate_spec
 
+    brief = ScenarioBrief(**brief_kwargs)
     try:
-        gen = get_generator(model_id=model)
+        # Corpus-bearing briefs route to the deterministic corpus generator; the
+        # model/offline path is used only when no corpus is provided.
+        gen = get_generator_for_brief(brief, model_id=model)
     except ModelNotApprovedError as exc:
         raise HTTPException(400, str(exc))
-
-    brief = ScenarioBrief(**brief_kwargs)
     # Capture per-run score+cost metrics when the generator supports it.
     metrics = None
     if hasattr(gen, "generate_with_metrics"):
@@ -374,6 +378,37 @@ def scenario_generate_from_text(body: GenerateFromTextRequest) -> dict:
     if not body.text.strip():
         raise HTTPException(400, "text is required")
     return _generate_scenario({"freeform": body.text}, body.dry_run, body.model)
+
+
+@app.post("/scenario/generate/from-document")
+async def scenario_generate_from_document(
+    file: UploadFile = File(...),
+    domain: str = "",
+    title: str = "",
+    dry_run: bool = False,
+) -> dict:
+    """Generate a scenario FROM an uploaded document: the document's own text
+    becomes the scenario's ground-truth corpus, and a deterministic
+    corpus-grounded generator builds the scenario around those real facts (no
+    model invents anything, so the result is faithful and reproducible). This is
+    the core intended flow of the app."""
+    from .scenariogen.corpus_intake import corpus_from_upload
+
+    data = await file.read()
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+    if len(data) > max_bytes:
+        raise HTTPException(413, f"file exceeds {settings.MAX_UPLOAD_MB} MB")
+    try:
+        corpus = corpus_from_upload(file.filename or "upload", data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    out = _generate_scenario(
+        {"domain": domain, "title": title,
+         "corpus": [{"name": d.name, "text": d.text} for d in corpus]},
+        dry_run, model=None,
+    )
+    out["corpus_docs"] = [{"name": d.name, "chars": len(d.text)} for d in corpus]
+    return out
 
 
 def _governed_event_stream(brief_kwargs: dict, model: str | None, adjudicator: str):
