@@ -75,6 +75,43 @@ class Settings:
     def project_dir(self, project_id: str) -> Path:
         return self.DATA_DIR / "projects" / project_id
 
+    def project_scenario_dir(self, scenario_id: str) -> Path:
+        """Where a scenario's data lives inside its project (the unified home).
+        A project IS a scenario, so the scenario id is the project id and the
+        scenario payload sits under the project dir."""
+        return self.DATA_DIR / "projects" / scenario_id / "scenario"
+
+    def resolve_scenario_dir(self, scenario_id: str) -> Path:
+        """Locate a scenario's directory, preferring the unified project store
+        and falling back to the legacy bundled sample_docs/scenario/<id> (so the
+        committed demo scenarios keep working through the migration). Returns the
+        project-store path for a brand-new id so writers land in the new home."""
+        proj = self.project_scenario_dir(scenario_id)
+        if (proj / "scenario.json").exists():
+            return proj
+        legacy = self.SCENARIO_ROOT / scenario_id
+        if (legacy / "scenario.json").exists():
+            return legacy
+        return proj  # new scenario -> write under the project store
+
+    def iter_scenario_dirs(self):
+        """Yield (scenario_id, dir) for every scenario in either store, project
+        store taking precedence over a legacy bundle of the same id."""
+        seen: set[str] = set()
+        proj_root = self.DATA_DIR / "projects"
+        if proj_root.exists():
+            for pdir in sorted(proj_root.iterdir()):
+                sdir = pdir / "scenario"
+                if (sdir / "scenario.json").exists():
+                    seen.add(pdir.name)
+                    yield pdir.name, sdir
+        if self.SCENARIO_ROOT.exists():
+            for d in sorted(self.SCENARIO_ROOT.iterdir()):
+                if d.name in seen:
+                    continue
+                if (d / "scenario.json").exists():
+                    yield d.name, d
+
     def ensure_dirs(self) -> None:
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
         (self.DATA_DIR / "projects").mkdir(parents=True, exist_ok=True)

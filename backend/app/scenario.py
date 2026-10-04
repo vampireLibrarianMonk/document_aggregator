@@ -33,19 +33,20 @@ def _read_text(path: Path) -> str:
 
 
 def _dir(scenario_id: str) -> Path:
-    return SCENARIO_ROOT / scenario_id
+    """Resolve a scenario's directory, preferring the unified project store and
+    falling back to the legacy bundled sample_docs/scenario/<id>. All loaders go
+    through here, so relocating storage required no loader changes."""
+    return settings.resolve_scenario_dir(scenario_id)
 
 
 def list_scenarios() -> list[dict]:
+    """List scenarios from BOTH the unified project store and the legacy bundle
+    (project store wins on an id collision)."""
     out: list[dict] = []
-    if not SCENARIO_ROOT.exists():
-        return out
-    for d in sorted(SCENARIO_ROOT.iterdir()):
-        manifest = d / "scenario.json"
-        if d.is_dir() and manifest.exists():
-            m = _read_json(manifest)
-            out.append({"id": m.get("id", d.name), "title": m.get("title", d.name),
-                        "domain": m.get("domain", "")})
+    for sid, d in settings.iter_scenario_dirs():
+        m = _read_json(d / "scenario.json")
+        out.append({"id": m.get("id", sid), "title": m.get("title", sid),
+                    "domain": m.get("domain", "")})
     return out
 
 

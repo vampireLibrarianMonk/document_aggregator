@@ -25,10 +25,11 @@ DRAFT_FILE = "incident_report_draft.json"
 
 
 def next_scenario_id() -> str:
-    """The next free numeric scenario id."""
-    existing = [int(p.name) for p in SCENARIO_ROOT.iterdir()
-                if p.is_dir() and p.name.isdigit()] if SCENARIO_ROOT.exists() else []
-    return str((max(existing) + 1) if existing else 1)
+    """The next free numeric scenario id, considering BOTH the legacy bundle and
+    the unified project store so a generated scenario never collides with a demo
+    one. (Ids stay numeric for now; the proj_* id model is a later phase.)"""
+    nums = [int(sid) for sid, _ in settings.iter_scenario_dirs() if sid.isdigit()]
+    return str((max(nums) + 1) if nums else 1)
 
 
 def _manifest_json(spec: ScenarioSpec, scenario_id: str) -> dict:
@@ -183,8 +184,14 @@ def persist_spec(spec: ScenarioSpec, scenario_id: str | None = None,
         raise ValueError("invalid scenario spec:\n  - " + "\n  - ".join(problems))
 
     sid = scenario_id or next_scenario_id()
-    dest = SCENARIO_ROOT / sid
-    staging = SCENARIO_ROOT / f".{sid}.staging"
+    # Write into the UNIFIED project store: a project IS a scenario, so the
+    # scenario payload lives at DATA_DIR/projects/<sid>/scenario. Staging is a
+    # sibling under the same project dir so the rename swap stays atomic (same
+    # filesystem). A minimal project.json is written so the store recognizes it.
+    project_root = settings.project_dir(sid)
+    project_root.mkdir(parents=True, exist_ok=True)
+    dest = project_root / "scenario"
+    staging = project_root / ".scenario.staging"
     if staging.exists():
         shutil.rmtree(staging)
     (staging / "corpus").mkdir(parents=True)
@@ -207,18 +214,37 @@ def persist_spec(spec: ScenarioSpec, scenario_id: str | None = None,
         shutil.rmtree(dest)
     staging.rename(dest)
 
+    # Register the directory as a project so the five tabs can scope to it. Done
+    # best-effort; the scenario payload above is the authoritative artifact.
+    _ensure_project_record(sid, spec)
+
     if build_assets:
         _build_assets(sid)
     return sid
 
 
+def _ensure_project_record(scenario_id: str, spec: ScenarioSpec) -> None:
+    """Write a minimal project.json + the standard project subdirs so the unified
+    store treats this scenario directory as a real project the five tabs scope to.
+    Best-effort: the scenario payload is authoritative regardless."""
+    try:
+        from ..models import Project
+        from ..store import store
+        if store.get_project(scenario_id) is None:
+            store.create_project(Project(id=scenario_id, name=spec.title or scenario_id))
+    except Exception:
+        pass
+
+
 def _build_assets(scenario_id: str) -> None:
     """Generate the real PNG figures and the template/draft DOCX/PPTX/PDF for a
-    freshly-written scenario, reusing the existing build scripts."""
+    freshly-written scenario, reusing the existing build scripts. Resolves the
+    scenario directory via the shared resolver (unified project store first)."""
     import sys
     backend_dir = Path(__file__).resolve().parents[2]
     if str(backend_dir) not in sys.path:
         sys.path.insert(0, str(backend_dir))
+    sdir = settings.resolve_scenario_dir(scenario_id)
     try:
         import build_scenario_graphics as bsg
         bsg.build_scenario(scenario_id)
@@ -228,11 +254,10 @@ def _build_assets(scenario_id: str) -> None:
         import json as _json
 
         import build_sample_docs as bsd
-        scn = _json.loads((SCENARIO_ROOT / scenario_id / "scenario.json").read_text(encoding="utf-8"))
-        out = SCENARIO_ROOT / scenario_id / "first_attempt" / "generated"
+        scn = _json.loads((sdir / "scenario.json").read_text(encoding="utf-8"))
+        out = sdir / "first_attempt" / "generated"
         for kind, jname in (("draft", DRAFT_FILE), ("template", TEMPLATE_FILE)):
-            src = _json.loads(
-                (SCENARIO_ROOT / scenario_id / "first_attempt" / jname).read_text(encoding="utf-8"))
+            src = _json.loads((sdir / "first_attempt" / jname).read_text(encoding="utf-8"))
             bsd.build_docx(src, scn, out / f"{kind}.docx")
             bsd.build_pptx(src, scn, out / f"{kind}.pptx")
             bsd.build_pdf(src, scn, out / f"{kind}.pdf")
