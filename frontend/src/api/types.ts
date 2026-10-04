@@ -218,6 +218,7 @@ export interface ApprovedModel {
   id: string
   name: string
   family: string
+  kind?: 'foundation' | 'inference_profile'
   is_default: boolean
   recommended?: boolean
 }

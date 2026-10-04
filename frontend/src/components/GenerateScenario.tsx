@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type {
+  ApprovedModel,
   GenerateResult,
   GovernorEvent,
   GovernorSummary,
@@ -99,11 +100,7 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
           disabled={busy}
         >
           <option value="">Offline (deterministic, no model)</option>
-          {models?.models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name} [{m.family}]{m.recommended ? ' (recommended)' : ''}
-            </option>
-          ))}
+          {renderModelGroups(models?.models ?? [])}
         </select>
         {models && (
           <span className="small muted bedrock-status">
@@ -300,5 +297,35 @@ function Metric({ label, value, warn }: { label: string; value: string; warn?: b
       <span className="muted">{label}</span>
       <span className={warn ? 'gen-metric-warn' : ''}>{value}</span>
     </div>
+  )
+}
+
+/** Group the model options so a user never sees two identical-looking entries
+ *  with no way to tell them apart. Foundation models and cross-region inference
+ *  profiles are separated into labeled groups; a profile's option notes the
+ *  "(cross-region)" nature inline for extra clarity. */
+function renderModelGroups(models: ApprovedModel[]) {
+  const foundation = models.filter((m) => m.kind !== 'inference_profile')
+  const profiles = models.filter((m) => m.kind === 'inference_profile')
+
+  const opt = (m: ApprovedModel, suffix = '') => (
+    <option key={m.id} value={m.id}>
+      {m.name} [{m.family}]{suffix}{m.recommended ? ' (recommended)' : ''}
+    </option>
+  )
+
+  return (
+    <>
+      {foundation.length > 0 && (
+        <optgroup label="Foundation models">
+          {foundation.map((m) => opt(m))}
+        </optgroup>
+      )}
+      {profiles.length > 0 && (
+        <optgroup label="Cross-region inference profiles">
+          {profiles.map((m) => opt(m, ' (cross-region)'))}
+        </optgroup>
+      )}
+    </>
   )
 }

@@ -90,23 +90,62 @@ def list_approved_models() -> dict:
         import boto3
 
         bd = boto3.client("bedrock", region_name=settings.BEDROCK_REGION)
-        summaries = bd.list_foundation_models().get("modelSummaries", [])
-        models = []
-        for m in summaries:
+        models: list[dict] = []
+        seen_ids: set[str] = set()
+
+        def _family(text: str) -> str:
+            t = text.lower()
+            return "nemotron" if "nemotron" in t else ("gpt-oss" if "gpt-oss" in t else "other")
+
+        # (1) Foundation models: direct, region-local model ids.
+        for m in bd.list_foundation_models().get("modelSummaries", []):
             mid = m.get("modelId", "")
             if not is_model_approved(mid + m.get("modelName", "")):
                 continue
             if "ON_DEMAND" not in (m.get("inferenceTypesSupported") or []):
                 continue
-            family = "nemotron" if "nemotron" in mid.lower() else (
-                "gpt-oss" if "gpt-oss" in mid.lower() else "other")
+            if mid in seen_ids:
+                continue
+            seen_ids.add(mid)
             models.append({
                 "id": mid,
                 "name": m.get("modelName", mid),
-                "family": family,
+                "family": _family(mid + m.get("modelName", "")),
+                "kind": "foundation",
                 "is_default": mid == default,
             })
-        models.sort(key=lambda x: (x["family"], x["id"]))
+
+        # (2) Inference profiles: cross-region routing wrappers (ids prefixed
+        # us./eu./apac.) around the SAME underlying model. Newer on-demand models
+        # often require the profile id. Tagged distinctly so the UI never shows
+        # two identical-looking options; a failure here does not drop the
+        # foundation list above.
+        try:
+            paginator = bd.get_paginator("list_inference_profiles")
+            profiles = []
+            for page in paginator.paginate():
+                profiles.extend(page.get("inferenceProfileSummaries", []))
+        except Exception:
+            profiles = []
+        for p in profiles:
+            pid = p.get("inferenceProfileId", "")
+            pname = p.get("inferenceProfileName", pid)
+            if not is_model_approved(pid + pname):
+                continue
+            if pid in seen_ids:
+                continue
+            seen_ids.add(pid)
+            models.append({
+                "id": pid,
+                "name": pname,
+                "family": _family(pid + pname),
+                "kind": "inference_profile",
+                "is_default": pid == default,
+            })
+
+        # Sort: family, then foundation before inference_profile, then id.
+        _kind_order = {"foundation": 0, "inference_profile": 1}
+        models.sort(key=lambda x: (x["family"], _kind_order.get(x["kind"], 9), x["id"]))
         out["available"] = True
         out["models"] = models
         # Earned auto-pick: recommend a default from what is actually available,
