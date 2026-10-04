@@ -21,11 +21,11 @@ from app.reconcile import collapse_rounds  # noqa: E402
 RESOLVED_WITH_VALUE = {"unchanged", "filled", "corrected"}
 
 
-def _rounds_scenarios() -> list[str]:
+def _rounds_projects() -> list[str]:
     return [s["id"] for s in sc.list_project_cases() if sc.has_rounds(s["id"])]
 
 
-def test_scenario_1_converges():
+def test_project_1_converges():
     result = sc.run_convergence("draft", "1")
     assert result["converged"] is True
     assert result["final_unresolved"] == 0

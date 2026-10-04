@@ -9,9 +9,9 @@ size/position, so the template/draft/final-output can track and inspect them.
 Data-driven: for each project it reads the EXISTING corpus/graphics.json (the
 list of graphic_id/name/caption/source_doc/belongs_in_section), derives a title
 from the caption, picks a sketch style, and rewrites graphics.json enriched with
-title/file/width/height/align. One managed pipeline for all scenarios.
+title/file/width/height/align. One managed pipeline for all projects.
 
-Run:  python backend/build_scenario_graphics.py
+Run:  python backend/build_project_graphics.py
 Writes: sample_docs/project/<id>/corpus/figures/<name>.png and updates
         sample_docs/project/<id>/corpus/graphics.json
 """
@@ -187,7 +187,7 @@ def main() -> None:
     total = 0
     for sid in project_ids:
         total += build_project(sid)
-    print(f"\nDone: {total} figures across {len(project_ids)} scenarios.")
+    print(f"\nDone: {total} figures across {len(project_ids)} projects.")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """Project service: loads a numbered project's four components and runs
-reconciliation. Scenarios live in sample_docs/project/<id>/ and are fully
+reconciliation. Projects live in sample_docs/project/<id>/ and are fully
 data-driven via project.json, so the engine stays generic.
 
 Layout per project:
@@ -40,7 +40,7 @@ def _dir(project_id: str) -> Path:
 
 
 def list_project_cases() -> list[dict]:
-    """List scenarios from BOTH the unified project store and the legacy bundle
+    """List projects from BOTH the unified project store and the legacy bundle
     (project store wins on an id collision)."""
     out: list[dict] = []
     for sid, d in settings.iter_project_data_dirs():

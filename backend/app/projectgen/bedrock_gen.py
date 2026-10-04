@@ -48,7 +48,7 @@ def _richness(spec: ProjectSpec, m: RunMetrics) -> None:
     m.has_needs_review = any(f.extract == "none" for f in spec.fields)
 
 
-def get_scenario_model() -> str:
+def get_project_model() -> str:
     """Resolve + enforce the approved project-generation model id."""
     model = settings.BEDROCK_SCENARIO_MODEL
     if not model:
@@ -281,7 +281,7 @@ class BedrockProjectGenerator:
                     f"model '{model_id}' is not on the project allowlist {_allowlist()}")
             self.model_id = model_id
         else:
-            self.model_id = get_scenario_model()  # enforces allowlist (may raise)
+            self.model_id = get_project_model()  # enforces allowlist (may raise)
         # Size-aware capability profile: token budget + recommended default
         # prompt resolved from the model family, so no model is starved and the
         # strategy stays abstract. An explicit prompt_strategy always wins; only

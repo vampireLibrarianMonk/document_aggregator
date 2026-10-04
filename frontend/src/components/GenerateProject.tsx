@@ -5,15 +5,15 @@ import type {
   GenerateResult,
   GovernorEvent,
   GovernorSummary,
-  ScenarioModels,
+  ProjectModels,
 } from '../api/types'
 
 type BriefMode = 'structured' | 'freeform' | 'document'
 
-/** Generate a new scenario with a chosen model, preview it (dry run), or persist
+/** Generate a new project with a chosen model, preview it (dry run), or persist
  *  it. Shows the per-run objective score + cost so you can compare models. */
-export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: string) => void }) {
-  const [models, setModels] = useState<ScenarioModels | null>(null)
+export function GenerateProject({ onGenerated }: { onGenerated?: (projectId: string) => void }) {
+  const [models, setModels] = useState<ProjectModels | null>(null)
   const [model, setModel] = useState<string>('') // '' = offline deterministic
   const [briefMode, setBriefMode] = useState<BriefMode>('structured')
   const [domain, setDomain] = useState('')
@@ -33,7 +33,7 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
   useEffect(() => () => abortRef.current?.(), []) // abort any open stream on unmount
 
   useEffect(() => {
-    api.scenarioModels().then((m) => {
+    api.projectModels().then((m) => {
       setModels(m)
       // Default to the EARNED recommendation when available; else the configured
       // default. The user can still override in the picker.
@@ -51,14 +51,14 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
       let res: GenerateResult
       if (briefMode === 'document') {
         if (!docFile) throw new Error('choose a document first')
-        res = await api.scenarioGenerateFromDocument(docFile, { domain, title, dry_run: dryRun })
+        res = await api.projectGenerateFromDocument(docFile, { domain, title, dry_run: dryRun })
       } else if (briefMode === 'freeform') {
-        res = await api.scenarioGenerateFromText({ text: freeform, ...common })
+        res = await api.projectGenerateFromText({ text: freeform, ...common })
       } else {
-        res = await api.scenarioGenerate({ domain, doc_type: docType, title, ...common })
+        res = await api.projectGenerate({ domain, doc_type: docType, title, ...common })
       }
       setResult(res)
-      if (!dryRun && res.scenario_id && onGenerated) onGenerated(res.scenario_id)
+      if (!dryRun && res.project_id && onGenerated) onGenerated(res.project_id)
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -75,7 +75,7 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
     const params = briefMode === 'freeform'
       ? { freeform, model: model || null }
       : { domain, doc_type: docType, title, model: model || null }
-    abortRef.current = api.scenarioGovernedStream(params, {
+    abortRef.current = api.projectGovernedStream(params, {
       onEvent: (ev) => setEvents((prev) => [...prev, ev]),
       onResult: (s) => setSummary(s),
       onError: (detail) => setErr(detail),
@@ -93,10 +93,10 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
 
   return (
     <div className="panel gen-panel">
-      <strong>Generate a scenario</strong>
+      <strong>Generate a project</strong>
       <div className="small muted" style={{ margin: '4px 0 10px' }}>
-        Build a new correction scenario with an approved model (or the offline
-        generator). The model only authors the scenario; the result is validated
+        Build a new correction project with an approved model (or the offline
+        generator). The model only authors the project; the result is validated
         and saved as fixed data, so it stays reproducible.
       </div>
 
@@ -171,7 +171,7 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
         </div>
       ) : briefMode === 'freeform' ? (
         <>
-          <label htmlFor="gen-freeform" className="sr-only">Describe the scenario</label>
+          <label htmlFor="gen-freeform" className="sr-only">Describe the project</label>
           <textarea id="gen-freeform"
             placeholder="Describe the situation and its document (the model uses its best judgment)…"
             value={freeform} onChange={(e) => setFreeform(e.target.value)} disabled={busy} />
@@ -179,7 +179,7 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
       ) : (
         <div className="doc-upload">
           <div className="small muted" style={{ marginBottom: 6 }}>
-            Upload your source document. Its text becomes the scenario's
+            Upload your source document. Its text becomes the project's
             ground-truth corpus, so the result is faithful and reproducible (no
             model invents facts). Supported: .txt, .md, .docx, .pdf, .pptx.
           </div>
@@ -308,13 +308,13 @@ function GenerationReadout({ result }: { result: GenerateResult }) {
       <div className="small">
         {result.dry_run
           ? <>Preview via <b>{result.generator}</b>.</>
-          : <>Saved as scenario <b>{result.scenario_id}</b> via <b>{result.generator}</b>.</>}
+          : <>Saved as project <b>{result.project_id}</b> via <b>{result.generator}</b>.</>}
       </div>
       {result.corpus_docs && result.corpus_docs.length > 0 && (
         <div className="small muted" style={{ marginTop: 4 }}>
           Ground-truth corpus from your document:{' '}
           {result.corpus_docs.map((d) => `${d.name} (${d.chars} chars)`).join(', ')}.
-          This generation is deterministic: the same document reproduces the same scenario.
+          This generation is deterministic: the same document reproduces the same project.
         </div>
       )}
       {m && (

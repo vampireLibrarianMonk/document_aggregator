@@ -23,7 +23,7 @@ from app.knowledge.pagegrow import build_multipage_from_pool  # noqa: E402
 from app.reconcile import reconcile  # noqa: E402
 
 RESOLVED_WITH_VALUE = {"unchanged", "filled", "corrected"}
-POOL_SCENARIOS = ["1", "2", "3", "4", "5"]
+POOL_PROJECTS = ["1", "2", "3", "4", "5"]
 
 
 def _build(sid: str, pages: int, seed: int = 7) -> dict:
@@ -39,12 +39,12 @@ def _reconcile(b: dict) -> dict:
                      b["template"], b["project"]).model_dump()
 
 
-@pytest.mark.parametrize("sid", POOL_SCENARIOS)
+@pytest.mark.parametrize("sid", POOL_PROJECTS)
 def test_pool_has_capacity(sid):
     assert FactPool.load(sid).capacity() >= 2
 
 
-@pytest.mark.parametrize("sid", POOL_SCENARIOS)
+@pytest.mark.parametrize("sid", POOL_PROJECTS)
 def test_over_capacity_refused(sid):
     cap = FactPool.load(sid).capacity()
     pool = FactPool.load(sid, seed=7)
@@ -55,7 +55,7 @@ def test_over_capacity_refused(sid):
         )
 
 
-@pytest.mark.parametrize("sid", POOL_SCENARIOS)
+@pytest.mark.parametrize("sid", POOL_PROJECTS)
 def test_per_page_ground_truth_distinct(sid):
     cap = FactPool.load(sid).capacity()
     b = _build(sid, cap)
@@ -65,7 +65,7 @@ def test_per_page_ground_truth_distinct(sid):
     assert len(set(sites)) == cap, "withdrawn records must be distinct per page"
 
 
-@pytest.mark.parametrize("sid", POOL_SCENARIOS)
+@pytest.mark.parametrize("sid", POOL_PROJECTS)
 def test_resolved_duration_distinct_across_pages(sid):
     """A page-scoped field (duration) should resolve to that page's value, so
     across pages we see the per-record variety, not one repeated value."""
@@ -81,7 +81,7 @@ def test_resolved_duration_distinct_across_pages(sid):
     assert len(set(durations)) >= 2, f"durations not page-distinct: {durations}"
 
 
-@pytest.mark.parametrize("sid", POOL_SCENARIOS)
+@pytest.mark.parametrize("sid", POOL_PROJECTS)
 def test_no_fabrication_and_contiguous(sid):
     cap = FactPool.load(sid).capacity()
     r = _reconcile(_build(sid, cap))

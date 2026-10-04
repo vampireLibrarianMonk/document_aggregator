@@ -31,7 +31,7 @@ def _brief(corpus) -> ProjectBrief:
                          corpus=corpus)
 
 
-def test_corpus_scenario_is_valid_and_grounded():
+def test_corpus_project_is_valid_and_grounded():
     corpus = corpus_from_texts([{"name": "incident.md", "text": SAMPLE}])
     spec = CorpusProjectGenerator().generate(_brief(corpus))
     assert validate_spec(spec) == []                         # persistable
@@ -45,7 +45,7 @@ def test_corpus_scenario_is_valid_and_grounded():
     assert any(f.extract == "none" for f in spec.fields)      # needs-review
 
 
-def test_corpus_scenario_is_deterministic():
+def test_corpus_project_is_deterministic():
     corpus = corpus_from_texts([{"name": "incident.md", "text": SAMPLE}])
     a = CorpusProjectGenerator().generate(_brief(corpus)).model_dump_json()
     b = CorpusProjectGenerator().generate(_brief(corpus)).model_dump_json()

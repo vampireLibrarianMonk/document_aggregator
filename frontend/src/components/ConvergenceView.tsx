@@ -10,11 +10,11 @@ const STATUS_ORDER = ['unchanged', 'filled', 'corrected', 'needs_review', 'confl
  * (needs_review + conflict) so you can watch the report converge — or stall on
  * a contradictory round. Last-good-wins across rounds. */
 export function ConvergenceView({
-  scenarioId,
+  projectId,
   mode,
   sourceFormat,
 }: {
-  scenarioId: string
+  projectId: string
   mode: Mode
   sourceFormat: string
 }) {
@@ -25,16 +25,16 @@ export function ConvergenceView({
     setErr(null)
     setConv(null)
     api
-      .scenarioConverge(mode, scenarioId, sourceFormat)
+      .projectConverge(mode, projectId, sourceFormat)
       .then(setConv)
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-  }, [scenarioId, mode, sourceFormat])
+  }, [projectId, mode, sourceFormat])
 
   if (err) {
     return (
       <div className="panel">
         <p className="small muted">
-          No multi-round feedback for this scenario ({err}). Scenario 1 has a
+          No multi-round feedback for this project ({err}). Project 1 has a
           rounds.json demonstrating convergence.
         </p>
       </div>

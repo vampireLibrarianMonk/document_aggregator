@@ -13,7 +13,7 @@ import {
 type RenderMode = 'document' | 'audit'
 
 /** The corrected report, rendered either as a navigable DOCUMENT (projected into
- *  the shape the scenario's template defines) or as the AUDIT list (every unit
+ *  the shape the project's template defines) or as the AUDIT list (every unit
  *  with status + provenance). A navigator rail jumps between sections and
  *  surfaces the units that still need the user. Driven entirely by the
  *  CorrectedReport, so it adapts to any document type (incident, ICD, ...). */

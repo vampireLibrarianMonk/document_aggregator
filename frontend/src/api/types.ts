@@ -114,7 +114,7 @@ export interface Report {
 
 export type ExportFormat = 'json' | 'markdown' | 'docx' | 'pptx' | 'pdf'
 
-// ---- Correction scenario (four-component pipeline) ----
+// ---- Correction project (four-component pipeline) ----
 
 export type CorrectionStatus =
   | 'unchanged'
@@ -198,7 +198,7 @@ export interface CorrectedReport {
   note: string
 }
 
-export interface ScenarioComponent {
+export interface ProjectComponent {
   id: string
   order: number
   title: string
@@ -206,13 +206,13 @@ export interface ScenarioComponent {
   items: Record<string, unknown>[]
 }
 
-export interface ScenarioInfo {
+export interface ProjectInfo {
   id: string
   title: string
   domain: string
 }
 
-// ---- Scenario generation (model picker + metrics) ----
+// ---- Project generation (model picker + metrics) ----
 
 export interface ApprovedModel {
   id: string
@@ -229,7 +229,7 @@ export interface ModelRecommendation {
   basis: string
 }
 
-export interface ScenarioModels {
+export interface ProjectModels {
   available: boolean
   bedrock_enabled: boolean
   default: string
@@ -259,7 +259,7 @@ export interface GenerationMetrics {
 export interface GenerateResult {
   generator: string
   dry_run: boolean
-  scenario_id: string | null
+  project_id: string | null
   title?: string
   domain?: string
   spec?: unknown

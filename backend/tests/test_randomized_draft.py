@@ -98,15 +98,15 @@ def synthesize_draft(template: dict, graphics: list[dict], rng: random.Random) -
 
 
 @pytest.mark.parametrize("seed", list(range(10)))
-def test_randomized_draft_no_fabrication_and_catches_defects(scenario_module, project_id, seed):
+def test_randomized_draft_no_fabrication_and_catches_defects(project_module, project_id, seed):
     from app.reconcile import reconcile
 
     rng = random.Random(seed)
-    template = scenario_module.load_template(project_id)
-    corpus = scenario_module.load_corpus(project_id)
-    graphics = scenario_module.load_graphics(project_id)
-    corrections = scenario_module.load_corrections(project_id)
-    manifest = scenario_module.load_manifest(project_id)
+    template = project_module.load_template(project_id)
+    corpus = project_module.load_corpus(project_id)
+    graphics = project_module.load_graphics(project_id)
+    corrections = project_module.load_corrections(project_id)
+    manifest = project_module.load_manifest(project_id)
 
     draft, injected = synthesize_draft(template, graphics, rng)
 

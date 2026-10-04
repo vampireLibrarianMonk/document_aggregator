@@ -77,7 +77,7 @@ def test_pdf_scanned_still_needs_ocr_when_engine_absent(monkeypatch):
     assert r.method == "needs_ocr"        # unchanged graceful behavior
 
 
-def test_from_document_scenario_uses_ocr_text(monkeypatch):
+def test_from_document_project_uses_ocr_text(monkeypatch):
     # The project from-document path shares the parsers, so OCR'd text flows
     # into the corpus. Prove an image upload yields a usable corpus when OCR is on.
     monkeypatch.setattr("app.parsers.ocr_available", lambda: True)

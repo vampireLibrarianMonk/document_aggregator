@@ -27,7 +27,7 @@ RESOLVED_WITH_VALUE = {"unchanged", "filled", "corrected"}
 
 def _base():
     return dict(
-        base_scenario=sc.load_manifest("1"),
+        base_project=sc.load_manifest("1"),
         base_template=sc.load_template("1"),
         base_draft=sc.load_first_attempt("1", "draft"),
         base_corpus=sc.load_corpus("1"),

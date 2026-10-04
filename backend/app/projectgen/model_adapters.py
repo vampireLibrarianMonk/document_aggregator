@@ -7,7 +7,7 @@ pull the raw text completion out of the response. The generator then parses
 strict JSON from that text. This keeps model support to a small, testable seam.
 
 Approved families (per the project's model policy): NVIDIA Nemotron and
-OpenAI GPT-OSS. The allowlist is enforced in bedrock_gen.get_scenario_model().
+OpenAI GPT-OSS. The allowlist is enforced in bedrock_gen.get_project_model().
 """
 from __future__ import annotations
 

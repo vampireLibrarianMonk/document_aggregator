@@ -1,5 +1,5 @@
 """Adversarial reproducibility review: can the recommended model regenerate the
-existing committed scenarios, or does it drift?
+existing committed projects, or does it drift?
 
 For each committed project under sample_docs/project/*, we derive a brief from
 its own metadata (domain + doc_type/title) and regenerate it N times with the
@@ -24,7 +24,7 @@ OFFLINE by default (deterministic model, zero Bedrock) proves the harness.
 Usage:
   python backend/eval_adversarial.py                       # offline
   python backend/eval_adversarial.py --live --runs 3       # recommended model
-  python backend/eval_adversarial.py --live --model openai.gpt-oss-120b-1:0 --scenarios 1,3,6
+  python backend/eval_adversarial.py --live --model openai.gpt-oss-120b-1:0 --projects 1,3,6
 """
 from __future__ import annotations
 
@@ -155,7 +155,7 @@ def main() -> None:
     ap.add_argument("--live", action="store_true", help="use a Bedrock model (COSTS MONEY)")
     ap.add_argument("--model", type=str, default="",
                     help="model id (default: the recommended model when --live)")
-    ap.add_argument("--scenarios", type=str, default="",
+    ap.add_argument("--projects", type=str, default="",
                     help="comma list of project dir names (default: all)")
     args = ap.parse_args()
 
@@ -173,8 +173,8 @@ def main() -> None:
 
     dirs = sorted(d for d in BUNDLED_PROJECT_ROOT.iterdir()
                   if (d / "project.json").exists())
-    if args.scenarios.strip():
-        want = {s.strip() for s in args.scenarios.split(",")}
+    if args.projects.strip():
+        want = {s.strip() for s in args.projects.split(",")}
         dirs = [d for d in dirs if d.name in want]
 
     started = time.time()

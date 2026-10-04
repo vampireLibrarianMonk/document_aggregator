@@ -23,7 +23,7 @@ def _suffix(key: str, page: int) -> str:
     return key if page == 1 else f"{key}__p{page}"
 
 
-def build_multipage(base_scenario: dict, base_template: dict, base_draft: dict,
+def build_multipage(base_project: dict, base_template: dict, base_draft: dict,
                     base_corpus: dict[str, str], base_graphics: list[dict],
                     base_corrections: list[dict],
                     pages: int, seed: int) -> dict:
@@ -62,13 +62,13 @@ def build_multipage(base_scenario: dict, base_template: dict, base_draft: dict,
             template["required_sections"].append(new_tspec)
 
         # Manifest fields / bodies / table per page.
-        for f in base_scenario.get("fields", []):
+        for f in base_project.get("fields", []):
             nf = dict(f, section=_suffix(f["section"], page))
             project["fields"].append(nf)
-        for sb, sbv in base_scenario.get("section_bodies", {}).items():
+        for sb, sbv in base_project.get("section_bodies", {}).items():
             project["section_bodies"][_suffix(sb, page)] = sbv
-        if base_scenario.get("table") and page == 1:
-            project["table"] = base_scenario["table"]  # single table, page 1
+        if base_project.get("table") and page == 1:
+            project["table"] = base_project["table"]  # single table, page 1
         template["table_specs"] = base_template.get("table_specs", {})
 
         # Draft sections (deep-copied), then inject this page's defects.
@@ -125,7 +125,7 @@ def _apply(defect: Defect, section: dict) -> None:
         pass
 
 
-def build_multipage_from_pool(base_scenario: dict, base_template: dict, base_draft: dict,
+def build_multipage_from_pool(base_project: dict, base_template: dict, base_draft: dict,
                               base_graphics: list[dict], pool, pages: int, seed: int) -> dict:
     """Pool-backed multi-page builder: each page WITHDRAWS a distinct record from
     the fact pool, so every page has genuinely distinct ground truth (unlike the
@@ -167,11 +167,11 @@ def build_multipage_from_pool(base_scenario: dict, base_template: dict, base_dra
             if tspec.get("requires_graphic"):
                 new_tspec["requires_graphic"] = _suffix(tspec["requires_graphic"], page)
             template["required_sections"].append(new_tspec)
-        for f in base_scenario.get("fields", []):
+        for f in base_project.get("fields", []):
             # Scope each page's field retrieval to THIS page's corpus doc.
             project["fields"].append(dict(f, section=_suffix(f["section"], page),
                                            source_doc=fname))
-        for sb, sbv in base_scenario.get("section_bodies", {}).items():
+        for sb, sbv in base_project.get("section_bodies", {}).items():
             project["section_bodies"][_suffix(sb, page)] = dict(sbv, source_doc=fname)
 
         # Draft sections seeded with THIS page's (wrong-on-purpose) values so the

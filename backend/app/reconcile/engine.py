@@ -457,7 +457,7 @@ def _reconcile_furniture(first_attempt: dict, by_target: dict,
     draft_f = first_attempt.get("furniture", {}) or {}
 
     # The template declares WHICH page elements this document type has. Default
-    # to the government incident set so existing scenarios are unchanged.
+    # to the government incident set so existing projects are unchanged.
     declared = _declared_page_elements(template)
 
     built: dict[str, CorrectedField] = {}

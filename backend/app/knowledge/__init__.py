@@ -1,7 +1,7 @@
 """Defect knowledge base.
 
 An explicit, enumerable catalog of the document defects the pipeline is expected
-to detect and resolve, formalizing the taxonomy proven across the scenarios and
+to detect and resolve, formalizing the taxonomy proven across the projects and
 adversarial review. Each entry knows how to INJECT itself into a first_attempt
 and what RESOLUTION status to expect after reconciliation.
 

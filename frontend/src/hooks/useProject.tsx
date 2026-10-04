@@ -12,7 +12,7 @@ import type { DocumentRecord, Project, Supplemental } from '../api/types'
 
 /**
  * Shared ACTIVE-PROJECT context. A project is the single top-level container
- * (a project IS a correction scenario in the unified model), so one selected
+ * (a project IS a correction project in the unified model), so one selected
  * project scopes every tab. Replaces the old single-project hook: it now holds
  * the full project list + the active selection + that project's documents and
  * supplementals, and keeps them in sync (polling while a doc is processing).

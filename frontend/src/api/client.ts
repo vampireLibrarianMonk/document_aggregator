@@ -10,9 +10,9 @@ import type {
   GovernorSummary,
   Project,
   Report,
-  ScenarioComponent,
-  ScenarioInfo,
-  ScenarioModels,
+  ProjectComponent,
+  ProjectInfo,
+  ProjectModels,
   SearchResponse,
   Supplemental,
   SupplementalKind,
@@ -103,62 +103,62 @@ export const api = {
     return `${BASE}/projects/${projectId}/export?format=${format}`
   },
 
-  // ---- Correction scenario (four-component pipeline) ----
+  // ---- Correction project (four-component pipeline) ----
 
-  scenarios(): Promise<ScenarioInfo[]> {
-    return fetch(`${BASE}/scenarios`).then((r) => json<ScenarioInfo[]>(r))
+  projectCases(): Promise<ProjectInfo[]> {
+    return fetch(`${BASE}/project-cases`).then((r) => json<ProjectInfo[]>(r))
   },
 
-  // Scenario operations are now project-scoped: the scenarioId IS the project
-  // id, passed in the path (/projects/{id}/scenario/...). A project is a
-  // scenario in the unified model.
-  scenarioComponents(projectId: string): Promise<ScenarioComponent[]> {
-    return fetch(`${BASE}/projects/${projectId}/scenario/components`).then((r) =>
-      json<ScenarioComponent[]>(r),
+  // Project operations are now project-scoped: the projectId IS the project
+  // id, passed in the path (/projects/{id}/project/...). A project is a
+  // project in the unified model.
+  projectComponents(projectId: string): Promise<ProjectComponent[]> {
+    return fetch(`${BASE}/projects/${projectId}/components`).then((r) =>
+      json<ProjectComponent[]>(r),
     )
   },
 
-  scenarioComponent(
+  projectComponent(
     componentId: string,
     mode: string,
     projectId: string,
     sourceFormat: string,
   ): Promise<{ data: unknown }> {
     return fetch(
-      `${BASE}/projects/${projectId}/scenario/component/${componentId}?mode=${mode}&source_format=${sourceFormat}`,
+      `${BASE}/projects/${projectId}/component/${componentId}?mode=${mode}&source_format=${sourceFormat}`,
     ).then((r) => json<{ data: unknown }>(r))
   },
 
-  scenarioReconcile(
+  projectReconcile(
     mode: 'draft' | 'template',
     projectId: string,
     sourceFormat: string,
   ): Promise<CorrectedReport> {
     return fetch(
-      `${BASE}/projects/${projectId}/scenario/reconcile?mode=${mode}&source_format=${sourceFormat}`,
+      `${BASE}/projects/${projectId}/reconcile?mode=${mode}&source_format=${sourceFormat}`,
     ).then((r) => json<CorrectedReport>(r))
   },
 
-  scenarioConverge(
+  projectConverge(
     mode: 'draft' | 'template',
     projectId: string,
     sourceFormat: string,
   ): Promise<Convergence> {
     return fetch(
-      `${BASE}/projects/${projectId}/scenario/converge?mode=${mode}&source_format=${sourceFormat}`,
+      `${BASE}/projects/${projectId}/converge?mode=${mode}&source_format=${sourceFormat}`,
     ).then((r) => json<Convergence>(r))
   },
 
   // Apply a human decision to one unresolved unit (a conflict candidate choice
   // or a needs_review value) and get the re-reconciled report back.
-  scenarioResolve(
+  projectResolve(
     target: string,
     value: string,
     mode: 'draft' | 'template',
     projectId: string,
     sourceFormat: string,
   ): Promise<CorrectedReport> {
-    return fetch(`${BASE}/projects/${projectId}/scenario/resolve`, {
+    return fetch(`${BASE}/projects/${projectId}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -170,41 +170,41 @@ export const api = {
     }).then((r) => json<CorrectedReport>(r))
   },
 
-  // ---- Scenario generation (model picker + per-run metrics) ----
+  // ---- Project generation (model picker + per-run metrics) ----
 
-  scenarioModels(): Promise<ScenarioModels> {
-    return fetch(`${BASE}/scenario/models`).then((r) => json<ScenarioModels>(r))
+  projectModels(): Promise<ProjectModels> {
+    return fetch(`${BASE}/generate/models`).then((r) => json<ProjectModels>(r))
   },
 
-  scenarioGenerate(body: {
+  projectGenerate(body: {
     domain?: string
     doc_type?: string
     title?: string
     model?: string | null
     dry_run?: boolean
   }): Promise<GenerateResult> {
-    return fetch(`${BASE}/scenario/generate`, {
+    return fetch(`${BASE}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => json<GenerateResult>(r))
   },
 
-  scenarioGenerateFromText(body: {
+  projectGenerateFromText(body: {
     text: string
     model?: string | null
     dry_run?: boolean
   }): Promise<GenerateResult> {
-    return fetch(`${BASE}/scenario/generate/from-text`, {
+    return fetch(`${BASE}/generate/from-text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => json<GenerateResult>(r))
   },
 
-  // Generate a scenario FROM an uploaded document: the document's own text
+  // Generate a project FROM an uploaded document: the document's own text
   // becomes the ground-truth corpus (deterministic, no model invents facts).
-  scenarioGenerateFromDocument(
+  projectGenerateFromDocument(
     file: File,
     opts: { domain?: string; title?: string; dry_run?: boolean } = {},
   ): Promise<GenerateResult> {
@@ -214,7 +214,7 @@ export const api = {
     qs.set('dry_run', String(opts.dry_run ?? false))
     const form = new FormData()
     form.append('file', file)
-    return fetch(`${BASE}/scenario/generate/from-document?${qs.toString()}`, {
+    return fetch(`${BASE}/generate/from-document?${qs.toString()}`, {
       method: 'POST',
       body: form,
     }).then((r) => json<GenerateResult>(r))
@@ -223,7 +223,7 @@ export const api = {
   // ---- Governed (decomposed) generation with a live progress stream ----
   // Consumes Server-Sent Events: calls onEvent for each step, onResult for the
   // final summary. Returns an abort function so the caller can cancel.
-  scenarioGovernedStream(
+  projectGovernedStream(
     params: {
       domain?: string
       doc_type?: string
@@ -252,7 +252,7 @@ export const api = {
     const ctrl = new AbortController()
     void (async () => {
       try {
-        const res = await fetch(`${BASE}/scenario/governed/stream?${qs.toString()}`, {
+        const res = await fetch(`${BASE}/generate/governed/stream?${qs.toString()}`, {
           signal: ctrl.signal,
           headers: { Accept: 'text/event-stream' },
         })
