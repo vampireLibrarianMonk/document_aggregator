@@ -97,6 +97,29 @@ def test_recommend_model_is_earned_and_overridable():
     assert recommend_model([])["model"] == ""
 
 
+def test_generate_document_op_offline():
+    """The async governor op runs through the job queue and stores the event log
+    + summary as the job result (fully offline, no Bedrock)."""
+    import tempfile
+    from pathlib import Path
+
+    from app.jobs import ops  # noqa: F401  (registers generate_document)
+    from app.jobs.queue import SqliteJobQueue
+    from app.jobs.worker import Worker, registered_ops
+
+    assert "generate_document" in registered_ops()
+    q = SqliteJobQueue(Path(tempfile.mkdtemp()) / "jobs.db")
+    jid = q.enqueue("generate_document", {
+        "domain": "avionics interface validation",
+        "doc_type": "interface control document", "per_section": True})
+    assert Worker(q, "w1").run_once() is True
+    job = q.get(jid)
+    assert job.state.value == "completed"
+    assert job.result["summary"]["authoring_mode"] == "per_section"
+    assert job.result["summary"]["sections_filled"] > 0
+    assert len(job.result["events"]) > 0        # the full progress trail is stored
+
+
 def test_grounded_value_rule():
     corpus = "the measured flow rate was 4.2 L/min at the inlet"
     assert grounded_value("4.2 L/min", corpus)

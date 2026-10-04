@@ -81,12 +81,17 @@ tokens, latency, est $, outcome, fabrications caught.
 
 ## Where it runs
 
-- A `generate_document` WorkerOp registered on the existing queue, so a governed
-  job is enqueued and processed by the existing `Worker`. The governor logic is a
-  module (`governor.py`) the op calls; it is independently unit-testable without
+- IMPLEMENTED: a `generate_document` WorkerOp (`jobs/ops.py`) runs the governor
+  and stores the full event log + run summary as the job result, so a governed
+  job is enqueued via `POST /jobs` and polled via `GET /jobs/{id}` using the
+  existing generic job API (no governor-specific endpoints needed). The governor
+  logic stays in the `governor/` package the op calls; it is unit-tested without
   the queue.
-- A synchronous entry (`run_governed(brief, ...)`) for tests and the dry-run API,
-  plus the async enqueue path for the real UX (so the UI can stream progress).
+- IMPLEMENTED: a synchronous entry (`run_governed(brief, ...)`) for tests and the
+  live SSE endpoint (`GET /scenario/governed/stream`), plus the async enqueue
+  path above for backgrounded runs. The op accepts `per_section` to select
+  per-section authoring and degrades to the deterministic/offline path on any
+  model failure, so a backgrounded job never hard-fails.
 
 ## Progress / streaming (task 7 preview)
 
