@@ -590,3 +590,52 @@ async def scenario_convert(scenario_id: str, mode: str = "draft",
         raise HTTPException(400, str(exc))
     return {"fidelity": result.fidelity, "source_format": result.source_format,
             "notes": result.notes, "first_attempt": result.first_attempt}
+
+
+# --------------------------------------------------------------------------
+# Unified project-scoped scenario API (project = scenario). These nest the
+# scenario operations under /projects/{project_id}/... and delegate to the same
+# handlers above; the flat /scenario/* routes remain as DEPRECATED ALIASES
+# during the migration. Responses are identical.
+# --------------------------------------------------------------------------
+
+@app.get("/projects/{project_id}/scenario/components")
+def project_scenario_components(project_id: str) -> list[dict]:
+    return scenario_components(scenario_id=project_id)
+
+
+@app.get("/projects/{project_id}/scenario/component/{component_id}")
+def project_scenario_component(project_id: str, component_id: str, mode: str = "draft",
+                               source_format: str = "json") -> dict:
+    return scenario_component(component_id, mode=mode, scenario_id=project_id,
+                              source_format=source_format)
+
+
+@app.get("/projects/{project_id}/scenario/reconcile")
+def project_scenario_reconcile(project_id: str, mode: str = "draft",
+                               source_format: str = "json") -> dict:
+    return scenario_reconcile(mode=mode, scenario_id=project_id, source_format=source_format)
+
+
+@app.get("/projects/{project_id}/scenario/converge")
+def project_scenario_converge(project_id: str, mode: str = "draft",
+                              source_format: str = "json") -> dict:
+    return scenario_converge(mode=mode, scenario_id=project_id, source_format=source_format)
+
+
+@app.post("/projects/{project_id}/scenario/resolve")
+def project_scenario_resolve(project_id: str, body: ResolveRequest) -> dict:
+    body.scenario_id = project_id          # path wins over any body value
+    return scenario_resolve(body)
+
+
+@app.post("/projects/{project_id}/scenario/interpret")
+def project_scenario_interpret(project_id: str, body: InterpretRequest) -> dict:
+    body.scenario_id = project_id
+    return scenario_interpret(body)
+
+
+@app.post("/projects/{project_id}/scenario/convert")
+async def project_scenario_convert(project_id: str, mode: str = "draft",
+                                   file: UploadFile = File(...)) -> dict:
+    return await scenario_convert(scenario_id=project_id, mode=mode, file=file)
