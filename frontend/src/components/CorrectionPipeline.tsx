@@ -66,17 +66,29 @@ export function CorrectionPipeline({ projectId, onProjectsChanged, onSelectProje
     )
   }, [projectId])
 
-  useEffect(() => {
-    if (projectId) loadReport(mode, projectId, sourceFormat)
-  }, [mode, projectId, sourceFormat, loadReport])
+  // A project carries correction-pipeline fixtures only when its first_attempt
+  // component has items. Aggregation-only projects (documents + supplementals,
+  // no draft/template) report an empty first_attempt, so we skip reconcile and
+  // show a clear message instead of surfacing a 404.
+  const hasPipeline =
+    components.length > 0 &&
+    (components.find((c) => c.id === 'first_attempt')?.items.length ?? 0) > 0
 
   useEffect(() => {
-    if (!projectId) { setRaw(null); return }
+    if (projectId && hasPipeline) {
+      loadReport(mode, projectId, sourceFormat)
+    } else {
+      setReport(null)
+    }
+  }, [mode, projectId, sourceFormat, hasPipeline, loadReport])
+
+  useEffect(() => {
+    if (!projectId || !hasPipeline) { setRaw(null); return }
     api
       .projectComponent(selected, mode, projectId, sourceFormat)
       .then((r) => setRaw(r.data))
       .catch(() => setRaw(null))
-  }, [selected, mode, projectId, sourceFormat])
+  }, [selected, mode, projectId, sourceFormat, hasPipeline])
 
   return (
     <>
@@ -143,6 +155,15 @@ export function CorrectionPipeline({ projectId, onProjectsChanged, onSelectProje
           <div className="muted small" style={{ marginTop: 12 }}>Loading project…</div>
         )}
 
+        {components.length > 0 && !hasPipeline && (
+          <div className="muted small" style={{ marginTop: 12 }}>
+            This project has no correction-pipeline data (no first-attempt draft
+            or template). It looks like an aggregation-only project. Use the
+            Ingestion and Supplementals tabs to work with its documents, or pick
+            a correction case from the project selector.
+          </div>
+        )}
+
         <div className="flow" style={{ marginTop: 12 }}>
           {components.map((c, i) => (
             <Fragment key={c.id}>
@@ -191,11 +212,11 @@ export function CorrectionPipeline({ projectId, onProjectsChanged, onSelectProje
         {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
       </div>
 
-      {view === 'rounds' && projectId && (
+      {view === 'rounds' && projectId && hasPipeline && (
         <ConvergenceView projectId={projectId} mode={mode} sourceFormat={sourceFormat} />
       )}
 
-      {view === 'single' && selected === 'intermediate_json' && report ? (
+      {!hasPipeline ? null : view === 'single' && selected === 'intermediate_json' && report ? (
         <ReportView report={report} onResolve={handleResolve} />
       ) : (
         view === 'single' && (

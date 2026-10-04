@@ -56,11 +56,16 @@ def load_manifest(project_id: str) -> dict:
 
 def load_corpus(project_id: str) -> dict[str, str]:
     cdir = _dir(project_id) / "corpus"
+    if not cdir.is_dir():
+        return {}
     return {p.name: _read_text(p) for p in sorted(cdir.iterdir()) if p.suffix in (".txt", ".md")}
 
 
 def load_graphics(project_id: str) -> list[dict]:
-    return _read_json(_dir(project_id) / "corpus" / "graphics.json")["graphics"]
+    path = _dir(project_id) / "corpus" / "graphics.json"
+    if not path.exists():
+        return []
+    return _read_json(path)["graphics"]
 
 
 def load_corrections(project_id: str, variant: str = "comments") -> list[dict]:
@@ -70,6 +75,8 @@ def load_corrections(project_id: str, variant: str = "comments") -> list[dict]:
     path = _dir(project_id) / "corrections" / fname
     if not path.exists() and variant == "rounds":
         path = _dir(project_id) / "corrections" / "comments.json"
+    if not path.exists():
+        return []
     return _read_json(path)["corrections"]
 
 
@@ -136,10 +143,30 @@ def load_template_evidence(project_id: str) -> dict | None:
     return result.first_attempt.get("_evidence")
 
 
+def has_correction_pipeline(project_id: str) -> bool:
+    """True when a project carries correction-pipeline fixtures (a first_attempt
+    draft/template). Aggregation-only projects (documents, supplementals, index
+    but no first_attempt) return False so callers can skip the pipeline cleanly
+    instead of 500ing on absent corpus/corrections dirs."""
+    fa = _dir(project_id) / "first_attempt"
+    return (fa / "incident_report_draft.json").exists() or \
+           (fa / "incident_report_template.json").exists()
+
+
 def component_overview(project_id: str = DEFAULT_PROJECT) -> list[dict]:
     corpus = load_corpus(project_id)
     graphics = load_graphics(project_id)
     corrections = load_corrections(project_id)
+    has_draft = (_dir(project_id) / "first_attempt" / "incident_report_draft.json").exists()
+    has_template = (_dir(project_id) / "first_attempt" / "incident_report_template.json").exists()
+    first_attempt_items = []
+    if has_draft:
+        first_attempt_items.append(
+            {"name": "incident_report_draft.json", "kind": "draft", "note": "completed but flawed"})
+    if has_template:
+        first_attempt_items.append(
+            {"name": "incident_report_template.json", "kind": "template",
+             "note": "machine-readable rubric"})
     return [
         {
             "id": "corpus", "order": 1, "title": "Original corpus",
@@ -152,10 +179,7 @@ def component_overview(project_id: str = DEFAULT_PROJECT) -> list[dict]:
         {
             "id": "first_attempt", "order": 2, "title": "First attempt",
             "subtitle": "Draft deliverable or blank template (the thing found to be wrong)",
-            "items": [
-                {"name": "incident_report_draft.json", "kind": "draft", "note": "completed but flawed"},
-                {"name": "incident_report_template.json", "kind": "template", "note": "machine-readable rubric"},
-            ],
+            "items": first_attempt_items,
         },
         {
             "id": "corrections", "order": 3, "title": "Comments / emails",
