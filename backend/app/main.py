@@ -61,21 +61,35 @@ def create_project(body: CreateProject) -> Project:
 
 @app.get("/projects")
 def list_projects() -> list[Project]:
-    """Unified project list: every stored Project PLUS every project in either
-    store (a project IS a project). Project entries that are not yet backed by
-    a project record are surfaced with a synthetic record so the single global
-    selector has one clean source. Stored projects win on an id collision."""
-    out: list[Project] = []
-    seen: set[str] = set()
-    for p in store.list_projects():
-        out.append(p)
-        seen.add(p.id)
-    for s in project.list_project_cases():
-        sid = str(s["id"])
-        if sid not in seen:
-            out.append(Project(id=sid, name=s.get("title") or sid))
-            seen.add(sid)
-    return out
+    """The live project list: ONLY projects the user has actually created in the
+    store (by uploading documents, generating, or instantiating a sample case).
+    The app starts EMPTY. The bundled sample cases are NOT auto-listed here; they
+    are templates surfaced via GET /templates and instantiated on demand."""
+    return store.list_projects()
+
+
+class InstantiateTemplate(BaseModel):
+    name: str | None = None   # optional override for the new project's name
+
+
+@app.get("/templates")
+def list_templates() -> list[dict]:
+    """The catalog of bundled sample cases a user can instantiate into a real,
+    persisted project on demand. These are read-only fixtures in the repo; they
+    are not live projects until the user instantiates one."""
+    return project.list_project_cases()
+
+
+@app.post("/projects/from-template/{case_id}")
+def instantiate_template(case_id: str, body: InstantiateTemplate | None = None) -> Project:
+    """Create a NEW persisted project by copying a bundled sample case into the
+    store. This is the only way a sample case becomes persistent: by the user
+    explicitly running it. The source fixtures in the repo are never modified."""
+    name = body.name if body and body.name else None
+    try:
+        return store.instantiate_from_template(case_id, name)
+    except FileNotFoundError:
+        raise HTTPException(404, f"no such sample case: {case_id}")
 
 
 def _resolve_project(project_id: str) -> Project:

@@ -73,6 +73,10 @@ class Settings:
     # Legacy bundle of the committed demo projects (read-only fallback).
     BUNDLED_PROJECT_ROOT: Path = Path(__file__).resolve().parents[2] / "sample_docs" / "project"
 
+    def template_dir(self, case_id: str) -> Path:
+        """Source directory of a bundled sample case (read-only repo fixture)."""
+        return self.BUNDLED_PROJECT_ROOT / case_id
+
     def project_dir(self, project_id: str) -> Path:
         return self.DATA_DIR / "projects" / project_id
 
