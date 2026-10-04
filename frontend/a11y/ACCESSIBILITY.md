@@ -35,8 +35,9 @@ npm install                     # dev deps incl. playwright + @axe-core/playwrig
 npx playwright install chromium # one-time browser download (see air-gap note)
 npm run build                   # the audit runs against dist/
 
-# optional but recommended: start + seed the backend so data views render
-#   (in repo root)  python backend/seed.py
+# recommended: start the backend so data-populated views render. The audit
+# flows instantiate a sample case themselves (no seeding needed); the app
+# starts empty and the flows create a project through the UI.
 #   (in backend/)    python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 npm run audit:a11y              # exits non-zero if any gate fails

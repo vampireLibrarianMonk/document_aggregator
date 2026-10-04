@@ -1,9 +1,17 @@
-"""Seed a demo project: generate binary sample docs, ingest the whole corpus,
-and attach supplementals. Run this once so the frontend has data to show.
+"""OPT-IN DEVELOPER TOOL — not part of normal setup.
 
-    python backend/seed.py
+The app starts EMPTY by design: the only persistent content is what a user
+creates (instantiating a sample case, generating, or uploading documents).
+Nothing is seeded automatically, and no part of the runtime (API, worker,
+Docker entrypoint, compose) invokes this script.
 
-Safe to re-run; it creates a fresh project each time.
+This exists only so a DEVELOPER can quickly populate a local AGGREGATION demo
+(generated DOCX/PPTX/PDF/PNG ingested through the full pipeline, plus a few
+supplementals) when manually testing the Ingestion / Search / Report tabs. It
+mints a fresh proj_<id> each run, exactly like user-created content — it does
+NOT reserve a special preloaded id.
+
+    python backend/seed.py        # creates ONE throwaway aggregation project
 """
 from __future__ import annotations
 
@@ -118,7 +126,11 @@ def make_png() -> bytes:
 
 
 def main() -> None:
-    project = store.create_project(Project(id="proj_demo", name="TGX-9 Incident Aggregation"))
+    import uuid
+
+    # Mint a fresh id like any user-created project (no reserved preload id).
+    pid = "proj_" + uuid.uuid4().hex[:10]
+    project = store.create_project(Project(id=pid, name="TGX-9 Incident Aggregation (dev seed)"))
     print(f"Created project {project.id} ({project.name})")
 
     # Static text samples from disk.
@@ -156,7 +168,8 @@ def main() -> None:
         store.save_supplemental(project.id, supp)
         print(f"  supplemental [{supp.kind.value}/{supp.sentiment}] {supp.author}")
 
-    print("\nSeed complete. Start the API and open the frontend.")
+    print(f"\nDev seed complete: created aggregation project {project.id}. "
+          "This is throwaway local data; the app does not seed on its own.")
 
 
 if __name__ == "__main__":

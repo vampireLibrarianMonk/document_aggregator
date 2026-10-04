@@ -28,7 +28,7 @@ backend/
   tests/          pytest suite (13 modules)
   build_project_graphics.py  generate real PNG figures + enrich graphics.json
   build_sample_docs.py        generate template/draft DOCX/PPTX/PDF from projects
-  seed.py                     seed the demo project
+  seed.py                     opt-in dev tool: throwaway local aggregation demo (never auto-run)
   verify_project.py          15 assertions over project 1's defect inventory
   worker_main.py              worker entrypoint
 frontend/
@@ -50,9 +50,14 @@ Backend (from the repo root):
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-.\.venv\Scripts\python.exe backend\seed.py
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --app-dir backend
 ```
+
+The app starts empty. To get data, instantiate a sample case from the UI
+("Start from a sample") or via `POST /projects/from-template/{id}`, or upload
+your own documents on the Ingestion tab. Optionally, `python backend/seed.py`
+populates one throwaway local aggregation project for manual testing (opt-in,
+never auto-run).
 
 Frontend:
 
@@ -69,7 +74,9 @@ $env:DOCKER_BUILDKIT=1
 docker compose build
 docker compose up -d
 # frontend on http://localhost:8080, api on http://localhost:8000
-docker compose exec api python backend/seed.py   # seed the shared volume
+# The app starts empty; create a project from the UI ("Start from a sample"),
+# or optionally seed a throwaway aggregation demo into the volume:
+#   docker compose exec api python backend/seed.py
 ```
 
 ## How correction works (the pipeline)

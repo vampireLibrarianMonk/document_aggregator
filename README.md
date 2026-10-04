@@ -219,7 +219,7 @@ backend/            FastAPI app (modular)
     reconcile/      the correction/reconciliation engine (models, corpus_facts, engine)
     project.py     loads the four components and runs reconciliation
     parsers, embeddings, search, aggregate, exporters, store
-  seed.py           generates sample binaries and ingests the ingestion demo corpus
+  seed.py           opt-in DEV tool: populate a throwaway local aggregation demo (never auto-run)
   verify_project.py  asserts all 16 defects resolve as expected
 frontend/           React + Vite + TypeScript (modular components + api client)
 sample_docs/
@@ -238,15 +238,15 @@ sample_docs/
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 
-# seed the demo project (creates sample DOCX/PPTX/PDF/PNG and ingests them)
-.\.venv\Scripts\python.exe backend\seed.py
-
 # run the API
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --app-dir backend
 ```
 
-The API listens on `http://localhost:8000`. Try `GET /health`,
-`GET /projects`, `GET /projects/proj_demo/report`.
+The API listens on `http://localhost:8000`. Try `GET /health` and
+`GET /projects` (empty on a fresh install) and `GET /templates` (the bundled
+sample cases). The app starts with no projects; create one by instantiating a
+sample (`POST /projects/from-template/{id}`), generating, or uploading
+documents. There is no preloaded data.
 
 ### 2. Frontend
 
