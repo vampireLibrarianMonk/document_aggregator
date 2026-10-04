@@ -1,10 +1,10 @@
 # User Guide
 
-This guide is for people **using** the platform, not developers. It walks you
-through every demo project, tells you where input and output documents live, and
-describes exactly what you should see on each tab of the GUI.
+This guide is for people **using** the platform. It walks you through what to do,
+step by step, and what you should expect to see on screen. No prior setup
+knowledge is assumed.
 
-It runs fully offline. Nothing leaves your machine or your enclave.
+The platform runs fully offline. Nothing leaves your machine or your enclave.
 
 ## Opening the app
 
@@ -14,182 +14,177 @@ Once the stack is running (see the README or your administrator), open:
 http://localhost:8080
 ```
 
-At the top you pick a **Project** from one dropdown. That one choice scopes all
-five tabs. Below it are the five tabs:
+**The app starts empty.** There are no projects until you create one. That is by
+design: everything you see is something you made. The top of the screen has one
+**Project** selector that scopes all tabs, and six tabs:
 
 1. **Correction Pipeline**
 2. **Ingestion**
 3. **Supplementals**
 4. **Search**
 5. **Report & Export**
+6. **Diagnostics**
 
 ---
 
-## The one thing to understand first: two kinds of project
+## First: create a project
 
-Everything in the app is a "project," but a project is populated for the tabs
-that match the kind of work it holds. **No single demo project fills all five
-tabs at once.** If a tab looks empty, you have almost certainly selected a
-project of the other kind. This is expected, not a bug.
+You have two ways to start. Pick the one that matches what you want to do.
 
-| Kind | What it holds | Which tabs show data | Which tabs look empty |
-|------|---------------|----------------------|-----------------------|
-| **Correction case** (demos `1`–`6`) | A corpus, a first-attempt report, and reviewer comments | **Correction Pipeline** | Ingestion, Supplementals, Search, Report & Export |
-| **Aggregation project** (`proj_demo`) | Uploaded source documents, supplementals, a search index | **Ingestion, Supplementals, Search, Report & Export** | Correction Pipeline |
+### Option A — Start from a sample case (fastest)
 
-So:
+Use this to see the full correction workflow immediately, without preparing any
+files.
 
-- Pick a **correction case** (e.g. "TGX-9 Telemetry Gateway Incident") to see
-  the **Correction Pipeline** work. Its Ingestion/Search/Report tabs will be
-  empty, because a correction case does not ingest its own documents.
-- Pick the **aggregation project** ("TGX-9 Incident Aggregation", id
-  `proj_demo`) to see **Ingestion, Supplementals, Search, and Report & Export**
-  populated. Its Correction Pipeline tab will say "no correction-pipeline data,"
-  because an aggregation project has no first-attempt report to correct.
+1. On a fresh app the **Start from a sample case** panel is already showing. (If
+   it is not, click **Start from a sample** next to the Project selector.)
+2. You will see six sample cases, each a complete worked example from a
+   different domain (telemetry incident, security incident, lab safety event,
+   manufacturing defect, aviation maintenance, interface control document).
+3. Click **Use this sample** on one. The platform copies that sample into a new
+   project of your own and selects it. You land on the **Correction Pipeline**
+   tab with everything populated.
 
-When you make your own project, you choose which kind you build:
-**upload documents on the Ingestion tab** to grow an aggregation project, or use
-**+ New project** on the Correction Pipeline tab to generate a correction case.
+What to expect: within a second or two the Project selector shows your new
+project, and the Correction Pipeline tab fills in (see below). The sample itself
+is never changed, so you can create as many copies as you like and edit them
+freely.
 
----
+### Option B — Upload your own documents
 
-## Where documents live on disk
+Use this to aggregate and work with real source material.
 
-You rarely need this, but when you want to verify what the app read or wrote,
-here are the on-disk locations. Paths are inside the running container (or under
-the repo's `data/` and `sample_docs/` folders when run locally).
+1. Open the **Ingestion** tab. On an empty app it will prompt you that there is
+   no project yet.
+2. Create a project (the Ingestion tab lets you add documents to a project; if
+   you have none, start one from a sample first, or your administrator can
+   enable project creation on this tab).
+3. Click **Upload documents** and pick one or more files
+   (`.docx`, `.pptx`, `.pdf`, `.txt`, `.md`, `.png`, `.jpg`).
+4. Watch each file move through the pipeline stages: ingest, parse, chunk,
+   embed, index. The board refreshes itself while files are processing.
 
-### Correction cases (demos 1–6) — read-only inputs
-
-```
-sample_docs/project/<id>/
-  project.json                                   manifest (title, domain, fields, table spec)
-  corpus/*.txt | *.md                            source documents (ground truth)
-  corpus/graphics.json                           named figures/graphics
-  first_attempt/incident_report_draft.json       the flawed draft (Draft mode input)
-  first_attempt/incident_report_template.json    the blank rubric (Template mode input)
-  first_attempt/generated/<mode>.<docx|pptx|pdf> pre-converted copies for the source-fidelity selector
-  corrections/comments.json                      single-pass reviewer feedback
-  corrections/rounds.json                        multi-round feedback (for the Rounds view)
-```
-
-These are inputs only. The **output** (the corrected report) is computed on the
-fly and shown in the GUI; you save it from **Report & Export** on a project that
-produces one.
-
-### Aggregation projects (e.g. `proj_demo`) — your uploads and outputs
-
-```
-data/projects/<id>/
-  project.json                                   project record (id, name)
-  source/<doc_id>__<original_filename>           your uploaded file, byte-for-byte
-  documents/<doc_id>.record.json                 pipeline status + stage history
-  documents/<doc_id>.canonical.json              the normalized structure the tool extracted (output)
-  supplementals/<supp_id>.json                   one file per comment/email you add
-  index/manifest.json | vectors.json | chunks.json   the search index (output)
-```
-
-A project you **generate** with "+ New project" lands at
-`data/projects/<id>/data/` and has the correction-case layout (corpus,
-first_attempt, corrections) nested one level deeper.
+What to expect: each uploaded file appears as a row that advances to
+**completed**. Scanned PDFs and images are run through OCR so their text becomes
+searchable (see Diagnostics to confirm OCR is active).
 
 ---
 
-## Guided tour of the demo projects
+## A project is one of two kinds
 
-The stack ships with seven projects. Select each one from the top dropdown and
-you should see the following.
+This matters for what each tab shows. The kind is decided by how you created the
+project.
 
-### "TGX-9 Incident Aggregation" (`proj_demo`) — the aggregation demo
+- **A sample-based project** (Option A) is a **correction** project. It comes
+  with source material, a first-attempt report, and reviewer comments, so the
+  **Correction Pipeline** tab is full. It has no uploaded documents of its own,
+  so Ingestion, Search, and Report & Export start empty for it.
+- **An upload-based project** (Option B) is an **aggregation** project. Its
+  **Ingestion, Supplementals, Search, and Report & Export** tabs fill as you add
+  documents. It has no first-attempt report, so the Correction Pipeline tab will
+  say it has no correction data.
 
-This is the project that exercises the aggregation half of the app. Select it,
-then:
-
-- **Ingestion** — a table of **7 documents** (a field report, executive summary,
-  corrective action plan, root-cause notes, style guide, an incident-review
-  slide deck, and a packet-loss figure). Each row shows its pipeline stages
-  (ingest → parse → chunk → embed → index) completed. Click **Canonical** on a
-  row to inspect the structure extracted from that file.
-- **Supplementals** — **5 items** already attached (comments/emails), each with
-  an author, subject, and a sentiment tag.
-- **Search** — type a term that appears in the sources, e.g. `telemetry`,
-  `packet loss`, or `firmware`, and press Enter. You should get several hits,
-  each quoting the matched passage with its document and section, ordered by
-  relevance.
-- **Report & Export** — the assembled report with **7 sections**, one per
-  completed document, ordered chronologically by effective date/time. Use the
-  export buttons to download it as JSON, Markdown, DOCX, PPTX, or PDF.
-- **Correction Pipeline** — shows "This project has no correction-pipeline
-  data … aggregation-only project." That is correct for this project; its work
-  lives on the four tabs above.
-
-### Correction cases 1–6 — the correction-pipeline demos
-
-| id | Title | Domain |
-|----|-------|--------|
-| 1 | TGX-9 Telemetry Gateway Incident | hardware reliability / incident response |
-| 2 | Customer Portal Credential-Stuffing Incident | IT security / incident response |
-| 3 | Clinical Lab Reagent Spill Safety Event | clinical laboratory / safety |
-| 4 | Injection Molding Line Defect Event | manufacturing quality / defect analysis |
-| 5 | Aircraft Hydraulic Decay Maintenance Event | aviation maintenance / reliability |
-| 6 | Nav Bus Interface Control Document | systems engineering / interface control |
-
-Select any of these, then open the **Correction Pipeline** tab. You should see:
-
-- Four flow boxes left to right with counts: **Original corpus** (5 source
-  documents), **First attempt** (2 items: the draft and the template),
-  **Comments / emails** (the reviewer feedback), and **Corrected intermediate
-  JSON**.
-- The corrected report itself below, with a summary row counting units by status
-  (for case 1, 17 units in total). Click a flow box to inspect that stage's raw
-  contents.
-- Controls:
-  - **Draft mode vs Template mode** — Draft fixes the completed-but-flawed
-    report; Template fills the blank template from the corpus.
-  - **Single pass vs Rounds** — Single pass is one correction round; Rounds
-    shows multiple feedback rounds converging.
-  - **Source fidelity** (JSON / DOCX / PPTX / PDF) — which pre-converted copy of
-    the demo first attempt to read. JSON is the clean baseline; DOCX preserves
-    the most structure; PDF the least. This selects a demo copy; it does not
-    convert a file you upload.
-
-The Ingestion, Supplementals, Search, and Report & Export tabs will be empty for
-a correction case. That is expected: a correction case has no uploaded documents
-or search index of its own.
+If a tab looks empty, it is almost always because the selected project is the
+other kind. This is expected, not a fault.
 
 ---
 
-## Doing your own work
+## The tabs, and what to do on each
 
-### Build an aggregation project (upload real documents)
+### Correction Pipeline
 
-1. Select an aggregation project from the top dropdown (the demo
-   "TGX-9 Incident Aggregation" is one), then open the **Ingestion** tab and
-   click **Upload documents**.
-2. Pick one or more files (`.docx`, `.pptx`, `.pdf`, `.txt`, `.md`, `.png`,
-   `.jpg`). Each uploaded file is stored byte-for-byte under `source/`, and the
-   extracted structure is written to `documents/<id>.canonical.json`.
-3. Watch the rows advance through ingest → parse → chunk → embed → index. The
-   board refreshes itself while documents are processing.
-4. Add human feedback on **Supplementals**, search the corpus on **Search**, and
-   assemble/export the result on **Report & Export**.
+Turns a flawed or blank first attempt into a corrected report, grounded entirely
+in the source material.
 
-### Generate a correction case
+What to do: select a sample-based project. You will see four stages left to
+right — **Original corpus**, **First attempt**, **Comments / emails**, and
+**Corrected intermediate JSON** — each with a count. Below them is the corrected
+report.
 
-1. On the **Correction Pipeline** tab, click **+ New project**.
-2. Provide a structured brief, a freeform description, or **upload a document**
-   so its own text becomes the ground-truth corpus (the faithful, reproducible
-   path — the model authors structure, never invents facts).
-3. The new project appears in the top dropdown and the selector jumps to it. It
-   now has a corpus, a first attempt, and corrections, so the Correction
-   Pipeline tab is populated.
+Controls:
+- **Draft vs Template** — Draft fixes a completed-but-flawed report; Template
+  fills a blank report template from the source material.
+- **Single pass vs Rounds** — Single pass is one correction round; Rounds shows
+  several feedback rounds converging.
+- **Source fidelity** (JSON / DOCX / PPTX / PDF) — which pre-converted copy of
+  the first attempt to read. JSON is the clean baseline; DOCX preserves the most
+  structure; PDF the least.
+- **+ New project** — generate a brand-new correction project from a brief or
+  from a document you upload.
+
+What to expect: each report row shows a status tag and a short **Source:** line.
+Click a stage box to inspect its raw contents. Where the tool cannot resolve a
+value on its own, it flags it rather than guessing (see the status legend).
+
+### Ingestion
+
+Add real documents to an aggregation project and watch them being processed.
+
+What to do: select an aggregation project, click **Upload documents**, pick your
+files. Click **Canonical** on any row to inspect the normalized structure the
+tool extracted.
+
+What to expect: a table of documents, each advancing ingest to parse to chunk to
+embed to index, with block/chunk/artifact counts and the resolved date/time.
+
+### Supplementals
+
+Attach human feedback: comments, emails, corrections, or interview notes.
+
+What to do: pick a **kind**, fill in author / subject / body, optionally target a
+specific document, and submit.
+
+What to expect: each item appears as a card with its kind, an automatically
+assigned sentiment tag, author, subject, and target.
+
+### Search
+
+Find material across a project's source documents by meaning or keyword.
+
+What to do: select an aggregation project that has ingested documents, type a
+query, press Enter.
+
+What to expect: a list of hits, each quoting the matched passage with its
+document and section, ranked by relevance. With real embeddings active (the
+default) this is semantic search, not just keyword matching — confirm the
+embedding model on the Diagnostics tab.
+
+### Report & Export
+
+Assemble the aggregated report and export it.
+
+What to do: select an aggregation project with completed documents. Use the
+export buttons for JSON, Markdown, DOCX, PPTX, or PDF.
+
+What to expect: one section per completed document, ordered by effective
+date/time, with supplementals attached. Exports download as files.
+
+### Diagnostics
+
+Shows, in plain terms, what the platform can actually do right now. Use this
+whenever something looks weaker than expected (for example, search feels shallow
+or a scanned PDF produced no text).
+
+What to expect, with everything working, an **overall: OK** and:
+- **Embeddings — OK**: a real model (all-MiniLM-L6-v2, 384 dimensions). If it
+  says the hashing fallback, semantic search is degraded.
+- **OCR — OK**: tesseract present, so scanned PDFs and images yield text. If
+  Degraded, OCR is off or no engine is installed and scans will not be read.
+- **Layout geometry tier — OK**: LibreOffice present, so formatting/placement
+  checks run fully. If Degraded, only structural checks run.
+- **Bedrock**: OK when enabled with approved models; **Offline** otherwise,
+  which is the normal air-gap posture (the offline generator is used instead and
+  nothing is lost in correctness).
+
+The footer shows the pipeline/schema versions, the offline guards, and the data
+directory. Click **Refresh** to re-check at any time.
 
 ---
 
 ## Reading the corrected report
 
-Each row is a single unit (a field, a figure, a table, or a page element). It
-carries a **status** shown as a colored tag, plus its **source**.
+Each row is a single unit (a field, a figure, a table, or a page element) with a
+**status** and a **source**.
 
 ### Status legend
 
@@ -206,39 +201,45 @@ blue means information added, grey means no change.
 
 ### The "Source:" line
 
-Every row shows a short **Source:** line (e.g. "from field_report.txt" or "2
-reviewer comments"). Hover it for the full audit detail. This is how you verify
-a change is grounded in real material.
+Every row shows a short **Source:** line (for example "from field_report.txt" or
+"2 reviewer comments"). Hover it for the full audit detail. This is how you
+verify a change is grounded in real material.
 
 ### Conflicts
 
-When two reviewers disagree (one says a severity is "High," another "Medium"),
-the row shows **conflict / unresolved — choose a candidate below**, lists both
-candidates with who proposed each, and fills in nothing. The tool never
-auto-picks a winner and never invents a value. You make the call, and your
-choice is recorded as a new correction round.
+When two reviewers disagree, the row shows **conflict / unresolved — choose a
+candidate below**, lists both candidates with who proposed each, and fills in
+nothing. The tool never auto-picks a winner and never invents a value. You make
+the call, and your choice is recorded as a new correction round.
 
-### Formatting & placement checks
+### Formatting and placement checks
 
 Below the content sections, this area lists where the document breaks the
-template's layout and formatting rules: fonts, figure titles and captions, table
-styles, and figure placement. These are learned from the template document
-itself.
+template's layout and formatting rules (fonts, figure titles and captions, table
+styles, figure placement), learned from the template document itself. These run
+fully only when the geometry tier is active (see Diagnostics).
 
 ---
 
 ## Frequently asked
 
-**I selected a project and a tab is empty. Is something broken?**
-Almost certainly not. Each project is one of two kinds. Correction cases (1–6)
-fill the Correction Pipeline tab; the aggregation project (`proj_demo`) fills
-Ingestion, Supplementals, Search, and Report & Export. See the table at the top.
+**I just opened the app and there are no projects. Is it broken?**
+No. The app starts empty on purpose. Create a project with **Start from a
+sample** or by uploading documents on the Ingestion tab.
 
-**Which project should I pick to see the Correction Pipeline work?**
-Any of cases 1–6, for example "TGX-9 Telemetry Gateway Incident."
+**I selected a project and a tab is empty.**
+Each project is one of two kinds. A sample-based project fills the Correction
+Pipeline tab; an upload-based project fills Ingestion, Supplementals, Search, and
+Report & Export. See "A project is one of two kinds" above.
 
-**Which project should I pick to see Ingestion, Search, and Report populated?**
-"TGX-9 Incident Aggregation" (`proj_demo`).
+**Does using a sample change the original?**
+No. Using a sample copies it into a new project of your own. The sample stays
+untouched, and you can create as many copies as you like.
+
+**Search results feel shallow / my scanned PDF produced no text.**
+Open the **Diagnostics** tab. If Embeddings shows the hashing fallback, semantic
+search is degraded; if OCR shows Degraded, scanned documents are not being read.
+That tab tells you exactly which capability is reduced.
 
 **Why is a value blank with a red "conflict" tag?**
 Reviewers disagreed and no source settles it. Pick one of the listed candidates.
