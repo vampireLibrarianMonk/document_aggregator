@@ -21,9 +21,28 @@ services:
       EMBEDDING_BACKEND: hashing
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
-      BEDROCK_ENABLED: "false"
+      # Bedrock scenario generation off by default (air-gap). To use the SAME
+      # role/credentials as the host, uncomment the AWS_* lines here and the
+      # ~/.aws mount below; boto3's credential chain then resolves the host's
+      # profile/SSO/role inside the container exactly as it does locally.
+      BEDROCK_ENABLED: "${BEDROCK_ENABLED:-false}"
+      BEDROCK_REGION: "${BEDROCK_REGION:-us-east-1}"
+      BEDROCK_SCENARIO_MODEL: "${BEDROCK_SCENARIO_MODEL:-}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+      # The container runs as an arbitrary UID (OpenShift pattern), so $HOME is
+      # unreliable; point boto3 at the mounted config EXPLICITLY instead of
+      # relying on ~/.aws discovery. These resolve the host's [default] static
+      # access key. (AWS_PROFILE is intentionally NOT set: an empty value can be
+      # read as a profile named "" and break [default] resolution.)
+      AWS_CONFIG_FILE: /aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /aws/credentials
     volumes:
       - data:/data
+      # Mount the host AWS config read-only so the container uses the SAME
+      # static credentials as this workspace. Harmless if the host dir is absent
+      # on an air-gapped host (boto3 finds no creds -> offline, the safe
+      # default). On Windows the host path is %USERPROFILE%\.aws.
+      - "${AWS_DIR:-${USERPROFILE}/.aws}:/aws:ro"
     ports:
       - "8000:8000"
     healthcheck:

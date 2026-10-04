@@ -15,3 +15,8 @@ pypdf==5.0.1
 reportlab==4.2.2
 Pillow>=10.4.0
 pdfplumber==0.11.10
+
+# AWS SDK for the optional Bedrock scenario-generation path. Lightweight and
+# used only when credentials resolve + a model is selected; the api still runs
+# fully offline (deterministic generator) when it is unused.
+boto3==1.43.104
