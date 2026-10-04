@@ -28,12 +28,23 @@ def test_app_starts_empty(clean_store):
 
 
 def test_templates_catalog_lists_bundled_cases(clean_store):
-    # The bundle is still readable as a template catalog even on an empty store.
-    cases = sc.list_project_cases()
-    ids = {c["id"] for c in cases}
-    assert {"1", "2", "3", "4", "5", "6"}.issubset(ids)
+    # The bundle is readable as a template catalog even on an empty store.
+    cases = sc.list_templates()
+    ids = [c["id"] for c in cases]
+    assert set(ids) == {"1", "2", "3", "4", "5", "6"}
     for c in cases:
         assert c["title"]
+
+
+def test_templates_have_no_duplicates_after_instantiation(clean_store):
+    # Instantiating a sample must NOT make it appear twice in the catalog: the
+    # template list is bundle-only, the instantiated copy lives in the store.
+    before = sc.list_templates()
+    clean_store.instantiate_from_template("1")
+    after = sc.list_templates()
+    assert after == before
+    ids = [c["id"] for c in after]
+    assert len(ids) == len(set(ids)), f"duplicate template ids: {ids}"
 
 
 def test_instantiate_creates_a_persisted_project(clean_store):

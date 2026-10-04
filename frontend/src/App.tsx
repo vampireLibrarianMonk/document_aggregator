@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CanonicalViewer } from './components/CanonicalViewer'
 import { CorrectionPipeline } from './components/CorrectionPipeline'
 import { DiagnosticsPanel } from './components/DiagnosticsPanel'
+import { GenerateProject } from './components/GenerateProject'
 import { PipelineBoard } from './components/PipelineBoard'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
@@ -42,6 +43,7 @@ function AppShell() {
   const [tab, setTab] = useState<Tab>('correction')
   const [inspecting, setInspecting] = useState<string | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showGenerate, setShowGenerate] = useState(false)
 
   const reload = () => activeId && void refresh(activeId)
   const isEmpty = projects.length === 0
@@ -74,9 +76,16 @@ function AppShell() {
           <button
             className="btn secondary small"
             aria-expanded={showTemplates}
-            onClick={() => setShowTemplates((v) => !v)}
+            onClick={() => { setShowTemplates((v) => !v); setShowGenerate(false) }}
           >
             {showTemplates ? 'Hide samples' : 'Start from a sample'}
+          </button>
+          <button
+            className="btn secondary small"
+            aria-expanded={showGenerate}
+            onClick={() => { setShowGenerate((v) => !v); setShowTemplates(false) }}
+          >
+            {showGenerate ? 'Hide generator' : 'New project'}
           </button>
         </div>
       </header>
@@ -94,21 +103,34 @@ function AppShell() {
           and anything left unresolved is yours to decide.
         </p>
         <p className="small muted">
-          The app starts empty. Create a project two ways:{' '}
-          <b>Start from a sample</b> to instantiate a complete worked case, or
-          open <b>Ingestion</b> to upload your own documents. Everything you see
-          after that is a project you created.
+          The app starts empty. Create a project three ways:{' '}
+          <b>Start from a sample</b> to instantiate a complete worked case,{' '}
+          <b>New project</b> to generate one from a brief or an uploaded
+          document, or open <b>Ingestion</b> to upload documents into a project.
+          Everything you see after that is a project you created.
         </p>
       </div>
 
       {/* The app starts empty: show the sample picker prominently when there
-          are no projects, or on demand via the header toggle. */}
-      {(isEmpty || showTemplates) && (
+          are no projects (unless the user opened the generator instead), or on
+          demand via the header toggles. */}
+      {(showTemplates || (isEmpty && !showGenerate)) && (
         <TemplatePicker
           onInstantiated={() => {
             // instantiateTemplate already refreshed the list and selected the
             // new project; just close the picker and land on the pipeline.
             setShowTemplates(false)
+            setTab('correction')
+          }}
+        />
+      )}
+
+      {showGenerate && (
+        <GenerateProject
+          onGenerated={async (id) => {
+            await refreshProjects()   // pull the new project into the selector
+            setActiveId(id)
+            setShowGenerate(false)
             setTab('correction')
           }}
         />

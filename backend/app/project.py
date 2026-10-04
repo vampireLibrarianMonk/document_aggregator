@@ -39,9 +39,26 @@ def _dir(project_id: str) -> Path:
     return settings.resolve_project_data_dir(project_id)
 
 
+def list_templates() -> list[dict]:
+    """The catalog of bundled sample CASES a user can instantiate. This reads
+    ONLY the committed read-only bundle (sample_docs/project/<id>), never the
+    store, so instantiated copies never appear here as duplicate 'templates'."""
+    out: list[dict] = []
+    root = settings.BUNDLED_PROJECT_ROOT
+    if root.exists():
+        for d in sorted(root.iterdir()):
+            manifest = d / "project.json"
+            if manifest.exists():
+                m = _read_json(manifest)
+                out.append({"id": m.get("id", d.name), "title": m.get("title", d.name),
+                            "domain": m.get("domain", "")})
+    return out
+
+
 def list_project_cases() -> list[dict]:
-    """List projects from BOTH the unified project store and the legacy bundle
-    (project store wins on an id collision)."""
+    """Every resolvable case from BOTH the store and the bundle (store wins on
+    id collision). Used by tests to enumerate loadable cases. For the user-facing
+    template CATALOG use list_templates() (bundle-only)."""
     out: list[dict] = []
     for sid, d in settings.iter_project_data_dirs():
         m = _read_json(d / "project.json")

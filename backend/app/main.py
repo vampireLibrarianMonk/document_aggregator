@@ -86,8 +86,9 @@ class InstantiateTemplate(BaseModel):
 def list_templates() -> list[dict]:
     """The catalog of bundled sample cases a user can instantiate into a real,
     persisted project on demand. These are read-only fixtures in the repo; they
-    are not live projects until the user instantiates one."""
-    return project.list_project_cases()
+    are not live projects until the user instantiates one. Bundle-only, so an
+    already-instantiated copy never shows up here as a duplicate."""
+    return project.list_templates()
 
 
 @app.post("/projects/from-template/{case_id}")

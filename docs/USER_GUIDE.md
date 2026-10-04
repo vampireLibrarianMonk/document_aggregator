@@ -50,18 +50,32 @@ project, and the Correction Pipeline tab fills in (see below). The sample itself
 is never changed, so you can create as many copies as you like and edit them
 freely.
 
-### Option B — Upload your own documents
+### Option B — Generate a new project
+
+Use this to create a correction project from a short brief or from a document
+you provide, without hand-building fixtures.
+
+1. Click **New project** next to the Project selector (it is also available as
+   **+ New project** on the Correction Pipeline tab).
+2. Choose how to describe it: a structured brief (domain + document type), a
+   freeform description, or **upload a document** whose own text becomes the
+   project's ground-truth source material.
+3. Pick a model if one is offered, or use the offline generator (the default,
+   fully deterministic). Generate.
+
+What to expect: the model only authors the project's structure; facts come from
+the source material, so the result is validated and saved as fixed, reproducible
+data. The new project appears in the selector and is selected for you.
+
+### Option C — Upload your own documents
 
 Use this to aggregate and work with real source material.
 
-1. Open the **Ingestion** tab. On an empty app it will prompt you that there is
-   no project yet.
-2. Create a project (the Ingestion tab lets you add documents to a project; if
-   you have none, start one from a sample first, or your administrator can
-   enable project creation on this tab).
-3. Click **Upload documents** and pick one or more files
+1. Create a project first (Option A or B), then open the **Ingestion** tab with
+   it selected.
+2. Click **Upload documents** and pick one or more files
    (`.docx`, `.pptx`, `.pdf`, `.txt`, `.md`, `.png`, `.jpg`).
-4. Watch each file move through the pipeline stages: ingest, parse, chunk,
+3. Watch each file move through the pipeline stages: ingest, parse, chunk,
    embed, index. The board refreshes itself while files are processing.
 
 What to expect: each uploaded file appears as a row that advances to
