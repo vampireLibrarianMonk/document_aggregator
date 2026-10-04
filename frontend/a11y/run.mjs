@@ -203,6 +203,22 @@ async function auditTablistRoving(page) {
 await new Promise((r) => server.listen(config.port, '127.0.0.1', r))
 const base = `http://127.0.0.1:${config.port}`
 
+// Snapshot the project ids that exist BEFORE the audit, so the teardown can
+// delete only the ones the flows create (ensureProject instantiates a sample
+// for the data-dependent flows). This keeps the audit from leaving stray
+// projects behind in a shared backend/volume.
+async function listProjectIds() {
+  try {
+    const res = await fetch(config.apiTarget + '/projects')
+    if (!res.ok) return new Set()
+    const arr = await res.json()
+    return new Set(arr.map((p) => p.id))
+  } catch {
+    return new Set()
+  }
+}
+const preexistingProjects = await listProjectIds()
+
 const browser = await chromium.launch()
 const context = await browser.newContext()
 const page = await context.newPage()
@@ -288,6 +304,25 @@ console.log(`report written:        ${config.reportPath}`)
 console.log('---------------------------------------------------------------\n')
 
 await browser.close()
+
+// ---- teardown: delete any projects the audit created ----------------------
+// The flows instantiate a sample project for data-dependent coverage; remove
+// those so the audit never pollutes a shared backend (the app must start empty).
+if (backendUp) {
+  const after = await listProjectIds()
+  const created = [...after].filter((id) => !preexistingProjects.has(id))
+  for (const id of created) {
+    try {
+      await fetch(config.apiTarget + '/projects/' + id, { method: 'DELETE' })
+    } catch {
+      /* best effort */
+    }
+  }
+  if (created.length) {
+    console.log(`\n[cleanup] removed ${created.length} audit-created project(s): ${created.join(', ')}`)
+  }
+}
+
 server.close()
 
 const gate = config.failOn

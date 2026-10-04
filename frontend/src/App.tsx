@@ -39,6 +39,7 @@ function AppShell() {
     setActiveId,
     refreshProjects,
     refresh,
+    deleteProject,
   } = useProject()
   const [tab, setTab] = useState<Tab>('correction')
   const [inspecting, setInspecting] = useState<string | null>(null)
@@ -87,6 +88,19 @@ function AppShell() {
           >
             {showGenerate ? 'Hide generator' : 'New project'}
           </button>
+          {activeId && (
+            <button
+              className="btn secondary small"
+              onClick={() => {
+                const name = projects.find((p) => p.id === activeId)?.name ?? activeId
+                if (window.confirm(`Delete project "${name}"? This permanently removes its data.`)) {
+                  void deleteProject(activeId)
+                }
+              }}
+            >
+              Delete project
+            </button>
+          )}
         </div>
       </header>
 

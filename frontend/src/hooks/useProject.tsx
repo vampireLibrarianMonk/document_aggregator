@@ -28,6 +28,7 @@ interface ProjectCtx {
   refreshProjects: () => Promise<void>
   refresh: (projectId: string) => Promise<void>
   instantiateTemplate: (caseId: string) => Promise<string | null>
+  deleteProject: (projectId: string) => Promise<void>
 }
 
 const Ctx = createContext<ProjectCtx | null>(null)
@@ -62,6 +63,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         if (cur && list.some((p) => p.id === cur)) return cur
         return list[0]?.id ?? null
       })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
+  // Delete a project the user created, then refresh the list. The active
+  // selection falls back to the first remaining project (or none).
+  const deleteProject = useCallback(async (projectId: string) => {
+    try {
+      await api.deleteProject(projectId)
+      const list = await api.listProjects()
+      setProjects(list)
+      setActiveId((cur) => (cur === projectId ? (list[0]?.id ?? null) : cur))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -119,6 +133,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refreshProjects,
     refresh,
     instantiateTemplate,
+    deleteProject,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

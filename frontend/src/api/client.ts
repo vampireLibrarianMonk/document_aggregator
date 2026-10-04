@@ -42,6 +42,12 @@ export const api = {
     }).then((r) => json<Project>(r))
   },
 
+  deleteProject(projectId: string): Promise<{ deleted: string }> {
+    return fetch(`${BASE}/projects/${projectId}`, { method: 'DELETE' }).then((r) =>
+      json<{ deleted: string }>(r),
+    )
+  },
+
   listDocuments(projectId: string): Promise<DocumentRecord[]> {
     return fetch(`${BASE}/projects/${projectId}/documents`).then((r) =>
       json<DocumentRecord[]>(r),

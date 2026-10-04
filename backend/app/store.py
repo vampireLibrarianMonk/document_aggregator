@@ -91,6 +91,20 @@ class Store:
         data = _read_json(settings.project_dir(project_id) / "project.json")
         return Project(**data) if data else None
 
+    def delete_project(self, project_id: str) -> bool:
+        """Permanently delete a stored project and all its data. Returns False
+        if it does not exist. Only ever removes a directory UNDER the projects
+        root (never the bundle, never anything outside DATA_DIR)."""
+        with _lock:
+            root = (settings.DATA_DIR / "projects").resolve()
+            pdir = settings.project_dir(project_id).resolve()
+            # Guard: refuse anything that is not a direct child of the store root
+            # (defends against traversal via a crafted id).
+            if pdir.parent != root or not pdir.is_dir():
+                return False
+            shutil.rmtree(pdir)
+            return True
+
     def list_projects(self) -> list[Project]:
         root = settings.DATA_DIR / "projects"
         out: list[Project] = []

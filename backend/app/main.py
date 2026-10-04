@@ -126,6 +126,16 @@ def get_project(project_id: str) -> Project:
     return _resolve_project(project_id)
 
 
+@app.delete("/projects/{project_id}")
+def delete_project(project_id: str) -> dict:
+    """Permanently delete a project the user created, with all its data. 404 if
+    it does not exist in the store (bundled samples are not deletable; they are
+    read-only templates)."""
+    if not store.delete_project(project_id):
+        raise HTTPException(404, "project not found")
+    return {"deleted": project_id}
+
+
 # --------------------------------------------------------------------------
 # Documents + pipeline status
 # --------------------------------------------------------------------------

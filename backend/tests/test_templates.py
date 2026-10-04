@@ -81,6 +81,28 @@ def test_instantiate_unknown_case_raises(clean_store):
         clean_store.instantiate_from_template("does-not-exist")
 
 
+def test_delete_project_removes_it(clean_store):
+    proj = clean_store.instantiate_from_template("1")
+    assert proj.id in {p.id for p in clean_store.list_projects()}
+    assert clean_store.delete_project(proj.id) is True
+    assert proj.id not in {p.id for p in clean_store.list_projects()}
+    # Deleting again is a no-op (already gone).
+    assert clean_store.delete_project(proj.id) is False
+
+
+def test_delete_unknown_project_is_false(clean_store):
+    assert clean_store.delete_project("proj_doesnotexist") is False
+
+
+def test_delete_does_not_touch_the_bundle(clean_store):
+    # A bundled sample case id must NOT be deletable via the store (the store
+    # only ever removes directories under its own projects root).
+    src = settings.template_dir("1")
+    assert (src / "project.json").exists()
+    assert clean_store.delete_project("1") is False
+    assert (src / "project.json").exists()  # bundle untouched
+
+
 def test_each_instantiation_is_independent(clean_store):
     a = clean_store.instantiate_from_template("1")
     b = clean_store.instantiate_from_template("1")
