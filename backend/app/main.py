@@ -49,7 +49,10 @@ def ready() -> dict:
 def diagnostics() -> dict:
     """A live snapshot of what the pipeline can actually do (embeddings, OCR,
     LibreOffice geometry tier, Bedrock, versions), so silent degradations are
-    visible. Rendered by the Diagnostics page."""
+    visible. Gated by DIAGNOSTICS_ENABLED (off by default)."""
+    if not settings.DIAGNOSTICS_ENABLED:
+        raise HTTPException(404, "diagnostics is disabled "
+                                 "(set DIAGNOSTICS_ENABLED=true to enable)")
     from .diagnostics import collect
 
     return collect()
@@ -59,7 +62,10 @@ def diagnostics() -> dict:
 def client_config() -> dict:
     """Lightweight, client-facing feature flags the frontend reads on load.
     Cheap (no model load), unlike /diagnostics."""
-    return {"samples_enabled": bool(settings.SAMPLES_ENABLED)}
+    return {
+        "samples_enabled": bool(settings.SAMPLES_ENABLED),
+        "diagnostics_enabled": bool(settings.DIAGNOSTICS_ENABLED),
+    }
 
 
 # --------------------------------------------------------------------------
@@ -68,12 +74,14 @@ def client_config() -> dict:
 
 class CreateProject(BaseModel):
     name: str
+    description: str = ""
 
 
 @app.post("/projects")
 def create_project(body: CreateProject) -> Project:
     pid = "proj_" + uuid.uuid4().hex[:10]
-    return store.create_project(Project(id=pid, name=body.name))
+    return store.create_project(
+        Project(id=pid, name=body.name, description=body.description))
 
 
 @app.get("/projects")

@@ -30,6 +30,7 @@ interface ProjectCtx {
   instantiateTemplate: (caseId: string) => Promise<string | null>
   deleteProject: (projectId: string) => Promise<void>
   samplesEnabled: boolean
+  diagnosticsEnabled: boolean
 }
 
 const Ctx = createContext<ProjectCtx | null>(null)
@@ -41,6 +42,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [supplementals, setSupplementals] = useState<Supplemental[]>([])
   const [error, setError] = useState<string | null>(null)
   const [samplesEnabled, setSamplesEnabled] = useState(false)
+  const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false)
 
   const refresh = useCallback(async (projectId: string) => {
     try {
@@ -108,8 +110,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     api
       .getClientConfig()
-      .then((c) => setSamplesEnabled(!!c.samples_enabled))
-      .catch(() => setSamplesEnabled(false))
+      .then((c) => {
+        setSamplesEnabled(!!c.samples_enabled)
+        setDiagnosticsEnabled(!!c.diagnostics_enabled)
+      })
+      .catch(() => {
+        setSamplesEnabled(false)
+        setDiagnosticsEnabled(false)
+      })
   }, [])
 
   // Load the active project's data whenever the selection changes.
@@ -146,6 +154,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     instantiateTemplate,
     deleteProject,
     samplesEnabled,
+    diagnosticsEnabled,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

@@ -34,33 +34,28 @@ next to the Project selector.
 
 ---
 
-## First: create a project (the New Project tab)
+## Step 1: create a project (the New Project tab)
 
-### Generate a project
+The **New Project** tab creates a new, empty project. There is nothing to
+generate and no documents to pick yet — you just name it.
 
-Use this to create a correction project from a short brief or from a document
-you provide.
+1. Enter a **Project name**.
+2. Enter a **Description** (what the project is for).
+3. Click **Create project**.
 
-1. On the **New Project** tab, choose how to describe it: a structured brief
-   (domain + document type), a freeform description, or **upload a document**
-   whose own text becomes the project's ground-truth source material.
-2. Pick a model if one is offered, or use the offline generator (the default,
-   fully deterministic). Click **Generate & save**.
+What to expect: the project is created and selected, and you are moved to the
+**Ingestion** tab, which is where you add your documents (Step 2). The project
+appears in the Project selector at the top of the screen.
 
-What to expect: the model only authors the project's structure; facts come from
-the source material, so the result is validated and saved as fixed, reproducible
-data. The new project appears in the selector and is selected for you, and you
-land on the Correction Pipeline tab.
+### Then: add your documents (Ingestion)
 
-### Then: upload your own documents (optional)
+Once the project exists, the **Ingestion** tab is where you upload your source
+material. Ingestion is organized into four areas (original corpus, template,
+corrections, first draft); see "Ingestion" below for the details and the rules
+about which must be filled in.
 
-Once you have a project selected, open the **Ingestion** tab to add real source
-material.
-
-1. Click **Upload documents** and pick one or more files
-   (`.docx`, `.pptx`, `.pdf`, `.txt`, `.md`, `.png`, `.jpg`).
-2. Watch each file move through the pipeline stages: ingest, parse, chunk,
-   embed, index. The board refreshes itself while files are processing.
+> For a complete, worked example, see the project walkthroughs under
+> `docs/user-guide/projects/` (e.g. the TGX-9 guide).
 
 What to expect: each uploaded file appears as a row that advances to
 **completed**. Scanned PDFs and images are run through OCR so their text becomes

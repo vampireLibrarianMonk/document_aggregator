@@ -12,8 +12,10 @@ required. Cloud pieces would slot in as adapters behind the same interfaces.
 
 ### Documentation
 
-- [User Guide](docs/USER_GUIDE.md) - using the app: the tabs, the correction
-  pipeline, what statuses/colors mean, what to submit and where.
+- [User Guide](docs/user-guide/USER_GUIDE.md) - using the app: the tabs, the
+  correction pipeline, what statuses/colors mean, what to submit and where.
+- [Project walkthroughs](docs/user-guide/projects/) - step-by-step guides for
+  specific projects (e.g. TGX-9).
 - [Developer Guide](docs/DEVELOPER_GUIDE.md) - architecture, running it, the
   reconciliation + discipline engine, the project data model, testing.
 - [Air-gapped RHEL deployment](deploy/AIRGAP_RHEL.md) - the enclave checklist.

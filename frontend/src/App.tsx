@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
+import { api } from './api/client'
 import { CanonicalViewer } from './components/CanonicalViewer'
 import { CorrectionPipeline } from './components/CorrectionPipeline'
 import { DiagnosticsPanel } from './components/DiagnosticsPanel'
-import { GenerateProject } from './components/GenerateProject'
+import { NewProjectForm } from './components/NewProjectForm'
 import { PipelineBoard } from './components/PipelineBoard'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
@@ -10,7 +11,7 @@ import { SupplementalsPanel } from './components/SupplementalsPanel'
 import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'new' | 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'diagnostics' | 'samples'
+type Tab = 'new' | 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'samples'
 
 interface TabDef { id: Tab; label: string }
 
@@ -21,13 +22,13 @@ const BASE_TABS: TabDef[] = [
   { id: 'supplementals', label: 'Supplementals' },
   { id: 'search', label: 'Search' },
   { id: 'report', label: 'Report & Export' },
-  { id: 'diagnostics', label: 'Diagnostics' },
 ]
 
 // The Samples tab is appended only when the backend flag enables it. Kept at
 // the end so it reads as a secondary, opt-in area.
 const SAMPLES_TAB: TabDef = { id: 'samples', label: 'Samples' }
 
+// Diagnostics is a separate page (/diagnostics), handled before this app shell.
 const ALL_TAB_IDS = new Set<Tab>([...BASE_TABS.map((t) => t.id), SAMPLES_TAB.id])
 
 /** Map a URL path to a tab. The Correction Pipeline is the root ('/'); every
@@ -44,10 +45,72 @@ function pathForTab(tab: Tab): string {
 }
 
 export default function App() {
+  // Diagnostics is a genuinely separate page: when the URL path is
+  // /diagnostics we render ONLY the diagnostics view (its own shell), not the
+  // project workflow app. Reached by navigating to /diagnostics.
+  const [path, setPath] = useState<string>(() => window.location.pathname)
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  if (path.replace(/^\/+|\/+$/g, '') === 'diagnostics') {
+    return <DiagnosticsPage onBack={() => {
+      window.history.pushState({}, '', '/')
+      setPath('/')
+    }} />
+  }
+
   return (
     <ProjectProvider>
       <AppShell />
     </ProjectProvider>
+  )
+}
+
+/** Standalone Diagnostics page. Not part of the project workflow app; it is
+ *  reached at /diagnostics and renders only the service-status view with a link
+ *  back to the app. Gated by the DIAGNOSTICS_ENABLED backend flag. */
+function DiagnosticsPage({ onBack }: { onBack: () => void }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  useEffect(() => {
+    api
+      .getClientConfig()
+      .then((c) => setEnabled(!!c.diagnostics_enabled))
+      .catch(() => setEnabled(false))
+  }, [])
+
+  return (
+    <div className="app">
+      <header className="app-header">
+        <div>
+          <h1>Diagnostics</h1>
+          <div className="subtitle">
+            Live status of the local services (embeddings, OCR, LibreOffice,
+            Bedrock) and versions. Runs fully offline.
+          </div>
+        </div>
+        <a
+          href="/"
+          className="btn secondary small"
+          onClick={(e) => { e.preventDefault(); onBack() }}
+        >
+          ← Back to app
+        </a>
+      </header>
+      {enabled === null && <div className="panel"><p className="small muted">Loading…</p></div>}
+      {enabled === false && (
+        <div className="panel" role="status">
+          <strong>Diagnostics is disabled</strong>
+          <p className="small muted">
+            Set <span className="mono">DIAGNOSTICS_ENABLED=true</span> to enable
+            the diagnostics page.
+          </p>
+        </div>
+      )}
+      {enabled === true && <DiagnosticsPanel />}
+    </div>
   )
 }
 
@@ -63,6 +126,7 @@ function AppShell() {
     refresh,
     deleteProject,
     samplesEnabled,
+    diagnosticsEnabled,
   } = useProject()
   // The visible tab set: Samples is appended only when the backend flag is on.
   const TABS: TabDef[] = samplesEnabled ? [...BASE_TABS, SAMPLES_TAB] : BASE_TABS
@@ -89,17 +153,53 @@ function AppShell() {
   const reload = () => activeId && void refresh(activeId)
   const isEmpty = projects.length === 0
 
+  // Prerequisite gating: a tab is only usable once its upstream step is done.
+  //  - New Project: always available (it is how you create a project).
+  //  - Correction Pipeline / Ingestion / Supplementals: need a selected project.
+  //  - Search / Report & Export: additionally need at least one ingested
+  //    (completed) document, since there is nothing to search or report on yet.
+  const hasProject = !!activeId
+  const hasCompletedDocs = documents.some((d) => d.overall_status === 'completed')
+  const tabDisabled = useCallback((id: Tab): boolean => {
+    switch (id) {
+      case 'new':
+        return false
+      case 'correction':
+      case 'pipeline':
+      case 'supplementals':
+        return !hasProject
+      case 'search':
+      case 'report':
+        return !hasProject || !hasCompletedDocs
+      default:
+        return false
+    }
+  }, [hasProject, hasCompletedDocs])
+  const tabReason = (id: Tab): string => {
+    if (!hasProject) return 'Select or create a project first'
+    if ((id === 'search' || id === 'report') && !hasCompletedDocs)
+      return 'Upload documents on the Ingestion tab first'
+    return ''
+  }
+
   // If the Samples tab is reached via URL but the feature is disabled, send the
   // user to New Project (the samples area does not exist when the flag is off).
   useEffect(() => {
     if (tab === 'samples' && !samplesEnabled) setTab('new')
   }, [tab, samplesEnabled, setTab])
 
-  // On a fresh/empty app, land on the New Project page so there is always a
-  // clear next step. Only redirect away from project-scoped tabs; leave the
-  // user alone if they deliberately opened Diagnostics or Samples.
+  // If the current tab becomes disabled (e.g. its prerequisite is no longer
+  // met), fall back to a safe tab so the user is never stuck on a dead view.
   useEffect(() => {
-    if (isEmpty && tab !== 'new' && tab !== 'diagnostics' && tab !== 'samples') {
+    if (tabDisabled(tab)) {
+      setTab(hasProject ? 'correction' : 'new')
+    }
+  }, [tab, tabDisabled, hasProject, setTab])
+
+  // On a fresh/empty app, land on the New Project page so there is always a
+  // clear next step. Leave the user alone on Samples (its own opt-in area).
+  useEffect(() => {
+    if (isEmpty && tab !== 'new' && tab !== 'samples') {
       setTab('new')
     }
   }, [isEmpty, tab, setTab])
@@ -184,40 +284,49 @@ function AppShell() {
       )}
 
       <nav className="tabs" role="tablist" aria-label="Views">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            id={`tab-${t.id}`}
-            role="tab"
-            aria-selected={tab === t.id}
-            aria-controls={tab === t.id ? `panel-${t.id}` : undefined}
-            tabIndex={tab === t.id ? 0 : -1}
-            className={`tab ${tab === t.id ? 'active' : ''}`}
-            onClick={() => setTab(t.id)}
-            onKeyDown={(e) => {
-              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
-              e.preventDefault()
-              const i = TABS.findIndex((x) => x.id === t.id)
-              const next =
-                e.key === 'ArrowRight'
-                  ? TABS[(i + 1) % TABS.length]
-                  : TABS[(i - 1 + TABS.length) % TABS.length]
-              setTab(next.id)
-              document.getElementById(`tab-${next.id}`)?.focus()
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const disabled = tabDisabled(t.id)
+          return (
+            <button
+              key={t.id}
+              id={`tab-${t.id}`}
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls={tab === t.id ? `panel-${t.id}` : undefined}
+              aria-disabled={disabled}
+              tabIndex={tab === t.id ? 0 : -1}
+              title={disabled ? tabReason(t.id) : undefined}
+              className={`tab ${tab === t.id ? 'active' : ''}${disabled ? ' disabled' : ''}`}
+              onClick={() => { if (!disabled) setTab(t.id) }}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+                e.preventDefault()
+                // Move to the nearest ENABLED tab in the chosen direction.
+                const step = e.key === 'ArrowRight' ? 1 : -1
+                const i = TABS.findIndex((x) => x.id === t.id)
+                for (let k = 1; k <= TABS.length; k++) {
+                  const cand = TABS[(i + step * k + TABS.length * k) % TABS.length]
+                  if (!tabDisabled(cand.id)) {
+                    setTab(cand.id)
+                    document.getElementById(`tab-${cand.id}`)?.focus()
+                    break
+                  }
+                }
+              }}
+            >
+              {t.label}
+            </button>
+          )
+        })}
       </nav>
 
       {tab === 'new' && (
         <div id="panel-new" role="tabpanel" aria-labelledby="tab-new">
-          <GenerateProject
-            onGenerated={async (id) => {
+          <NewProjectForm
+            onCreated={async (id) => {
               await refreshProjects()
               setActiveId(id)
-              setTab('correction')
+              setTab('pipeline')   // next step: Ingestion
             }}
           />
           {samplesEnabled && (
@@ -248,12 +357,6 @@ function AppShell() {
             onProjectsChanged={refreshProjects}
             onSelectProject={setActiveId}
           />
-        </div>
-      )}
-
-      {tab === 'diagnostics' && (
-        <div id="panel-diagnostics" role="tabpanel" aria-labelledby="tab-diagnostics">
-          <DiagnosticsPanel />
         </div>
       )}
 
@@ -295,8 +398,7 @@ function AppShell() {
           )}
         </>
       ) : (
-        tab !== 'new' && tab !== 'correction' && tab !== 'diagnostics' &&
-        tab !== 'samples' && !error && (
+        tab !== 'new' && tab !== 'correction' && tab !== 'samples' && !error && (
           <div className="panel" role="status">
             <strong>{isEmpty ? 'No projects yet' : 'No project selected'}</strong>
             <p className="small muted">
@@ -306,6 +408,12 @@ function AppShell() {
             </p>
           </div>
         )
+      )}
+
+      {diagnosticsEnabled && (
+        <footer className="app-footer small muted">
+          <a href="/diagnostics">Diagnostics</a>
+        </footer>
       )}
     </div>
   )

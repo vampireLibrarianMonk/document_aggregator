@@ -76,6 +76,8 @@ header.app-header h1 { font-size: 20px; margin: 0; }
 }
 
 .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab.disabled { opacity: 0.4; cursor: not-allowed; }
+.app-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); }
 
 .panel {
   background: var(--panel);

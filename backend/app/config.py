@@ -31,6 +31,10 @@ class Settings:
     # page lets a user instantiate a bundled case; it never appears on the main
     # New Project page.
     SAMPLES_ENABLED: bool = os.getenv("SAMPLES_ENABLED", "false").lower() == "true"
+    # In-app Diagnostics page. OFF by default. When enabled, a separate
+    # /diagnostics page exposes live service status (embeddings, OCR,
+    # LibreOffice, Bedrock, versions).
+    DIAGNOSTICS_ENABLED: bool = os.getenv("DIAGNOSTICS_ENABLED", "false").lower() == "true"
 
     # Embedding backend selection. Both run locally / offline:
     #   "sentence-transformers" -> real open-weight model (default when installed)

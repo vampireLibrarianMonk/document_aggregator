@@ -170,6 +170,7 @@ class DocumentRecord(BaseModel):
 class Project(BaseModel):
     id: str
     name: str
+    description: str = ""
     created_at: str = Field(default_factory=utcnow)
 
 

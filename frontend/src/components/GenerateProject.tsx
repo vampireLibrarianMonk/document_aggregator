@@ -93,11 +93,12 @@ export function GenerateProject({ onGenerated }: { onGenerated?: (projectId: str
 
   return (
     <div className="panel gen-panel">
-      <strong>Generate a project</strong>
+      <strong>Create a project</strong>
       <div className="small muted" style={{ margin: '4px 0 10px' }}>
-        Build a new correction project with an approved model (or the offline
-        generator). The model only authors the project; the result is validated
-        and saved as fixed data, so it stays reproducible.
+        Start a new project from a short brief or from a document you upload. A
+        model (or the offline generator) only authors the project's structure;
+        the facts come from your source material, and the result is validated and
+        saved as fixed, reproducible data.
       </div>
 
       <div className="row" style={{ marginBottom: 8 }}>

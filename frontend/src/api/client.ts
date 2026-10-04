@@ -30,9 +30,9 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  getClientConfig(): Promise<{ samples_enabled: boolean }> {
+  getClientConfig(): Promise<{ samples_enabled: boolean; diagnostics_enabled: boolean }> {
     return fetch(`${BASE}/config`).then((r) =>
-      json<{ samples_enabled: boolean }>(r),
+      json<{ samples_enabled: boolean; diagnostics_enabled: boolean }>(r),
     )
   },
 
@@ -40,11 +40,11 @@ export const api = {
     return fetch(`${BASE}/projects`).then((r) => json<Project[]>(r))
   },
 
-  createProject(name: string): Promise<Project> {
+  createProject(name: string, description = ''): Promise<Project> {
     return fetch(`${BASE}/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, description }),
     }).then((r) => json<Project>(r))
   },
 
