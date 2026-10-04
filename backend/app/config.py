@@ -18,6 +18,11 @@ class Settings:
 
     # Feature flags mirroring the reference spec. Baseline works with all off.
     OCR_ENABLED: bool = os.getenv("OCR_ENABLED", "false").lower() == "true"
+    # OCR language(s) for tesseract (e.g. "eng", "eng+fra"). Only used when OCR
+    # is enabled AND an engine is installed; otherwise ignored.
+    OCR_LANG: str = os.getenv("OCR_LANG", "eng")
+    # Max PDF pages to OCR per document (bounds cost/time on huge scans).
+    OCR_MAX_PAGES: int = int(os.getenv("OCR_MAX_PAGES", "20"))
     VISION_ENABLED: bool = os.getenv("VISION_ENABLED", "false").lower() == "true"
     LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() == "true"
     EMBEDDINGS_ENABLED: bool = os.getenv("EMBEDDINGS_ENABLED", "true").lower() == "true"

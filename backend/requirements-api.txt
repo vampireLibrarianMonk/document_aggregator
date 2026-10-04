@@ -20,3 +20,14 @@ pdfplumber==0.11.10
 # used only when credentials resolve + a model is selected; the api still runs
 # fully offline (deterministic generator) when it is unused.
 boto3==1.43.104
+
+# Optional OCR for scanned/flattened PDFs and images (gated by OCR_ENABLED,
+# default off). NOT load-bearing: the service runs fine without these, and
+# ocr_available() reports false so parsing degrades to the existing needs_ocr
+# behavior. To enable OCR in an enclave, uncomment these AND install the system
+# `tesseract` binary (the pure-Python wheels below cannot OCR on their own):
+#   RHEL/UBI:  microdnf install -y tesseract
+#   Debian:    apt-get install -y tesseract-ocr poppler-utils
+# PyMuPDF rasterizes PDF pages with no system poppler dependency.
+# pytesseract==0.3.13
+# PyMuPDF==1.24.10

@@ -14,6 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from .models import Artifact, Block, Provenance
+from .ocr import ocr_available, ocr_image_bytes, ocr_pdf_bytes
 
 
 @dataclass
@@ -170,13 +171,32 @@ def parse_pdf(data: bytes, doc_id: str) -> ParseResult:
             blocks.append(Block(id=_bid(), type="paragraph", text=para, page=pidx,
                                 reading_order=order, provenance=prov))
             order += 1
-    method = "native_pdf"
-    notes = ""
-    if total_text < 20:
-        # No usable text -> would route to OCR escalation (OCR_ENABLED flag).
-        method = "needs_ocr"
-        notes = "Little/no native text extracted; scanned PDF -> OCR escalation required (OCR disabled)."
-    return ParseResult(blocks=blocks, parser="pypdf", parser_version="1", method=method, notes=notes)
+    if total_text >= 20:
+        return ParseResult(blocks=blocks, parser="pypdf", parser_version="1",
+                           method="native_pdf", notes="")
+
+    # Little/no native text: scanned/flattened PDF. Try OCR when enabled + an
+    # engine is installed; otherwise report needs_ocr exactly as before.
+    if ocr_available():
+        pages = ocr_pdf_bytes(data)
+        ocr_blocks: list[Block] = []
+        o = 0
+        for pidx, page_text in enumerate(pages, start=1):
+            for para in [p.strip() for p in (page_text or "").split("\n") if p.strip()]:
+                ocr_blocks.append(Block(id=_bid(), type="paragraph", text=para, page=pidx,
+                                        reading_order=o,
+                                        provenance=_prov("pypdf+ocr", "1", "ocr_pdf", doc_id)))
+                o += 1
+        if ocr_blocks:
+            return ParseResult(blocks=ocr_blocks, parser="pypdf+ocr", parser_version="1",
+                               method="ocr_pdf",
+                               notes=f"Scanned PDF recovered via OCR ({len(ocr_blocks)} text blocks).")
+        return ParseResult(blocks=blocks, parser="pypdf", parser_version="1",
+                           method="needs_ocr",
+                           notes="Scanned PDF; OCR produced no text (empty or unreadable pages).")
+    return ParseResult(blocks=blocks, parser="pypdf", parser_version="1", method="needs_ocr",
+                       notes="Little/no native text extracted; scanned PDF -> OCR escalation "
+                             "required (OCR disabled or no engine installed).")
 
 
 # --------------------------------------------------------------------------
@@ -201,7 +221,25 @@ def parse_image(data: bytes, doc_id: str, mime: str) -> ParseResult:
         notes += " (Pillow not installed; no dimensions/EXIF)"
     except Exception as exc:  # malformed image should not crash the worker
         notes += f" (image inspect failed: {exc})"
-    return ParseResult(artifacts=[art], parser="image_native", parser_version="1", notes=notes)
+
+    # OCR the image to text when enabled + an engine is installed, so a photo /
+    # scan of a document yields usable content (not just an artifact). Keeps the
+    # artifact + EXIF either way.
+    blocks: list[Block] = []
+    method = "native"
+    if ocr_available():
+        text = ocr_image_bytes(data)
+        if text:
+            prov = _prov("image+ocr", "1", "ocr_image", doc_id)
+            for order, para in enumerate(p.strip() for p in text.split("\n") if p.strip()):
+                blocks.append(Block(id=_bid(), type="paragraph", text=para,
+                                    reading_order=order, provenance=prov))
+            method = "ocr_image"
+            notes += f" OCR recovered {len(blocks)} text block(s)."
+        else:
+            notes += " OCR enabled but produced no text."
+    return ParseResult(blocks=blocks, artifacts=[art], parser="image_native",
+                       parser_version="1", method=method, notes=notes)
 
 
 # --------------------------------------------------------------------------
