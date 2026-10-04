@@ -29,11 +29,12 @@ async function openTab(page, name) {
   return clickRole(page, 'tab', name)
 }
 
-/** The app starts EMPTY. Flows that need a live project first instantiate a
- *  bundled sample case via the TemplatePicker, which creates + selects a real
- *  project. No-op if a project already exists (the picker is hidden). */
+/** The app starts EMPTY. Flows that need a live project open the New Project
+ *  tab and instantiate a bundled sample case, which creates + selects a real
+ *  project. Safe to call when a project already exists. */
 async function ensureProject(page) {
-  // When empty, the picker renders automatically with "Use this sample" buttons.
+  await openTab(page, 'New Project')
+  await page.waitForTimeout(300)
   const useBtn = page.getByRole('button', { name: 'Use this sample' })
   if (await useBtn.count()) {
     await useBtn.first().click().catch(() => {})
@@ -44,11 +45,12 @@ async function ensureProject(page) {
 
 export const flows = [
   {
-    id: 'empty-start-templates',
-    title: 'Empty start — sample case picker (first-run state)',
-    async setup() {
-      // Default render on a fresh/empty app: the TemplatePicker is shown.
-      // No action needed; audit the first-run empty state + picker controls.
+    id: 'new-project',
+    title: 'New Project — sample picker + generator (first-run state)',
+    async setup(page) {
+      // The empty app auto-lands here; open it explicitly for determinism.
+      await openTab(page, 'New Project')
+      await page.waitForTimeout(400)
     },
   },
   {

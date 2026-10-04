@@ -16,32 +16,36 @@ http://localhost:8080
 
 **The app starts empty.** There are no projects until you create one. That is by
 design: everything you see is something you made. The top of the screen has one
-**Project** selector that scopes all tabs, and six tabs:
+**Project** selector that scopes all tabs, and seven tabs:
 
-1. **Correction Pipeline**
-2. **Ingestion**
-3. **Supplementals**
-4. **Search**
-5. **Report & Export**
-6. **Diagnostics**
+1. **New Project**
+2. **Correction Pipeline**
+3. **Ingestion**
+4. **Supplementals**
+5. **Search**
+6. **Report & Export**
+7. **Diagnostics**
+
+On a fresh app you land on the **New Project** tab automatically. You can return
+to it anytime by clicking the **New Project** tab or the **+ New Project** button
+next to the Project selector.
 
 ---
 
-## First: create a project
+## First: create a project (the New Project tab)
 
-You have two ways to start. Pick the one that matches what you want to do.
+The **New Project** tab has two ways to create a project. Pick the one that
+matches what you want to do.
 
 ### Option A — Start from a sample case (fastest)
 
 Use this to see the full correction workflow immediately, without preparing any
-files.
+files. It is the top section of the New Project tab.
 
-1. On a fresh app the **Start from a sample case** panel is already showing. (If
-   it is not, click **Start from a sample** next to the Project selector.)
-2. You will see six sample cases, each a complete worked example from a
+1. You will see six sample cases, each a complete worked example from a
    different domain (telemetry incident, security incident, lab safety event,
    manufacturing defect, aviation maintenance, interface control document).
-3. Click **Use this sample** on one. The platform copies that sample into a new
+2. Click **Use this sample** on one. The platform copies that sample into a new
    project of your own and selects it. You land on the **Correction Pipeline**
    tab with everything populated.
 
@@ -53,29 +57,27 @@ freely.
 ### Option B — Generate a new project
 
 Use this to create a correction project from a short brief or from a document
-you provide, without hand-building fixtures.
+you provide, without hand-building fixtures. It is the lower section of the
+New Project tab.
 
-1. Click **New project** next to the Project selector (it is also available as
-   **+ New project** on the Correction Pipeline tab).
-2. Choose how to describe it: a structured brief (domain + document type), a
+1. Choose how to describe it: a structured brief (domain + document type), a
    freeform description, or **upload a document** whose own text becomes the
    project's ground-truth source material.
-3. Pick a model if one is offered, or use the offline generator (the default,
+2. Pick a model if one is offered, or use the offline generator (the default,
    fully deterministic). Generate.
 
 What to expect: the model only authors the project's structure; facts come from
 the source material, so the result is validated and saved as fixed, reproducible
 data. The new project appears in the selector and is selected for you.
 
-### Option C — Upload your own documents
+### Then: upload your own documents (optional)
 
-Use this to aggregate and work with real source material.
+Once you have a project selected, open the **Ingestion** tab to add real source
+material.
 
-1. Create a project first (Option A or B), then open the **Ingestion** tab with
-   it selected.
-2. Click **Upload documents** and pick one or more files
+1. Click **Upload documents** and pick one or more files
    (`.docx`, `.pptx`, `.pdf`, `.txt`, `.md`, `.png`, `.jpg`).
-3. Watch each file move through the pipeline stages: ingest, parse, chunk,
+2. Watch each file move through the pipeline stages: ingest, parse, chunk,
    embed, index. The board refreshes itself while files are processing.
 
 What to expect: each uploaded file appears as a row that advances to
@@ -238,8 +240,8 @@ fully only when the geometry tier is active (see Diagnostics).
 ## Frequently asked
 
 **I just opened the app and there are no projects. Is it broken?**
-No. The app starts empty on purpose. Create a project with **Start from a
-sample** or by uploading documents on the Ingestion tab.
+No. The app starts empty on purpose and lands you on the **New Project** tab.
+Use **Start from a sample case** or **Generate a new project** there.
 
 **I selected a project and a tab is empty.**
 Each project is one of two kinds. A sample-based project fills the Correction

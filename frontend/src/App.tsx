@@ -10,9 +10,10 @@ import { SupplementalsPanel } from './components/SupplementalsPanel'
 import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'diagnostics'
+type Tab = 'new' | 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'diagnostics'
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'new', label: 'New Project' },
   { id: 'correction', label: 'Correction Pipeline' },
   { id: 'pipeline', label: 'Ingestion' },
   { id: 'supplementals', label: 'Supplementals' },
@@ -60,8 +61,6 @@ function AppShell() {
   // Diagnostics tab) and browser back/forward work.
   const [tab, setTabState] = useState<Tab>(() => tabFromPath(window.location.pathname))
   const [inspecting, setInspecting] = useState<string | null>(null)
-  const [showTemplates, setShowTemplates] = useState(false)
-  const [showGenerate, setShowGenerate] = useState(false)
 
   const setTab = useCallback((next: Tab) => {
     setTabState(next)
@@ -80,6 +79,15 @@ function AppShell() {
 
   const reload = () => activeId && void refresh(activeId)
   const isEmpty = projects.length === 0
+
+  // On a fresh/empty app, land on the New Project page so there is always a
+  // clear next step. Only redirect away from project-scoped tabs; leave the
+  // user alone if they deliberately opened Diagnostics (project-independent).
+  useEffect(() => {
+    if (isEmpty && tab !== 'new' && tab !== 'diagnostics') {
+      setTab('new')
+    }
+  }, [isEmpty, tab, setTab])
 
   return (
     <div className="app">
@@ -107,18 +115,10 @@ function AppShell() {
             ))}
           </select>
           <button
-            className="btn secondary small"
-            aria-expanded={showTemplates}
-            onClick={() => { setShowTemplates((v) => !v); setShowGenerate(false) }}
+            className="btn small"
+            onClick={() => setTab('new')}
           >
-            {showTemplates ? 'Hide samples' : 'Start from a sample'}
-          </button>
-          <button
-            className="btn secondary small"
-            aria-expanded={showGenerate}
-            onClick={() => { setShowGenerate((v) => !v); setShowTemplates(false) }}
-          >
-            {showGenerate ? 'Hide generator' : 'New project'}
+            + New Project
           </button>
           {activeId && (
             <button
@@ -149,38 +149,12 @@ function AppShell() {
           and anything left unresolved is yours to decide.
         </p>
         <p className="small muted">
-          The app starts empty. Create a project three ways:{' '}
-          <b>Start from a sample</b> to instantiate a complete worked case,{' '}
-          <b>New project</b> to generate one from a brief or an uploaded
-          document, or open <b>Ingestion</b> to upload documents into a project.
-          Everything you see after that is a project you created.
+          The app starts empty. Open <b>New Project</b> to create one: instantiate
+          a complete worked sample, or generate a project from a brief or an
+          uploaded document. Everything you see after that is a project you
+          created.
         </p>
       </div>
-
-      {/* The app starts empty: show the sample picker prominently when there
-          are no projects (unless the user opened the generator instead), or on
-          demand via the header toggles. */}
-      {(showTemplates || (isEmpty && !showGenerate)) && (
-        <TemplatePicker
-          onInstantiated={() => {
-            // instantiateTemplate already refreshed the list and selected the
-            // new project; just close the picker and land on the pipeline.
-            setShowTemplates(false)
-            setTab('correction')
-          }}
-        />
-      )}
-
-      {showGenerate && (
-        <GenerateProject
-          onGenerated={async (id) => {
-            await refreshProjects()   // pull the new project into the selector
-            setActiveId(id)
-            setShowGenerate(false)
-            setTab('correction')
-          }}
-        />
-      )}
 
       {error && (
         <div className="panel" role="alert" style={{ borderColor: 'var(--err)' }}>
@@ -221,6 +195,25 @@ function AppShell() {
           </button>
         ))}
       </nav>
+
+      {tab === 'new' && (
+        <div id="panel-new" role="tabpanel" aria-labelledby="tab-new">
+          <TemplatePicker
+            onInstantiated={() => {
+              // instantiateTemplate already refreshed the list + selected the
+              // new project; move the user to the Correction Pipeline.
+              setTab('correction')
+            }}
+          />
+          <GenerateProject
+            onGenerated={async (id) => {
+              await refreshProjects()
+              setActiveId(id)
+              setTab('correction')
+            }}
+          />
+        </div>
+      )}
 
       {tab === 'correction' && (
         <div id="panel-correction" role="tabpanel" aria-labelledby="tab-correction">
@@ -276,12 +269,12 @@ function AppShell() {
           )}
         </>
       ) : (
-        tab !== 'correction' && tab !== 'diagnostics' && !error && (
+        tab !== 'new' && tab !== 'correction' && tab !== 'diagnostics' && !error && (
           <div className="panel" role="status">
             <strong>{isEmpty ? 'No projects yet' : 'No project selected'}</strong>
             <p className="small muted">
               {isEmpty
-                ? 'Use "Start from a sample" above to instantiate a worked case, or open the Ingestion tab to upload your own documents.'
+                ? 'Open the New Project tab to instantiate a sample or generate a project.'
                 : 'Pick a project from the selector above to use this view.'}
             </p>
           </div>
