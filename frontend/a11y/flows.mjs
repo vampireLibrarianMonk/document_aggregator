@@ -86,6 +86,18 @@ export const flows = [
     },
   },
   {
+    id: 'generate-from-document',
+    title: 'Correction Pipeline — Generate from uploaded document',
+    async setup(page) {
+      await openTab(page, 'Correction Pipeline')
+      await clickRole(page, 'button', '+ New scenario')
+      await page.waitForTimeout(300)
+      // Switch to the From-document mode so the file input + help render.
+      await clickRole(page, 'button', 'From document')
+      await page.waitForTimeout(300)
+    },
+  },
+  {
     id: 'ingestion-default',
     title: 'Ingestion — document board',
     needsProject: true,

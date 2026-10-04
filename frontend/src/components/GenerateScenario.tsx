@@ -8,7 +8,7 @@ import type {
   ScenarioModels,
 } from '../api/types'
 
-type BriefMode = 'structured' | 'freeform'
+type BriefMode = 'structured' | 'freeform' | 'document'
 
 /** Generate a new scenario with a chosen model, preview it (dry run), or persist
  *  it. Shows the per-run objective score + cost so you can compare models. */
@@ -20,6 +20,7 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
   const [docType, setDocType] = useState('incident report')
   const [title, setTitle] = useState('')
   const [freeform, setFreeform] = useState('')
+  const [docFile, setDocFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [result, setResult] = useState<GenerateResult | null>(null)
@@ -47,9 +48,15 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
     setResult(null)
     try {
       const common = { model: model || null, dry_run: dryRun }
-      const res = briefMode === 'freeform'
-        ? await api.scenarioGenerateFromText({ text: freeform, ...common })
-        : await api.scenarioGenerate({ domain, doc_type: docType, title, ...common })
+      let res: GenerateResult
+      if (briefMode === 'document') {
+        if (!docFile) throw new Error('choose a document first')
+        res = await api.scenarioGenerateFromDocument(docFile, { domain, title, dry_run: dryRun })
+      } else if (briefMode === 'freeform') {
+        res = await api.scenarioGenerateFromText({ text: freeform, ...common })
+      } else {
+        res = await api.scenarioGenerate({ domain, doc_type: docType, title, ...common })
+      }
       setResult(res)
       if (!dryRun && res.scenario_id && onGenerated) onGenerated(res.scenario_id)
     } catch (e) {
@@ -80,7 +87,9 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
   }
 
   const canRun =
-    briefMode === 'freeform' ? freeform.trim().length > 0 : domain.trim().length > 0
+    briefMode === 'freeform' ? freeform.trim().length > 0
+      : briefMode === 'document' ? docFile != null
+        : domain.trim().length > 0
 
   return (
     <div className="panel gen-panel">
@@ -136,6 +145,13 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
         >
           Freeform
         </button>
+        <button
+          className={briefMode === 'document' ? 'active' : ''}
+          aria-pressed={briefMode === 'document'}
+          onClick={() => setBriefMode('document')}
+        >
+          From document
+        </button>
       </div>
 
       {briefMode === 'structured' ? (
@@ -153,13 +169,45 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
             value={title} onChange={(e) => setTitle(e.target.value)}
             disabled={busy} style={{ flex: 1, minWidth: 160 }} />
         </div>
-      ) : (
+      ) : briefMode === 'freeform' ? (
         <>
           <label htmlFor="gen-freeform" className="sr-only">Describe the scenario</label>
           <textarea id="gen-freeform"
             placeholder="Describe the situation and its document (the model uses its best judgment)…"
             value={freeform} onChange={(e) => setFreeform(e.target.value)} disabled={busy} />
         </>
+      ) : (
+        <div className="doc-upload">
+          <div className="small muted" style={{ marginBottom: 6 }}>
+            Upload your source document. Its text becomes the scenario's
+            ground-truth corpus, so the result is faithful and reproducible (no
+            model invents facts). Supported: .txt, .md, .docx, .pdf, .pptx.
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label htmlFor="gen-docfile" className="btn secondary small"
+              style={{ cursor: busy ? 'default' : 'pointer' }}>
+              Choose document
+            </label>
+            <input id="gen-docfile" type="file"
+              accept=".txt,.md,.docx,.pdf,.pptx"
+              disabled={busy}
+              onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+              style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }} />
+            <span className="small" aria-live="polite">
+              {docFile ? docFile.name : 'No file chosen'}
+            </span>
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+            <label htmlFor="gen-doc-domain" className="sr-only">Domain (optional)</label>
+            <input id="gen-doc-domain" placeholder="domain (optional)"
+              value={domain} onChange={(e) => setDomain(e.target.value)}
+              disabled={busy} style={{ flex: 1, minWidth: 180 }} />
+            <label htmlFor="gen-doc-title" className="sr-only">Title (optional)</label>
+            <input id="gen-doc-title" placeholder="title (optional)"
+              value={title} onChange={(e) => setTitle(e.target.value)}
+              disabled={busy} style={{ flex: 1, minWidth: 160 }} />
+          </div>
+        </div>
       )}
 
       <div className="row" style={{ marginTop: 8 }}>
@@ -169,11 +217,13 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
         <button className="btn" disabled={busy || streaming || !canRun} onClick={() => void run(false)}>
           {busy ? 'Working…' : 'Generate & save'}
         </button>
-        <button className="btn secondary" disabled={busy || streaming || !canRun}
-          title="Decomposed generation with a live progress log"
-          onClick={runGoverned}>
-          {streaming ? 'Running…' : 'Governed (live log)'}
-        </button>
+        {briefMode !== 'document' && (
+          <button className="btn secondary" disabled={busy || streaming || !canRun}
+            title="Decomposed generation with a live progress log"
+            onClick={runGoverned}>
+            {streaming ? 'Running…' : 'Governed (live log)'}
+          </button>
+        )}
       </div>
 
       <div role="status" aria-live="polite">
@@ -260,6 +310,13 @@ function GenerationReadout({ result }: { result: GenerateResult }) {
           ? <>Preview via <b>{result.generator}</b>.</>
           : <>Saved as scenario <b>{result.scenario_id}</b> via <b>{result.generator}</b>.</>}
       </div>
+      {result.corpus_docs && result.corpus_docs.length > 0 && (
+        <div className="small muted" style={{ marginTop: 4 }}>
+          Ground-truth corpus from your document:{' '}
+          {result.corpus_docs.map((d) => `${d.name} (${d.chars} chars)`).join(', ')}.
+          This generation is deterministic: the same document reproduces the same scenario.
+        </div>
+      )}
       {m && (
         <>
           <div className="gen-metric-grid small" style={{ marginTop: 6 }}>

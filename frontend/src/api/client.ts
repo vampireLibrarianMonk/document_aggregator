@@ -200,6 +200,24 @@ export const api = {
     }).then((r) => json<GenerateResult>(r))
   },
 
+  // Generate a scenario FROM an uploaded document: the document's own text
+  // becomes the ground-truth corpus (deterministic, no model invents facts).
+  scenarioGenerateFromDocument(
+    file: File,
+    opts: { domain?: string; title?: string; dry_run?: boolean } = {},
+  ): Promise<GenerateResult> {
+    const qs = new URLSearchParams()
+    if (opts.domain) qs.set('domain', opts.domain)
+    if (opts.title) qs.set('title', opts.title)
+    qs.set('dry_run', String(opts.dry_run ?? false))
+    const form = new FormData()
+    form.append('file', file)
+    return fetch(`${BASE}/scenario/generate/from-document?${qs.toString()}`, {
+      method: 'POST',
+      body: form,
+    }).then((r) => json<GenerateResult>(r))
+  },
+
   // ---- Governed (decomposed) generation with a live progress stream ----
   // Consumes Server-Sent Events: calls onEvent for each step, onResult for the
   // final summary. Returns an abort function so the caller can cancel.

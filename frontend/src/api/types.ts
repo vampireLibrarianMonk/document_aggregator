@@ -265,6 +265,7 @@ export interface GenerateResult {
   spec?: unknown
   metrics?: GenerationMetrics
   price_note?: { pinned: string; note: string }
+  corpus_docs?: { name: string; chars: number }[]
 }
 
 // ---- Governed (decomposed) generation: live progress events ----

@@ -504,6 +504,15 @@ textarea:focus-visible {
 .status-dot.ok { background: var(--ok, #137333); }
 .status-dot.offline { background: var(--warn, #b26a00); }
 
+/* Generate-from-document: upload the real source material as the corpus. */
+.doc-upload {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+.doc-upload input[type="text"],
+.doc-upload input:not([type="file"]) { padding: 4px 8px; }
+
 /* Governed run: live cumulative progress log */
 .gov-log {
   border-top: 1px solid var(--border);
