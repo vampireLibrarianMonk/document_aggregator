@@ -187,3 +187,53 @@ as indicative.
 - Decision agreement treats the deterministic grounding check as ground truth,
   which is exactly right for FABRICATION but conservative for `needs_review`
   nuance; a human spot-check is worthwhile before trusting any cheap judge.
+
+## Adversarial reproducibility review (recommended model vs committed scenarios)
+
+Harness: `backend/eval_adversarial.py`. Question: if we regenerate the EXISTING
+committed scenarios with the recommended model (gpt-oss-120b), do we get the
+same results, or does the model drift? Adversarial intent: look for failure and
+drift, not confirmation. For each committed scenario we derive a brief from its
+own metadata, regenerate N times, and compare objective properties (validity,
+no-fabrication, conflict presence, needs-review presence, section count,
+fallback) against the committed reference.
+
+Live result (gpt-oss-120b, 6 scenarios x 2 runs):
+
+| scenario (domain)     | valid | fell_back | reproduced conflict | reproduced needs-review | stable |
+|-----------------------|------:|----------:|--------------------:|------------------------:|:------:|
+| 1 hardware incident   | 100%  |     0%    |        100%         |          100%           |  yes   |
+| 2 IT security         | 100%  |     0%    |        100%         |          100%           |  yes   |
+| 3 lab safety          | 100%  |    50%    |       **50%**       |          100%           | **NO** |
+| 4 mfg defect          | 100%  |     0%    |        100%         |          100%           |  yes   |
+| 5 aviation            | 100%  |  **100%** |        100%         |          100%           |  yes   |
+| 6 ICD                 | 100%  |     0%    |       **0%**        |          100%           |  yes   |
+
+### Findings (honest)
+
+- **Validity: 100%, no fabrication, every run.** The safety floor holds: a
+  regenerated scenario is always persistable or cleanly falls back. This is the
+  non-negotiable guarantee and it never broke.
+- **needs-review: 100% reproduced** across all six domains. The model reliably
+  produces "a required field with no corpus source."
+- **Conflicts DRIFT.** Scenario 6 (ICD) reproduced the conflict 0% of the time
+  (the model consistently authors a clean document where the committed scenario
+  has a disagreement). Scenario 3 (lab safety) was unstable: one run dropped the
+  conflict, the other fell back.
+- **Scenario 5 (aviation) fell back 100%** -- the model output was never usable;
+  the deterministic generator carried both runs. "It works" there is the safety
+  net, not the model.
+- **Section counts vary** (4-7 vs the deterministic 6). Expected latitude in how
+  the model structures a domain, not a correctness defect.
+
+### Conclusion
+
+New scenarios generated with the recommended model are **valid and safe but not
+faithful reproductions** of the committed ones: needs-review reproduces reliably,
+conflicts drift (notably skipped on the ICD), and some domains fall back
+entirely. This is consistent with the model evaluation (0% valid-first-try;
+salvage/fallback carry the feature) and reinforces the standing design rule: a
+generated scenario must be REVIEWED and persisted as fixed data, never trusted as
+a drop-in equivalent of a hand-authored one. Caveat: N=2 per scenario, so treat
+the per-scenario rates as indicative; the drift on scenarios 3 and 6 was
+consistent enough across runs to be a real signal, not noise.
