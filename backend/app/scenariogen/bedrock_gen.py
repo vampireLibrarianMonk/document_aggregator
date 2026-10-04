@@ -109,6 +109,13 @@ def list_approved_models() -> dict:
         models.sort(key=lambda x: (x["family"], x["id"]))
         out["available"] = True
         out["models"] = models
+        # Earned auto-pick: recommend a default from what is actually available,
+        # with a transparent reason the UI can show. User-overridable.
+        from .model_profiles import recommend_model
+        rec = recommend_model([m["id"] for m in models])
+        out["recommended"] = rec
+        for m in models:
+            m["recommended"] = (m["id"] == rec.get("model"))
     except Exception as exc:
         out["error"] = str(exc)[:200]
     return out

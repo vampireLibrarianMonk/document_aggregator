@@ -219,6 +219,13 @@ export interface ApprovedModel {
   name: string
   family: string
   is_default: boolean
+  recommended?: boolean
+}
+
+export interface ModelRecommendation {
+  model: string
+  reason: string
+  basis: string
 }
 
 export interface ScenarioModels {
@@ -228,6 +235,7 @@ export interface ScenarioModels {
   allowlist: string[]
   region: string
   models: ApprovedModel[]
+  recommended?: ModelRecommendation
   error?: string
 }
 

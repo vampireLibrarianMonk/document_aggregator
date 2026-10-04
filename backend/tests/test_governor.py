@@ -57,6 +57,19 @@ def test_decision_quality_tracks_agreement_with_truth():
     assert res.summary()["decision_agreement"] == 1.0
 
 
+def test_recommend_model_is_earned_and_overridable():
+    from app.scenariogen.model_profiles import recommend_model
+    full = ["openai.gpt-oss-20b-1:0", "nvidia.nemotron-super-3-120b",
+            "openai.gpt-oss-120b-1:0"]
+    r = recommend_model(full)
+    assert "gpt-oss-120b" in r["model"]        # earned winner from the eval
+    assert r["reason"] and r["basis"]           # transparent
+    # falls through the ranking when the top pick is absent
+    assert "nemotron-super" in recommend_model(full[:2])["model"]
+    # offline / empty -> no model (the UI offers the deterministic generator)
+    assert recommend_model([])["model"] == ""
+
+
 def test_grounded_value_rule():
     corpus = "the measured flow rate was 4.2 L/min at the inlet"
     assert grounded_value("4.2 L/min", corpus)

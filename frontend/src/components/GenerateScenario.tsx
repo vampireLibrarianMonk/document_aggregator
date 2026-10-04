@@ -33,7 +33,10 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
   useEffect(() => {
     api.scenarioModels().then((m) => {
       setModels(m)
-      if (m.default) setModel(m.default)
+      // Default to the EARNED recommendation when available; else the configured
+      // default. The user can still override in the picker.
+      if (m.recommended?.model) setModel(m.recommended.model)
+      else if (m.default) setModel(m.default)
     }).catch((e) => setErr(e instanceof Error ? e.message : String(e)))
   }, [])
 
@@ -98,7 +101,7 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
           <option value="">Offline (deterministic, no model)</option>
           {models?.models.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name} [{m.family}]{m.is_default ? ' (default)' : ''}
+              {m.name} [{m.family}]{m.recommended ? ' (recommended)' : ''}
             </option>
           ))}
         </select>
@@ -108,6 +111,12 @@ export function GenerateScenario({ onGenerated }: { onGenerated?: (scenarioId: s
           </span>
         )}
       </div>
+      {models?.recommended?.model && model === models.recommended.model && (
+        <div className="small muted" style={{ margin: '-2px 0 8px' }}>
+          Recommended: {models.recommended.reason}. {models.recommended.basis}.
+          You can override.
+        </div>
+      )}
 
       <div className="mode-toggle" role="group" aria-label="Brief type" style={{ marginBottom: 8 }}>
         <button

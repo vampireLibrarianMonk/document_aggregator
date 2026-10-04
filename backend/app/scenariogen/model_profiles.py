@@ -100,6 +100,42 @@ def profile_for(model_id: str) -> ModelProfile:
     return _UNKNOWN
 
 
+# --------------------------------------------------------------------------
+# Earned auto-pick (recommended model), derived from the model evaluation.
+# --------------------------------------------------------------------------
+
+# The ordered preference below is EARNED from MODEL_EVAL.md, not asserted:
+# gpt-oss-120b had the lowest fallback rate (8%), was the cheapest usable model,
+# and was fast. The others follow by measured viability. The reason string is
+# surfaced in the UI so the pick is transparent, and the user can always
+# override. Matching is by substring so it works across exact ids / profiles.
+_RECOMMENDATION_ORDER: list[tuple[str, str]] = [
+    ("gpt-oss-120b", "lowest fallback (8%), cheapest usable, fast (model eval)"),
+    ("nemotron-super-3-120b", "richer output, less fabrication, but ~2x cost"),
+    ("gpt-oss-safeguard-20b", "usable small model (29% fallback)"),
+    ("nemotron-nano-3-30b", "only model with any valid-first-try in the eval"),
+]
+
+
+def recommend_model(available_ids: list[str]) -> dict:
+    """Pick a default model from those actually AVAILABLE, with a transparent
+    reason. Returns {model, reason, basis}. If none of the ranked models are
+    available, returns the first available id with a generic reason, or empty if
+    the list is empty (offline). The caller treats this as a DEFAULT the user can
+    override, never a lock-in."""
+    avail = [m for m in (available_ids or []) if m]
+    for sub, reason in _RECOMMENDATION_ORDER:
+        for mid in avail:
+            if sub in mid.lower():
+                return {"model": mid, "reason": reason,
+                        "basis": "earned from the model evaluation (MODEL_EVAL.md)"}
+    if avail:
+        return {"model": avail[0], "reason": "first available approved model",
+                "basis": "no eval ranking matched the available models"}
+    return {"model": "", "reason": "offline deterministic generator",
+            "basis": "no live models available"}
+
+
 def max_tokens_for(model_id: str) -> int:
     return profile_for(model_id).max_tokens
 
