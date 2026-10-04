@@ -16,7 +16,7 @@ http://localhost:8080
 
 **The app starts empty.** There are no projects until you create one. That is by
 design: everything you see is something you made. The top of the screen has one
-**Project** selector that scopes all tabs, and seven tabs:
+**Project** selector that scopes all tabs, and these tabs:
 
 1. **New Project**
 2. **Correction Pipeline**
@@ -25,6 +25,8 @@ design: everything you see is something you made. The top of the screen has one
 5. **Search**
 6. **Report & Export**
 7. **Diagnostics**
+8. **Samples** — only present when your administrator has enabled it (see
+   "Running the sample cases" below)
 
 On a fresh app you land on the **New Project** tab automatically. You can return
 to it anytime by clicking the **New Project** tab or the **+ New Project** button
@@ -34,41 +36,21 @@ next to the Project selector.
 
 ## First: create a project (the New Project tab)
 
-The **New Project** tab has two ways to create a project. Pick the one that
-matches what you want to do.
-
-### Option A — Start from a sample case (fastest)
-
-Use this to see the full correction workflow immediately, without preparing any
-files. It is the top section of the New Project tab.
-
-1. You will see six sample cases, each a complete worked example from a
-   different domain (telemetry incident, security incident, lab safety event,
-   manufacturing defect, aviation maintenance, interface control document).
-2. Click **Use this sample** on one. The platform copies that sample into a new
-   project of your own and selects it. You land on the **Correction Pipeline**
-   tab with everything populated.
-
-What to expect: within a second or two the Project selector shows your new
-project, and the Correction Pipeline tab fills in (see below). The sample itself
-is never changed, so you can create as many copies as you like and edit them
-freely.
-
-### Option B — Generate a new project
+### Generate a project
 
 Use this to create a correction project from a short brief or from a document
-you provide, without hand-building fixtures. It is the lower section of the
-New Project tab.
+you provide.
 
-1. Choose how to describe it: a structured brief (domain + document type), a
-   freeform description, or **upload a document** whose own text becomes the
-   project's ground-truth source material.
+1. On the **New Project** tab, choose how to describe it: a structured brief
+   (domain + document type), a freeform description, or **upload a document**
+   whose own text becomes the project's ground-truth source material.
 2. Pick a model if one is offered, or use the offline generator (the default,
-   fully deterministic). Generate.
+   fully deterministic). Click **Generate & save**.
 
 What to expect: the model only authors the project's structure; facts come from
 the source material, so the result is validated and saved as fixed, reproducible
-data. The new project appears in the selector and is selected for you.
+data. The new project appears in the selector and is selected for you, and you
+land on the Correction Pipeline tab.
 
 ### Then: upload your own documents (optional)
 
@@ -83,6 +65,37 @@ material.
 What to expect: each uploaded file appears as a row that advances to
 **completed**. Scanned PDFs and images are run through OCR so their text becomes
 searchable (see Diagnostics to confirm OCR is active).
+
+---
+
+## Running the sample cases
+
+The repo ships six complete worked correction cases (telemetry incident,
+security incident, lab safety event, manufacturing defect, aviation maintenance,
+interface control document). They live under `sample_docs/project/` in the
+repository. There are two ways to run them.
+
+### In the app (optional, off by default)
+
+Sample instantiation is an opt-in feature so the app does not carry demo content
+by default. Your administrator enables it by setting `SAMPLES_ENABLED=true`
+(environment variable / `.env`). When enabled, a **Samples** tab appears:
+
+1. Open the **Samples** tab.
+2. Click **Use this sample** on a case. The platform copies it into a new
+   project of your own and selects it; you land on the Correction Pipeline tab
+   with everything populated.
+
+The sample fixtures in the repo are never changed, so you can instantiate the
+same case as many times as you like. The Samples tab is a separate page — it is
+never mixed into the New Project page.
+
+### From the repository (always available)
+
+Each case under `sample_docs/project/<id>/` contains its source corpus, a
+first-attempt report, and reviewer comments. You can inspect those files
+directly, or (for developers) load one with the documented repo command. This
+is the default path and needs no in-app feature flag.
 
 ---
 
@@ -241,7 +254,8 @@ fully only when the geometry tier is active (see Diagnostics).
 
 **I just opened the app and there are no projects. Is it broken?**
 No. The app starts empty on purpose and lands you on the **New Project** tab.
-Use **Start from a sample case** or **Generate a new project** there.
+Generate a project there, or upload documents on the Ingestion tab. To run a
+bundled sample case, see "Running the sample cases" above.
 
 **I selected a project and a tab is empty.**
 Each project is one of two kinds. A sample-based project fills the Correction

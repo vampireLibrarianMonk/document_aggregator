@@ -55,6 +55,13 @@ def diagnostics() -> dict:
     return collect()
 
 
+@app.get("/config")
+def client_config() -> dict:
+    """Lightweight, client-facing feature flags the frontend reads on load.
+    Cheap (no model load), unlike /diagnostics."""
+    return {"samples_enabled": bool(settings.SAMPLES_ENABLED)}
+
+
 # --------------------------------------------------------------------------
 # Projects
 # --------------------------------------------------------------------------
@@ -82,20 +89,31 @@ class InstantiateTemplate(BaseModel):
     name: str | None = None   # optional override for the new project's name
 
 
+def _require_samples() -> None:
+    """Guard: the in-app sample feature is opt-in (SAMPLES_ENABLED). When off,
+    the sample endpoints behave as if they do not exist, so the feature is fully
+    gated server-side, not just hidden in the UI."""
+    if not settings.SAMPLES_ENABLED:
+        raise HTTPException(404, "sample instantiation is disabled "
+                                 "(set SAMPLES_ENABLED=true to enable)")
+
+
 @app.get("/templates")
 def list_templates() -> list[dict]:
     """The catalog of bundled sample cases a user can instantiate into a real,
-    persisted project on demand. These are read-only fixtures in the repo; they
-    are not live projects until the user instantiates one. Bundle-only, so an
-    already-instantiated copy never shows up here as a duplicate."""
+    persisted project on demand. Gated by SAMPLES_ENABLED (off by default):
+    samples are normally run from the repo per the user guide. Bundle-only, so
+    an already-instantiated copy never shows up here as a duplicate."""
+    _require_samples()
     return project.list_templates()
 
 
 @app.post("/projects/from-template/{case_id}")
 def instantiate_template(case_id: str, body: InstantiateTemplate | None = None) -> Project:
     """Create a NEW persisted project by copying a bundled sample case into the
-    store. This is the only way a sample case becomes persistent: by the user
-    explicitly running it. The source fixtures in the repo are never modified."""
+    store. Gated by SAMPLES_ENABLED. The source fixtures in the repo are never
+    modified."""
+    _require_samples()
     name = body.name if body and body.name else None
     try:
         return store.instantiate_from_template(case_id, name)

@@ -10,9 +10,11 @@ import { SupplementalsPanel } from './components/SupplementalsPanel'
 import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'new' | 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'diagnostics'
+type Tab = 'new' | 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'diagnostics' | 'samples'
 
-const TABS: { id: Tab; label: string }[] = [
+interface TabDef { id: Tab; label: string }
+
+const BASE_TABS: TabDef[] = [
   { id: 'new', label: 'New Project' },
   { id: 'correction', label: 'Correction Pipeline' },
   { id: 'pipeline', label: 'Ingestion' },
@@ -22,7 +24,11 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'diagnostics', label: 'Diagnostics' },
 ]
 
-const TAB_IDS = new Set<Tab>(TABS.map((t) => t.id))
+// The Samples tab is appended only when the backend flag enables it. Kept at
+// the end so it reads as a secondary, opt-in area.
+const SAMPLES_TAB: TabDef = { id: 'samples', label: 'Samples' }
+
+const ALL_TAB_IDS = new Set<Tab>([...BASE_TABS.map((t) => t.id), SAMPLES_TAB.id])
 
 /** Map a URL path to a tab. The Correction Pipeline is the root ('/'); every
  *  other tab is '/<id>' (e.g. '/diagnostics'). Unknown paths fall back to the
@@ -30,7 +36,7 @@ const TAB_IDS = new Set<Tab>(TABS.map((t) => t.id))
 function tabFromPath(pathname: string): Tab {
   const seg = pathname.replace(/^\/+|\/+$/g, '').split('/')[0]
   if (!seg) return 'correction'
-  return TAB_IDS.has(seg as Tab) ? (seg as Tab) : 'correction'
+  return ALL_TAB_IDS.has(seg as Tab) ? (seg as Tab) : 'correction'
 }
 
 function pathForTab(tab: Tab): string {
@@ -56,7 +62,10 @@ function AppShell() {
     refreshProjects,
     refresh,
     deleteProject,
+    samplesEnabled,
   } = useProject()
+  // The visible tab set: Samples is appended only when the backend flag is on.
+  const TABS: TabDef[] = samplesEnabled ? [...BASE_TABS, SAMPLES_TAB] : BASE_TABS
   // Tab state is URL-aware so views deep-link (e.g. /diagnostics opens the
   // Diagnostics tab) and browser back/forward work.
   const [tab, setTabState] = useState<Tab>(() => tabFromPath(window.location.pathname))
@@ -80,11 +89,17 @@ function AppShell() {
   const reload = () => activeId && void refresh(activeId)
   const isEmpty = projects.length === 0
 
+  // If the Samples tab is reached via URL but the feature is disabled, send the
+  // user to New Project (the samples area does not exist when the flag is off).
+  useEffect(() => {
+    if (tab === 'samples' && !samplesEnabled) setTab('new')
+  }, [tab, samplesEnabled, setTab])
+
   // On a fresh/empty app, land on the New Project page so there is always a
   // clear next step. Only redirect away from project-scoped tabs; leave the
-  // user alone if they deliberately opened Diagnostics (project-independent).
+  // user alone if they deliberately opened Diagnostics or Samples.
   useEffect(() => {
-    if (isEmpty && tab !== 'new' && tab !== 'diagnostics') {
+    if (isEmpty && tab !== 'new' && tab !== 'diagnostics' && tab !== 'samples') {
       setTab('new')
     }
   }, [isEmpty, tab, setTab])
@@ -149,9 +164,9 @@ function AppShell() {
           and anything left unresolved is yours to decide.
         </p>
         <p className="small muted">
-          The app starts empty. Open <b>New Project</b> to create one: instantiate
-          a complete worked sample, or generate a project from a brief or an
-          uploaded document. Everything you see after that is a project you
+          The app starts empty. Open <b>New Project</b> to create one: generate a
+          project from a brief or an uploaded document, or upload documents on the
+          <b> Ingestion</b> tab. Everything you see after that is a project you
           created.
         </p>
       </div>
@@ -198,17 +213,28 @@ function AppShell() {
 
       {tab === 'new' && (
         <div id="panel-new" role="tabpanel" aria-labelledby="tab-new">
-          <TemplatePicker
-            onInstantiated={() => {
-              // instantiateTemplate already refreshed the list + selected the
-              // new project; move the user to the Correction Pipeline.
-              setTab('correction')
-            }}
-          />
           <GenerateProject
             onGenerated={async (id) => {
               await refreshProjects()
               setActiveId(id)
+              setTab('correction')
+            }}
+          />
+          {samplesEnabled && (
+            <p className="small muted" style={{ marginTop: 10 }}>
+              Looking for the bundled sample cases? They live on the{' '}
+              <b>Samples</b> tab.
+            </p>
+          )}
+        </div>
+      )}
+
+      {tab === 'samples' && samplesEnabled && (
+        <div id="panel-samples" role="tabpanel" aria-labelledby="tab-samples">
+          <TemplatePicker
+            onInstantiated={() => {
+              // instantiateTemplate already refreshed the list + selected the
+              // new project; move the user to the Correction Pipeline.
               setTab('correction')
             }}
           />
@@ -269,12 +295,13 @@ function AppShell() {
           )}
         </>
       ) : (
-        tab !== 'new' && tab !== 'correction' && tab !== 'diagnostics' && !error && (
+        tab !== 'new' && tab !== 'correction' && tab !== 'diagnostics' &&
+        tab !== 'samples' && !error && (
           <div className="panel" role="status">
             <strong>{isEmpty ? 'No projects yet' : 'No project selected'}</strong>
             <p className="small muted">
               {isEmpty
-                ? 'Open the New Project tab to instantiate a sample or generate a project.'
+                ? 'Open the New Project tab to generate a project, or upload documents on the Ingestion tab.'
                 : 'Pick a project from the selector above to use this view.'}
             </p>
           </div>

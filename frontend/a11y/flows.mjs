@@ -29,24 +29,30 @@ async function openTab(page, name) {
   return clickRole(page, 'tab', name)
 }
 
-/** The app starts EMPTY. Flows that need a live project open the New Project
- *  tab and instantiate a bundled sample case, which creates + selects a real
- *  project. Safe to call when a project already exists. */
+/** The app starts EMPTY. Flows that need a live project generate one with the
+ *  offline deterministic generator on the New Project tab (no dependency on the
+ *  opt-in Samples feature). Creates + selects a real project. */
 async function ensureProject(page) {
   await openTab(page, 'New Project')
   await page.waitForTimeout(300)
-  const useBtn = page.getByRole('button', { name: 'Use this sample' })
-  if (await useBtn.count()) {
-    await useBtn.first().click().catch(() => {})
-    // Instantiation copies fixtures + reconciles; give it a moment.
-    await page.waitForTimeout(1500)
+  // Structured brief is the default mode; a domain is all the offline generator
+  // needs. Fill it and click "Generate & save".
+  const domain = page.getByPlaceholder(/domain/i)
+  if (await domain.count()) {
+    await domain.first().fill('telemetry gateway incident response').catch(() => {})
+  }
+  const gen = page.getByRole('button', { name: 'Generate & save' })
+  if (await gen.count()) {
+    await gen.first().click().catch(() => {})
+    // Deterministic generation + persist; give it a moment to land + select.
+    await page.waitForTimeout(2500)
   }
 }
 
 export const flows = [
   {
     id: 'new-project',
-    title: 'New Project — sample picker + generator (first-run state)',
+    title: 'New Project — project generator (first-run state)',
     async setup(page) {
       // The empty app auto-lands here; open it explicitly for determinism.
       await openTab(page, 'New Project')
@@ -199,6 +205,16 @@ export const flows = [
       // Project-independent: audit the service-status page directly.
       await openTab(page, 'Diagnostics')
       await page.waitForTimeout(600)
+    },
+  },
+  {
+    id: 'samples',
+    title: 'Samples — bundled case picker (when SAMPLES_ENABLED)',
+    async setup(page) {
+      // Only present when the backend flag is on; the tab is simply absent
+      // otherwise and this flow audits whatever renders (no-op if hidden).
+      await openTab(page, 'Samples')
+      await page.waitForTimeout(500)
     },
   },
 ]

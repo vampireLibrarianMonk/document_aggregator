@@ -31,6 +31,9 @@ services:
       EMBEDDING_BACKEND: "${EMBEDDING_BACKEND:-sentence-transformers}"
       EMBEDDINGS_ENABLED: "true"
       OCR_ENABLED: "${OCR_ENABLED:-true}"
+      # In-app Samples tab: off by default (samples run from the repo per the
+      # user guide). Set SAMPLES_ENABLED=true to expose the Samples tab.
+      SAMPLES_ENABLED: "${SAMPLES_ENABLED:-false}"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       # Bedrock scenario generation off by default (air-gap). To use the SAME

@@ -81,6 +81,30 @@ def test_instantiate_unknown_case_raises(clean_store):
         clean_store.instantiate_from_template("does-not-exist")
 
 
+def test_samples_api_gated_by_flag(clean_store, monkeypatch):
+    # The sample endpoints are opt-in: 404 when SAMPLES_ENABLED is off, work
+    # when on. /config advertises the flag either way.
+    from app.main import app
+    from starlette.testclient import TestClient
+
+    client = TestClient(app)
+
+    monkeypatch.setattr(settings, "SAMPLES_ENABLED", False, raising=False)
+    assert client.get("/config").json()["samples_enabled"] is False
+    assert client.get("/templates").status_code == 404
+    assert client.post("/projects/from-template/1").status_code == 404
+
+    monkeypatch.setattr(settings, "SAMPLES_ENABLED", True, raising=False)
+    assert client.get("/config").json()["samples_enabled"] is True
+    r = client.get("/templates")
+    assert r.status_code == 200
+    assert len(r.json()) == 6
+    created = client.post("/projects/from-template/1")
+    assert created.status_code == 200
+    # Clean up the created project so the test leaves no residue.
+    clean_store.delete_project(created.json()["id"])
+
+
 def test_delete_project_removes_it(clean_store):
     proj = clean_store.instantiate_from_template("1")
     assert proj.id in {p.id for p in clean_store.list_projects()}

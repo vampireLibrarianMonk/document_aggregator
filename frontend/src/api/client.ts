@@ -30,6 +30,12 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
+  getClientConfig(): Promise<{ samples_enabled: boolean }> {
+    return fetch(`${BASE}/config`).then((r) =>
+      json<{ samples_enabled: boolean }>(r),
+    )
+  },
+
   listProjects(): Promise<Project[]> {
     return fetch(`${BASE}/projects`).then((r) => json<Project[]>(r))
   },

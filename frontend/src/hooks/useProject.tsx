@@ -29,6 +29,7 @@ interface ProjectCtx {
   refresh: (projectId: string) => Promise<void>
   instantiateTemplate: (caseId: string) => Promise<string | null>
   deleteProject: (projectId: string) => Promise<void>
+  samplesEnabled: boolean
 }
 
 const Ctx = createContext<ProjectCtx | null>(null)
@@ -39,6 +40,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([])
   const [supplementals, setSupplementals] = useState<Supplemental[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [samplesEnabled, setSamplesEnabled] = useState(false)
 
   const refresh = useCallback(async (projectId: string) => {
     try {
@@ -101,6 +103,15 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     void refreshProjects()
   }, [refreshProjects])
 
+  // Read client feature flags once on mount (whether the in-app Samples page
+  // is available). Defaults to off if the call fails.
+  useEffect(() => {
+    api
+      .getClientConfig()
+      .then((c) => setSamplesEnabled(!!c.samples_enabled))
+      .catch(() => setSamplesEnabled(false))
+  }, [])
+
   // Load the active project's data whenever the selection changes.
   useEffect(() => {
     if (activeId) void refresh(activeId)
@@ -134,6 +145,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     refresh,
     instantiateTemplate,
     deleteProject,
+    samplesEnabled,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

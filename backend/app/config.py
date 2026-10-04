@@ -26,6 +26,11 @@ class Settings:
     VISION_ENABLED: bool = os.getenv("VISION_ENABLED", "false").lower() == "true"
     LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() == "true"
     EMBEDDINGS_ENABLED: bool = os.getenv("EMBEDDINGS_ENABLED", "true").lower() == "true"
+    # In-app sample-case instantiation. OFF by default: samples are meant to be
+    # run from the repo per the user guide. When enabled, a separate Samples
+    # page lets a user instantiate a bundled case; it never appears on the main
+    # New Project page.
+    SAMPLES_ENABLED: bool = os.getenv("SAMPLES_ENABLED", "false").lower() == "true"
 
     # Embedding backend selection. Both run locally / offline:
     #   "sentence-transformers" -> real open-weight model (default when installed)
