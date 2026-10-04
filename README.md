@@ -61,6 +61,11 @@ intermediate JSON:
 4. Corrected JSON         output-neutral corrected representation (stopping point)
 ```
 
+A **project** is the top-level container for one such correction case (a project
+IS a scenario): it owns the corpus, template, first attempt, comments, and the
+corrected output. The global project selector in the UI scopes every tab to the
+chosen project; generating or uploading creates a new project.
+
 One reconciliation engine handles both modes: the template rubric always runs,
 and comment corrections are layered on top. Every corrected unit carries a
 **status** (`unchanged` / `filled` / `corrected` / `needs_review` / `conflict`)
@@ -286,21 +291,28 @@ Heavy work runs through a job queue (`app/jobs/`), so the API stays responsive:
 Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`. The worker
 (`backend/worker_main.py`) processes them; `WORKER_CONCURRENCY` sets thread count.
 
-Scenario endpoints (no project needed):
+Correction endpoints are **project-scoped** (a project IS a correction scenario
+in the unified model), under `/projects/{project_id}/scenario/...`:
 
-- `GET /scenario/components` — the four components and their contents
-- `GET /scenario/component/{id}?mode=draft|template` — raw contents of one component
-- `GET /scenario/reconcile?mode=draft|template` — the corrected intermediate JSON
-- `POST /scenario/convert` — convert an uploaded real DOCX/PPTX/PDF into the
-  internal first-attempt shape (the file-submission path)
-- `POST /scenario/interpret` — turn freeform reviewer feedback into constrained,
-  validated correction operations (optionally Bedrock-backed); never invents values
+- `GET /projects/{id}/scenario/components` — the four components and their contents
+- `GET /projects/{id}/scenario/component/{cid}?mode=draft|template` — raw contents of one component
+- `GET /projects/{id}/scenario/reconcile?mode=draft|template` — the corrected intermediate JSON
+- `POST /projects/{id}/scenario/convert` — convert an uploaded real DOCX/PPTX/PDF
+  into the internal first-attempt shape (the file-submission path)
+- `POST /projects/{id}/scenario/interpret` — turn freeform reviewer feedback into
+  constrained, validated correction operations (optionally Bedrock-backed); never
+  invents values
+
+The legacy flat `/scenario/*` routes still exist as deprecated aliases during the
+transition. `GET /projects` lists every project, including the bundled demo
+scenarios (which are surfaced as projects); the global project selector in the UI
+scopes all five tabs to the chosen project.
 
 ### What the UI surfaces vs. what's API-only
 
 To set expectations honestly: the **frontend exercises the synchronous path** —
-the Correction Pipeline tab calls `/scenario/reconcile` and `/scenario/converge`
-directly, and Ingestion/Search/Report/Supplementals use the project endpoints.
+the Correction Pipeline tab calls the project-scoped `.../scenario/reconcile` and
+`.../scenario/converge` directly, and all five tabs scope to the selected project.
 The following are implemented and tested at the **API/worker level but not yet
 wired into the UI**:
 
