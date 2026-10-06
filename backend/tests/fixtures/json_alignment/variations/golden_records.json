@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Halo: Combat Evolved",
+    "releaseYear": "2001",
+    "developer": "Bungie",
+    "publisher": "Microsoft Game Studios",
+    "platform": "Xbox",
+    "genres": ["Shooter", "Action"],
+    "criticScore": 97,
+    "ESRB": "M"
+  },
+  {
+    "name": "Portal",
+    "releaseYear": "2007",
+    "developer": "Valve",
+    "publisher": "Valve",
+    "platform": "Windows PC",
+    "genres": ["Puzzle", "Platformer"],
+    "criticScore": 90,
+    "ESRB": "T"
+  },
+  {
+    "name": "Super Mario Odyssey",
+    "releaseYear": "2017",
+    "developer": "Nintendo EPD",
+    "publisher": "Nintendo",
+    "platform": "Nintendo Switch",
+    "genres": ["Platformer"],
+    "criticScore": 97,
+    "ESRB": "E10+"
+  }
+]

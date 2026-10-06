@@ -67,7 +67,9 @@ def schema_match_score(predicted: set[Correspondence],
     fp = predicted - gold
     fn = gold - predicted
     n_tp, n_fp, n_fn = len(tp), len(fp), len(fn)
-    precision = n_tp / (n_tp + n_fp) if (n_tp + n_fp) else 0.0
+    # No predictions => no false positives => precision is vacuously perfect
+    # (the no-fabrication posture: abstaining everywhere never fabricates).
+    precision = n_tp / (n_tp + n_fp) if (n_tp + n_fp) else 1.0
     recall = n_tp / (n_tp + n_fn) if (n_tp + n_fn) else 0.0
     f1 = (2 * precision * recall / (precision + recall)
           if (precision + recall) else 0.0)
