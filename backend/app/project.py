@@ -6,10 +6,11 @@ Layout per project:
     project/<id>/project.json           manifest (fields, queries, table spec)
     project/<id>/corpus/*.txt|*.md       source docs (ground truth)
     project/<id>/corpus/graphics.json    named graphic references
+    project/<id>/template/incident_report_template.json
     project/<id>/first_attempt/incident_report_draft.json
-    project/<id>/first_attempt/incident_report_template.json
     project/<id>/corrections/comments.json
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import settings
+from .corrections.refine import refine_corrections
 from .reconcile import reconcile
 
 # Single source of truth lives in config; re-exported here for existing callers.
@@ -50,8 +52,13 @@ def list_templates() -> list[dict]:
             manifest = d / "project.json"
             if manifest.exists():
                 m = _read_json(manifest)
-                out.append({"id": m.get("id", d.name), "title": m.get("title", d.name),
-                            "domain": m.get("domain", "")})
+                out.append(
+                    {
+                        "id": m.get("id", d.name),
+                        "title": m.get("title", d.name),
+                        "domain": m.get("domain", ""),
+                    }
+                )
     return out
 
 
@@ -62,8 +69,9 @@ def list_project_cases() -> list[dict]:
     out: list[dict] = []
     for sid, d in settings.iter_project_data_dirs():
         m = _read_json(d / "project.json")
-        out.append({"id": m.get("id", sid), "title": m.get("title", sid),
-                    "domain": m.get("domain", "")})
+        out.append(
+            {"id": m.get("id", sid), "title": m.get("title", sid), "domain": m.get("domain", "")}
+        )
     return out
 
 
@@ -101,8 +109,27 @@ def has_rounds(project_id: str) -> bool:
     return (_dir(project_id) / "corrections" / "rounds.json").exists()
 
 
-def run_convergence(mode: str = "draft", project_id: str = DEFAULT_PROJECT,
-                    source_format: str | None = None) -> dict:
+def load_correction_feedback(project_id: str) -> list[str]:
+    """Raw reviewer feedback as free text — the prose a user actually uploads.
+    Reads corrections/emails/email_*.txt (one message per file). This is what
+    the figure-relabel grounding and the optional model interpreter read; it is
+    separate from the machine-digested comments.json. Empty when a project ships
+    only structured corrections."""
+    edir = _dir(project_id) / "corrections" / "emails"
+    if not edir.is_dir():
+        return []
+    out: list[str] = []
+    for p in sorted(edir.glob("email_*.txt")):
+        try:
+            out.append(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+    return out
+
+
+def run_convergence(
+    mode: str = "draft", project_id: str = DEFAULT_PROJECT, source_format: str | None = None
+) -> dict:
     from .reconcile import converge
 
     return converge(
@@ -116,8 +143,10 @@ def run_convergence(mode: str = "draft", project_id: str = DEFAULT_PROJECT,
 
 
 def load_first_attempt(project_id: str, mode: str) -> dict:
-    fname = "incident_report_template.json" if mode == "template" else "incident_report_draft.json"
-    return _read_json(_dir(project_id) / "first_attempt" / fname)
+    # The template is its own top-level component; the draft lives in first_attempt.
+    if mode == "template":
+        return _read_json(_dir(project_id) / "template" / "incident_report_template.json")
+    return _read_json(_dir(project_id) / "first_attempt" / "incident_report_draft.json")
 
 
 def load_first_attempt_from_document(project_id: str, mode: str, source_format: str) -> dict:
@@ -126,20 +155,25 @@ def load_first_attempt_from_document(project_id: str, mode: str, source_format: 
     with an added `_conversion` block recording fidelity/format/notes."""
     from .convert import convert_document
 
-    gen = _dir(project_id) / "first_attempt" / "generated" / f"{mode}.{source_format}"
+    # Template documents live under template/generated; drafts under first_attempt/generated.
+    subdir = "template" if mode == "template" else "first_attempt"
+    gen = _dir(project_id) / subdir / "generated" / f"{mode}.{source_format}"
     if not gen.exists():
         raise FileNotFoundError(f"no generated {source_format} for project {project_id} {mode}")
     template = load_template(project_id)
     manifest = load_manifest(project_id)
     result = convert_document(gen.read_bytes(), gen.name, template, manifest, mode)
     fa = result.first_attempt
-    fa["_conversion"] = {"fidelity": result.fidelity, "source_format": result.source_format,
-                         "notes": result.notes}
+    fa["_conversion"] = {
+        "fidelity": result.fidelity,
+        "source_format": result.source_format,
+        "notes": result.notes,
+    }
     return fa
 
 
 def load_template(project_id: str) -> dict:
-    return _read_json(_dir(project_id) / "first_attempt" / "incident_report_template.json")
+    return _read_json(_dir(project_id) / "template" / "incident_report_template.json")
 
 
 def load_template_evidence(project_id: str) -> dict | None:
@@ -147,10 +181,11 @@ def load_template_evidence(project_id: str) -> dict | None:
     so the build-discipline rubric can be divined from the template rather than
     a hand-authored JSON. Returns the `_evidence` block, or None if no template
     document exists (falls back to the JSON/profile rubric)."""
-    gen = _dir(project_id) / "first_attempt" / "generated" / "template.docx"
+    gen = _dir(project_id) / "template" / "generated" / "template.docx"
     if not gen.exists():
         return None
     from .convert import convert_document
+
     template = load_template(project_id)
     manifest = load_manifest(project_id)
     try:
@@ -165,9 +200,10 @@ def has_correction_pipeline(project_id: str) -> bool:
     draft/template). Aggregation-only projects (documents, supplementals, index
     but no first_attempt) return False so callers can skip the pipeline cleanly
     instead of 500ing on absent corpus/corrections dirs."""
-    fa = _dir(project_id) / "first_attempt"
-    return (fa / "incident_report_draft.json").exists() or \
-           (fa / "incident_report_template.json").exists()
+    d = _dir(project_id)
+    return (d / "first_attempt" / "incident_report_draft.json").exists() or (
+        d / "template" / "incident_report_template.json"
+    ).exists()
 
 
 def component_overview(project_id: str = DEFAULT_PROJECT) -> list[dict]:
@@ -175,40 +211,61 @@ def component_overview(project_id: str = DEFAULT_PROJECT) -> list[dict]:
     graphics = load_graphics(project_id)
     corrections = load_corrections(project_id)
     has_draft = (_dir(project_id) / "first_attempt" / "incident_report_draft.json").exists()
-    has_template = (_dir(project_id) / "first_attempt" / "incident_report_template.json").exists()
+    has_template = (_dir(project_id) / "template" / "incident_report_template.json").exists()
     first_attempt_items = []
     if has_draft:
         first_attempt_items.append(
-            {"name": "incident_report_draft.json", "kind": "draft", "note": "completed but flawed"})
+            {"name": "incident_report_draft.json", "kind": "draft", "note": "completed but flawed"}
+        )
     if has_template:
         first_attempt_items.append(
-            {"name": "incident_report_template.json", "kind": "template",
-             "note": "machine-readable rubric"})
+            {
+                "name": "incident_report_template.json",
+                "kind": "template",
+                "note": "machine-readable rubric",
+            }
+        )
     return [
         {
-            "id": "corpus", "order": 1, "title": "Original corpus",
+            "id": "corpus",
+            "order": 1,
+            "title": "Original corpus",
             "subtitle": "Raw source documents (ground truth)",
             "items": [
                 *[{"name": n, "kind": "document", "chars": len(t)} for n, t in corpus.items()],
-                *[{"name": g["name"], "kind": "graphic", "caption": g["caption"]} for g in graphics],
+                *[
+                    {"name": g["name"], "kind": "graphic", "caption": g["caption"]}
+                    for g in graphics
+                ],
             ],
         },
         {
-            "id": "first_attempt", "order": 2, "title": "First attempt",
+            "id": "first_attempt",
+            "order": 2,
+            "title": "First attempt",
             "subtitle": "Draft deliverable or blank template (the thing found to be wrong)",
             "items": first_attempt_items,
         },
         {
-            "id": "corrections", "order": 3, "title": "Comments / emails",
+            "id": "corrections",
+            "order": 3,
+            "title": "Comments / emails",
             "subtitle": "Human feedback: what is wrong (the judge, in draft mode)",
             "items": [
-                {"name": c["id"], "kind": c["kind"], "author": c["author"],
-                 "subject": c["subject"], "target": c["target"]}
+                {
+                    "name": c["id"],
+                    "kind": c["kind"],
+                    "author": c["author"],
+                    "subject": c["subject"],
+                    "target": c["target"],
+                }
                 for c in corrections
             ],
         },
         {
-            "id": "intermediate_json", "order": 4, "title": "Corrected intermediate JSON",
+            "id": "intermediate_json",
+            "order": 4,
+            "title": "Corrected intermediate JSON",
             "subtitle": "Output-neutral corrected representation (the stopping point)",
             "items": [],
         },
@@ -222,9 +279,12 @@ def _first_attempt_for(project_id: str, mode: str, source_format: str | None) ->
     return load_first_attempt_from_document(project_id, mode, source_format)
 
 
-def run_reconciliation(mode: str = "draft", project_id: str = DEFAULT_PROJECT,
-                       source_format: str | None = None,
-                       extra_corrections: list[dict] | None = None) -> dict:
+def run_reconciliation(
+    mode: str = "draft",
+    project_id: str = DEFAULT_PROJECT,
+    source_format: str | None = None,
+    extra_corrections: list[dict] | None = None,
+) -> dict:
     template = load_template(project_id)
     # When the source is a real document, divine the discipline rubric from the
     # template DOCUMENT's own formatting (attach its evidence for the engine).
@@ -239,13 +299,29 @@ def run_reconciliation(mode: str = "draft", project_id: str = DEFAULT_PROJECT,
     corrections = load_corrections(project_id)
     if extra_corrections:
         corrections = corrections + list(extra_corrections)
+    # Refine the corrections before the engine runs (the command-center bake-off
+    # winner): ground prose figure-relabels against the corpus graphics manifest,
+    # and — when Bedrock is enabled — let the feedback interpreter propose
+    # additional validated ops on top. Deterministic baseline is unchanged when
+    # no refinement applies; nothing is fabricated and conflicts are preserved.
+    manifest = load_manifest(project_id)
+    graphics = load_graphics(project_id)
+    corpus = load_corpus(project_id)
+    corrections = refine_corrections(
+        corrections,
+        manifest=manifest,
+        template=template,
+        graphics=graphics,
+        feedback_texts=load_correction_feedback(project_id),
+        corpus=corpus,
+    )
     report = reconcile(
         first_attempt=_first_attempt_for(project_id, mode, source_format),
-        corpus=load_corpus(project_id),
-        graphics_manifest=load_graphics(project_id),
+        corpus=corpus,
+        graphics_manifest=graphics,
         corrections=corrections,
         template=template,
-        project=load_manifest(project_id),
+        project=manifest,
     )
     result = report.model_dump()
     # Vector-layout tier (gated): when the source is a real document, render to
@@ -270,16 +346,22 @@ def resolvable_targets(project_id: str = DEFAULT_PROJECT) -> list[str]:
         "fields": manifest.get("fields", []),
         "section_bodies": manifest.get("section_bodies", {}),
         "sections": [s["key"] for s in template["required_sections"]],
-        "graphic_sections": [s["key"] for s in template["required_sections"]
-                             if s.get("requires_graphic")],
+        "graphic_sections": [
+            s["key"] for s in template["required_sections"] if s.get("requires_graphic")
+        ],
         "table_section": (manifest.get("table") or {}).get("section"),
     }
     return _valid_targets(ctx)
 
 
-def resolve_unit(target: str, value: str | None, mode: str = "draft",
-                 project_id: str = DEFAULT_PROJECT, source_format: str | None = None,
-                 author: str = "reviewer") -> dict:
+def resolve_unit(
+    target: str,
+    value: str | None,
+    mode: str = "draft",
+    project_id: str = DEFAULT_PROJECT,
+    source_format: str | None = None,
+    author: str = "reviewer",
+) -> dict:
     """Apply a human decision to a single unit: supply a chosen/entered value for
     a conflicted or needs_review target. The decision is injected as a NEW
     correction round (max existing round + 1), so the engine's last-good-wins
@@ -314,7 +396,8 @@ def _vector_findings(project_id: str, mode: str, source_format: str, template: d
     from .discipline import load_discipline
     from .discipline.vector import inspect_vector_layout
 
-    gen = _dir(project_id) / "first_attempt" / "generated" / f"{mode}.{source_format}"
+    subdir = "template" if mode == "template" else "first_attempt"
+    gen = _dir(project_id) / subdir / "generated" / f"{mode}.{source_format}"
     if not gen.exists():
         return []
     discipline = load_discipline(template)
@@ -322,8 +405,12 @@ def _vector_findings(project_id: str, mode: str, source_format: str, template: d
     return [f.model_dump() for f in findings] if ran else []
 
 
-def raw_component(component_id: str, mode: str = "draft", project_id: str = DEFAULT_PROJECT,
-                  source_format: str | None = None) -> Any:
+def raw_component(
+    component_id: str,
+    mode: str = "draft",
+    project_id: str = DEFAULT_PROJECT,
+    source_format: str | None = None,
+) -> Any:
     if component_id == "corpus":
         return {"documents": load_corpus(project_id), "graphics": load_graphics(project_id)}
     if component_id == "first_attempt":

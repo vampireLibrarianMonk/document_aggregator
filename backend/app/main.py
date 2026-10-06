@@ -4,11 +4,12 @@ Barebones but complete: projects, document upload + pipeline status, canonical
 JSON, supplementals (comments / emails / corrections), aggregated intermediate
 report, and export to json/markdown/docx/pptx/pdf.
 """
+
 from __future__ import annotations
 
 import uuid
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
@@ -35,6 +36,7 @@ app.add_middleware(
 # Health
 # --------------------------------------------------------------------------
 
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -51,8 +53,7 @@ def diagnostics() -> dict:
     LibreOffice geometry tier, Bedrock, versions), so silent degradations are
     visible. Gated by DIAGNOSTICS_ENABLED (off by default)."""
     if not settings.DIAGNOSTICS_ENABLED:
-        raise HTTPException(404, "diagnostics is disabled "
-                                 "(set DIAGNOSTICS_ENABLED=true to enable)")
+        raise HTTPException(404, "diagnostics is disabled (set DIAGNOSTICS_ENABLED=true to enable)")
     from .diagnostics import collect
 
     return collect()
@@ -72,6 +73,7 @@ def client_config() -> dict:
 # Projects
 # --------------------------------------------------------------------------
 
+
 class CreateProject(BaseModel):
     name: str
     description: str = ""
@@ -80,8 +82,7 @@ class CreateProject(BaseModel):
 @app.post("/projects")
 def create_project(body: CreateProject) -> Project:
     pid = "proj_" + uuid.uuid4().hex[:10]
-    return store.create_project(
-        Project(id=pid, name=body.name, description=body.description))
+    return store.create_project(Project(id=pid, name=body.name, description=body.description))
 
 
 @app.get("/projects")
@@ -94,7 +95,7 @@ def list_projects() -> list[Project]:
 
 
 class InstantiateTemplate(BaseModel):
-    name: str | None = None   # optional override for the new project's name
+    name: str | None = None  # optional override for the new project's name
 
 
 def _require_samples() -> None:
@@ -102,8 +103,9 @@ def _require_samples() -> None:
     the sample endpoints behave as if they do not exist, so the feature is fully
     gated server-side, not just hidden in the UI."""
     if not settings.SAMPLES_ENABLED:
-        raise HTTPException(404, "sample instantiation is disabled "
-                                 "(set SAMPLES_ENABLED=true to enable)")
+        raise HTTPException(
+            404, "sample instantiation is disabled (set SAMPLES_ENABLED=true to enable)"
+        )
 
 
 @app.get("/templates")
@@ -166,16 +168,29 @@ def delete_project(project_id: str) -> dict:
 # Documents + pipeline status
 # --------------------------------------------------------------------------
 
+_VALID_KINDS = {"corpus", "template", "corrections", "first_draft"}
+
+
 @app.post("/projects/{project_id}/documents")
-async def upload_document(project_id: str, file: UploadFile = File(...)) -> dict:
+async def upload_document(
+    project_id: str, file: UploadFile = File(...), kind: str = Form("corpus")
+) -> dict:
+    """Upload a document into one of the four Ingestion areas. `kind` tags which
+    area it belongs to: corpus | template | corrections | first_draft."""
     _resolve_project(project_id)
+    if kind not in _VALID_KINDS:
+        raise HTTPException(400, f"kind must be one of {sorted(_VALID_KINDS)}")
     data = await file.read()
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
     if len(data) > max_bytes:
         raise HTTPException(413, f"file exceeds {settings.MAX_UPLOAD_MB} MB")
-    rec = ingest_document(project_id, file.filename or "unnamed", data)
-    return {"document_id": rec.id, "overall_status": rec.overall_status,
-            "stages": [s.model_dump() for s in rec.stages]}
+    rec = ingest_document(project_id, file.filename or "unnamed", data, kind=kind)
+    return {
+        "document_id": rec.id,
+        "kind": rec.kind.value,
+        "overall_status": rec.overall_status,
+        "stages": [s.model_dump() for s in rec.stages],
+    }
 
 
 @app.get("/projects/{project_id}/documents")
@@ -187,6 +202,44 @@ def list_documents(project_id: str) -> list[dict]:
         d["overall_status"] = r.overall_status
         out.append(d)
     return out
+
+
+@app.get("/projects/{project_id}/readiness")
+def project_readiness(project_id: str) -> dict:
+    """Report what has been ingested per area and whether the correction
+    pipeline's input prerequisites are satisfied, so the UI can gate the
+    Correction Pipeline tab and show the user what is still required.
+
+    The two valid input shapes are:
+      A) corpus + template   + corrections
+      B) corpus + first_draft + corrections
+    So the requirements are: corpus present, corrections present, AND at least
+    one of {template, first_draft}.
+    """
+    _resolve_project(project_id)
+    counts = {"corpus": 0, "template": 0, "corrections": 0, "first_draft": 0}
+    for r in store.list_records(project_id):
+        k = getattr(r.kind, "value", r.kind)
+        if k in counts:
+            counts[k] += 1
+    has_corpus = counts["corpus"] > 0
+    has_template = counts["template"] > 0
+    has_draft = counts["first_draft"] > 0
+    has_corrections = counts["corrections"] > 0
+
+    problems: list[str] = []
+    if not has_corpus:
+        problems.append("Upload the original corpus (required).")
+    if not (has_template or has_draft):
+        problems.append("Upload a template or a first draft (at least one is required).")
+    if not has_corrections:
+        problems.append("Upload corrections — reviewer feedback is required.")
+
+    return {
+        "counts": counts,
+        "ready": len(problems) == 0,
+        "problems": problems,
+    }
 
 
 @app.get("/projects/{project_id}/documents/{document_id}")
@@ -207,9 +260,137 @@ def get_canonical(project_id: str, document_id: str) -> dict:
     return doc.model_dump()
 
 
+def _require_doc_bytes(project_id: str, document_id: str):
+    """Resolve a document that belongs to the project and return (record, bytes).
+    404 if the project, record, or source bytes are missing. This is the single
+    path-guard for all read-only preview endpoints."""
+    _resolve_project(project_id)
+    rec = store.get_record(project_id, document_id)
+    if rec is None:
+        raise HTTPException(404, "document not found")
+    data = store.read_source_bytes(project_id, document_id, rec.filename)
+    if data is None:
+        raise HTTPException(404, "document source bytes not found")
+    return rec, data
+
+
+@app.get("/projects/{project_id}/documents/{document_id}/raw")
+def get_raw(project_id: str, document_id: str) -> dict:
+    """Metadata for the Raw view: the original filename/mime, how it should be
+    previewed (preview_kind), and the decoded text when it is a text file."""
+    from . import preview
+
+    rec, data = _require_doc_bytes(project_id, document_id)
+    kind = preview.classify(rec.filename, rec.mime_type)
+    out = {
+        "filename": rec.filename,
+        "mime_type": rec.mime_type,
+        "byte_size": len(data),
+        "preview_kind": kind,
+    }
+    if kind == "text":
+        try:
+            out["is_text"] = True
+            out["text"] = data.decode("utf-8")
+        except UnicodeDecodeError:
+            out["is_text"] = False
+            out["text"] = None
+            out["preview_kind"] = "unsupported"
+    else:
+        out["is_text"] = False
+        out["text"] = None
+    return out
+
+
+@app.get("/projects/{project_id}/documents/{document_id}/rawfile")
+def get_rawfile(project_id: str, document_id: str) -> Response:
+    """Stream the ORIGINAL bytes inline for browser-native rendering (images and
+    PDF). Read-only: serves the stored immutable source unchanged. Office files
+    are NOT served here (use preview.pdf); unknown types are refused."""
+    from . import preview
+
+    rec, data = _require_doc_bytes(project_id, document_id)
+    kind = preview.classify(rec.filename, rec.mime_type)
+    if kind == "image":
+        media = preview.image_media_type(rec.filename, rec.mime_type)
+    elif kind == "pdf":
+        media = "application/pdf"
+    else:
+        raise HTTPException(415, f"{kind} is not served as a raw file")
+    return Response(
+        content=data,
+        media_type=media,
+        headers={
+            "Content-Disposition": "inline",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.get("/projects/{project_id}/documents/{document_id}/preview.pdf")
+def get_preview_pdf(project_id: str, document_id: str) -> Response:
+    """Convert an Office document (DOCX/PPTX/...) to PDF and stream it inline for
+    preview. Read-only + cached. 415 if the document is not an Office type; 503
+    with a clear message when LibreOffice is unavailable."""
+    from . import preview
+
+    rec, data = _require_doc_bytes(project_id, document_id)
+    if preview.classify(rec.filename, rec.mime_type) != "office-pdf":
+        raise HTTPException(415, "document is not an Office type")
+    pdf = preview.cached_office_pdf(project_id, document_id, data, preview.office_ext(rec.filename))
+    if pdf is None:
+        raise HTTPException(
+            503, "preview unavailable (LibreOffice not present or conversion failed)"
+        )
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "inline",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.delete("/projects/{project_id}/documents/{document_id}")
+def delete_document(project_id: str, document_id: str) -> dict:
+    """Remove one document from a project (record, canonical, source bytes, and
+    its chunks/vectors from the index). 404 if it does not exist."""
+    _resolve_project(project_id)
+    if not store.delete_document(project_id, document_id):
+        raise HTTPException(404, "document not found")
+    return {"deleted": document_id}
+
+
+class MoveDocument(BaseModel):
+    target_project_id: str
+
+
+@app.post("/projects/{project_id}/documents/{document_id}/move")
+def move_document(project_id: str, document_id: str, body: MoveDocument) -> dict:
+    """Move a document to another project, preserving its area (kind). The
+    source bytes are re-ingested into the target (so the target's index is
+    correct) and the document is removed from the source project."""
+    _resolve_project(project_id)
+    if body.target_project_id == project_id:
+        raise HTTPException(400, "target project must differ from the current one")
+    _resolve_project(body.target_project_id)  # 404 if target does not exist
+    rec = store.get_record(project_id, document_id)
+    if rec is None:
+        raise HTTPException(404, "document not found")
+    data = store.read_source_bytes(project_id, document_id, rec.filename)
+    if data is None:
+        raise HTTPException(404, "document source bytes not found")
+    new_rec = ingest_document(body.target_project_id, rec.filename, data, kind=rec.kind.value)
+    store.delete_document(project_id, document_id)
+    return {"moved": document_id, "to": body.target_project_id, "new_document_id": new_rec.id}
+
+
 # --------------------------------------------------------------------------
 # Supplementals (comments / angry emails / corrections / interview notes)
 # --------------------------------------------------------------------------
+
 
 class CreateSupplemental(BaseModel):
     kind: SupplementalKind
@@ -224,7 +405,10 @@ def add_supplemental(project_id: str, body: CreateSupplemental) -> Supplemental:
     _resolve_project(project_id)
     supp = Supplemental(
         id="supp_" + uuid.uuid4().hex[:10],
-        kind=body.kind, author=body.author, subject=body.subject, body=body.body,
+        kind=body.kind,
+        author=body.author,
+        subject=body.subject,
+        body=body.body,
         sentiment=_sentiment(body.subject + " " + body.body),
         target_document_id=body.target_document_id,
     )
@@ -241,6 +425,7 @@ def list_supplementals(project_id: str) -> list[Supplemental]:
 # --------------------------------------------------------------------------
 # Search
 # --------------------------------------------------------------------------
+
 
 class SearchRequest(BaseModel):
     query: str
@@ -260,6 +445,7 @@ def search_project(project_id: str, body: SearchRequest) -> dict:
 # Aggregated intermediate report + export
 # --------------------------------------------------------------------------
 
+
 @app.get("/projects/{project_id}/report")
 def get_report(project_id: str) -> dict:
     _resolve_project(project_id)
@@ -274,8 +460,11 @@ def export(project_id: str, format: str = "json") -> Response:
         data, media_type, filename = export_report(report, format)
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(400, str(exc))
-    return Response(content=data, media_type=media_type,
-                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --------------------------------------------------------------------------
@@ -296,6 +485,7 @@ def project_cases_list() -> list[dict]:
 # --------------------------------------------------------------------------
 # Async jobs: submit work to the worker pool, poll for status/result
 # --------------------------------------------------------------------------
+
 
 class JobRequest(BaseModel):
     op: str
@@ -324,8 +514,12 @@ def job_status(job_id: str) -> dict:
     if job is None:
         raise HTTPException(404, "job not found")
     return {
-        "job_id": job.id, "op": job.op, "state": job.state.value,
-        "attempts": job.attempts, "error": job.error, "result": job.result,
+        "job_id": job.id,
+        "op": job.op,
+        "state": job.state.value,
+        "attempts": job.attempts,
+        "error": job.error,
+        "result": job.result,
     }
 
 
@@ -340,22 +534,29 @@ def _components(project_id: str = project.DEFAULT_PROJECT) -> list[dict]:
     return project.component_overview(project_id)
 
 
-def _component(component_id: str, mode: str = "draft",
-               project_id: str = project.DEFAULT_PROJECT,
-               source_format: str = "json") -> dict:
+def _component(
+    component_id: str,
+    mode: str = "draft",
+    project_id: str = project.DEFAULT_PROJECT,
+    source_format: str = "json",
+) -> dict:
     try:
-        return {"component_id": component_id, "mode": mode, "project_id": project_id,
-                "source_format": source_format,
-                "data": project.raw_component(component_id, mode, project_id, source_format)}
+        return {
+            "component_id": component_id,
+            "mode": mode,
+            "project_id": project_id,
+            "source_format": source_format,
+            "data": project.raw_component(component_id, mode, project_id, source_format),
+        }
     except KeyError:
         raise HTTPException(404, f"unknown component: {component_id}")
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc))
 
 
-def _reconcile(mode: str = "draft",
-               project_id: str = project.DEFAULT_PROJECT,
-               source_format: str = "json") -> dict:
+def _reconcile(
+    mode: str = "draft", project_id: str = project.DEFAULT_PROJECT, source_format: str = "json"
+) -> dict:
     if mode not in ("draft", "template"):
         raise HTTPException(400, "mode must be 'draft' or 'template'")
     if source_format not in ("json", "docx", "pptx", "pdf"):
@@ -379,12 +580,12 @@ class GenerateRequest(BaseModel):
     domain: str = ""
     doc_type: str = "incident report"
     title: str = ""
-    model: str | None = None       # optional approved model override
-    dry_run: bool = False          # preview the spec without writing it to disk
+    model: str | None = None  # optional approved model override
+    dry_run: bool = False  # preview the spec without writing it to disk
 
 
 class GenerateFromTextRequest(BaseModel):
-    text: str                      # freeform description; the LLM uses judgment
+    text: str  # freeform description; the LLM uses judgment
     model: str | None = None
     dry_run: bool = False
 
@@ -448,7 +649,8 @@ def project_generate(body: GenerateRequest) -> dict:
     and persisted as a new project id, returning per-run score+cost metrics."""
     return _generate_project(
         {"domain": body.domain, "doc_type": body.doc_type, "title": body.title},
-        body.dry_run, body.model,
+        body.dry_run,
+        body.model,
     )
 
 
@@ -485,9 +687,13 @@ async def project_generate_from_document(
     except ValueError as exc:
         raise HTTPException(422, str(exc))
     out = _generate_project(
-        {"domain": domain, "title": title,
-         "corpus": [{"name": d.name, "text": d.text} for d in corpus]},
-        dry_run, model=None,
+        {
+            "domain": domain,
+            "title": title,
+            "corpus": [{"name": d.name, "text": d.text} for d in corpus],
+        },
+        dry_run,
+        model=None,
     )
     out["corpus_docs"] = [{"name": d.name, "chars": len(d.text)} for d in corpus]
     return out
@@ -514,8 +720,9 @@ def _governed_event_stream(brief_kwargs: dict, model: str | None, adjudicator: s
         try:
             author, author_model, adj = _build_governor_parts(model, adjudicator)
             brief = ProjectBrief(**brief_kwargs)
-            res = run_governed(brief, author=author, adjudicator=adj,
-                               author_model=author_model, on_event=on_event)
+            res = run_governed(
+                brief, author=author, adjudicator=adj, author_model=author_model, on_event=on_event
+            )
             q.put(("result", res.summary()))
         except Exception as exc:  # never break the stream
             q.put(("error", {"detail": str(exc)[:300]}))
@@ -542,34 +749,48 @@ def _build_governor_parts(model: str | None, adjudicator: str):
 
     if not model:
         from .projectgen.rule_generator import RuleProjectGenerator
+
         return RuleProjectGenerator(), "offline", make_adjudicator(adjudicator)
     try:
         import boto3
 
         from .projectgen.bedrock_gen import BedrockProjectGenerator
         from .projectgen.model_adapters import adapter_for
+
         author = BedrockProjectGenerator(model_id=model)
         client = boto3.client("bedrock-runtime", region_name=settings.BEDROCK_REGION)
-        adj = make_adjudicator(adjudicator, model_id=author.model_id, client=client,
-                               adapter=adapter_for(author.model_id))
+        adj = make_adjudicator(
+            adjudicator,
+            model_id=author.model_id,
+            client=client,
+            adapter=adapter_for(author.model_id),
+        )
         return author, author.model_id, adj
     except Exception:
         from .projectgen.rule_generator import RuleProjectGenerator
+
         return RuleProjectGenerator(), "offline", make_adjudicator("deterministic")
 
 
 @app.get("/generate/governed/stream")
-def project_governed_stream(domain: str = "", doc_type: str = "incident report",
-                             title: str = "", freeform: str = "",
-                             model: str | None = None,
-                             adjudicator: str = "deterministic") -> StreamingResponse:
+def project_governed_stream(
+    domain: str = "",
+    doc_type: str = "incident report",
+    title: str = "",
+    freeform: str = "",
+    model: str | None = None,
+    adjudicator: str = "deterministic",
+) -> StreamingResponse:
     """Run the governed (decomposed) generation and STREAM its progress as the
     operations transpire: one Server-Sent Event per governor step (plan, fill,
     proofread, reconcile), then a final `result` event with the run summary. The
     client renders a live cumulative log. Offline by default (deterministic
     author + adjudicator); pass an approved `model` for the live path."""
-    brief_kwargs = ({"freeform": freeform} if freeform.strip()
-                    else {"domain": domain, "doc_type": doc_type, "title": title})
+    brief_kwargs = (
+        {"freeform": freeform}
+        if freeform.strip()
+        else {"domain": domain, "doc_type": doc_type, "title": title}
+    )
     return StreamingResponse(
         _governed_event_stream(brief_kwargs, model, adjudicator),
         media_type="text/event-stream",
@@ -586,8 +807,11 @@ def _resolve(body: ResolveRequest) -> dict:
         raise HTTPException(400, "mode must be 'draft' or 'template'")
     try:
         return project.resolve_unit(
-            target=body.target, value=body.value, mode=body.mode,
-            project_id=body.project_id, source_format=body.source_format,
+            target=body.target,
+            value=body.value,
+            mode=body.mode,
+            project_id=body.project_id,
+            source_format=body.source_format,
             author=body.author,
         )
     except ValueError as exc:
@@ -596,9 +820,9 @@ def _resolve(body: ResolveRequest) -> dict:
         raise HTTPException(404, str(exc))
 
 
-def _converge(mode: str = "draft",
-              project_id: str = project.DEFAULT_PROJECT,
-              source_format: str = "json") -> dict:
+def _converge(
+    mode: str = "draft", project_id: str = project.DEFAULT_PROJECT, source_format: str = "json"
+) -> dict:
     """Run multi-round correction convergence: returns the per-round trajectory
     (unresolved = needs_review + conflict) and whether it converged."""
     if mode not in ("draft", "template"):
@@ -632,28 +856,37 @@ def _interpret(body: InterpretRequest) -> dict:
         "fields": manifest.get("fields", []),
         "section_bodies": manifest.get("section_bodies", {}),
         "sections": [s["key"] for s in template["required_sections"]],
-        "graphic_sections": [s["key"] for s in template["required_sections"]
-                             if s.get("requires_graphic")],
+        "graphic_sections": [
+            s["key"] for s in template["required_sections"] if s.get("requires_graphic")
+        ],
         "table_section": (manifest.get("table") or {}).get("section"),
     }
     result = interpret_feedback(body.feedback, ctx, body.round, body.author)
 
     if body.apply and result["accepted"]:
+        from .corrections.refine import ground_graphic_relabels
+
         corrections = [to_engine_correction(op) for op in result["accepted"]]
+        graphics = project.load_graphics(body.project_id)
+        # Ground any prose figure-relabel intent in the submitted feedback to the
+        # exact corpus filename (same deterministic step the main pipeline uses),
+        # so a freeform "the Timeline chart is wrong" resolves correctly here too.
+        corrections = ground_graphic_relabels(
+            corrections, graphics=graphics, template=template, feedback_texts=[body.feedback]
+        )
         report = reconcile(
             first_attempt=project.load_first_attempt(body.project_id, "draft"),
             corpus=project.load_corpus(body.project_id),
-            graphics_manifest=project.load_graphics(body.project_id),
+            graphics_manifest=graphics,
             corrections=corrections,
-            template=project.load_template(body.project_id),
+            template=template,
             project=manifest,
         )
         result["applied_report"] = report.model_dump()
     return result
 
 
-async def _convert(project_id: str, mode: str = "draft",
-                   file: UploadFile = File(...)) -> dict:
+async def _convert(project_id: str, mode: str = "draft", file: UploadFile = File(...)) -> dict:
     """Convert a client-uploaded real document (docx/pptx/pdf) into the internal
     first_attempt shape, judged against the given project's template. This is
     the production path: clients submit files, not JSON."""
@@ -666,8 +899,12 @@ async def _convert(project_id: str, mode: str = "draft",
         result = convert_document(data, file.filename or "upload", template, manifest, mode)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"fidelity": result.fidelity, "source_format": result.source_format,
-            "notes": result.notes, "first_attempt": result.first_attempt}
+    return {
+        "fidelity": result.fidelity,
+        "source_format": result.source_format,
+        "notes": result.notes,
+        "first_attempt": result.first_attempt,
+    }
 
 
 # --------------------------------------------------------------------------
@@ -677,33 +914,32 @@ async def _convert(project_id: str, mode: str = "draft",
 # during the migration. Responses are identical.
 # --------------------------------------------------------------------------
 
+
 @app.get("/projects/{project_id}/components")
 def project_components(project_id: str) -> list[dict]:
     return _components(project_id=project_id)
 
 
 @app.get("/projects/{project_id}/component/{component_id}")
-def project_component(project_id: str, component_id: str, mode: str = "draft",
-                      source_format: str = "json") -> dict:
-    return _component(component_id, mode=mode, project_id=project_id,
-                      source_format=source_format)
+def project_component(
+    project_id: str, component_id: str, mode: str = "draft", source_format: str = "json"
+) -> dict:
+    return _component(component_id, mode=mode, project_id=project_id, source_format=source_format)
 
 
 @app.get("/projects/{project_id}/reconcile")
-def project_reconcile(project_id: str, mode: str = "draft",
-                      source_format: str = "json") -> dict:
+def project_reconcile(project_id: str, mode: str = "draft", source_format: str = "json") -> dict:
     return _reconcile(mode=mode, project_id=project_id, source_format=source_format)
 
 
 @app.get("/projects/{project_id}/converge")
-def project_converge(project_id: str, mode: str = "draft",
-                     source_format: str = "json") -> dict:
+def project_converge(project_id: str, mode: str = "draft", source_format: str = "json") -> dict:
     return _converge(mode=mode, project_id=project_id, source_format=source_format)
 
 
 @app.post("/projects/{project_id}/resolve")
 def project_resolve(project_id: str, body: ResolveRequest) -> dict:
-    body.project_id = project_id          # path wins over any body value
+    body.project_id = project_id  # path wins over any body value
     return _resolve(body)
 
 
@@ -714,6 +950,7 @@ def project_interpret(project_id: str, body: InterpretRequest) -> dict:
 
 
 @app.post("/projects/{project_id}/convert")
-async def project_convert(project_id: str, mode: str = "draft",
-                          file: UploadFile = File(...)) -> dict:
+async def project_convert(
+    project_id: str, mode: str = "draft", file: UploadFile = File(...)
+) -> dict:
     return await _convert(project_id=project_id, mode=mode, file=file)
