@@ -1,0 +1,38 @@
+[
+  {
+    "internal_id": "rec-001",
+    "game_title": "Halo: Combat Evolved",
+    "year_published": "2001",
+    "made_by": "Bungie",
+    "publisher": "Microsoft Game Studios",
+    "hw": "Xbox",
+    "genres": "Shooter;Action",
+    "critic_score": "97",
+    "age_rating": "M",
+    "scraped_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "internal_id": "rec-002",
+    "game_title": "Portal",
+    "year_published": "10/09/2007",
+    "made_by": "Valve",
+    "publisher": "Valve",
+    "hw": "PC",
+    "genres": "Puzzle;Platformer",
+    "critic_score": "90",
+    "age_rating": "T",
+    "scraped_at": "2024-01-02T00:00:00Z"
+  },
+  {
+    "internal_id": "rec-003",
+    "game_title": "Super Mario Odyssey",
+    "year_published": "October 27, 2017",
+    "made_by": "Nintendo EPD",
+    "publisher": "Nintendo",
+    "hw": "Nintendo Switch",
+    "genres": "Platformer",
+    "critic_score": "97",
+    "age_rating": "E10+",
+    "scraped_at": "2024-01-03T00:00:00Z"
+  }
+]

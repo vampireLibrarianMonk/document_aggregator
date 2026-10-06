@@ -38,6 +38,7 @@ class RunRecord:
     rounds: list[RoundState] = field(default_factory=list)
     task_log: list[dict] = field(default_factory=list)
     final_report: dict | None = None
+    artifacts: dict = field(default_factory=dict)
     error: str = ""
 
 
@@ -82,17 +83,20 @@ class Coordinator:
 
     def run(self, *, project_id: str, mode: str = "draft",
             source_format: str | None = None,
-            extra_corrections: list[dict] | None = None) -> RunRecord:
+            extra_corrections: list[dict] | None = None,
+            extra_params: dict | None = None) -> RunRecord:
         record = RunRecord(project_id=project_id, mode=mode)
-        context = {
-            "params": {
-                "project_id": project_id,
-                "mode": mode,
-                "source_format": source_format,
-                "extra_corrections": extra_corrections,
-            },
-            "artifacts": {},
+        params = {
+            "project_id": project_id,
+            "mode": mode,
+            "source_format": source_format,
+            "extra_corrections": extra_corrections,
         }
+        # Workflow-specific inputs (e.g. alignment's records/target_schema) are
+        # merged in without the Coordinator needing to know the workflow.
+        if extra_params:
+            params.update(extra_params)
+        context = {"params": params, "artifacts": {}}
         prev_nr: int | None = None
         try:
             for rnd in range(self.max_rounds):
@@ -106,6 +110,7 @@ class Coordinator:
                 prev_nr = state.needs_review
         except Exception as exc:  # noqa: BLE001 - surface as a record error
             record.error = f"{type(exc).__name__}: {exc}"[:200]
+        record.artifacts = context["artifacts"]
         return record
 
 

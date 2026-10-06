@@ -1,0 +1,49 @@
+{
+  "$id": "https://example.com/schemas/game.json",
+  "title": "game",
+  "type": "object",
+  "description": "A canonical video game record.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The title of the game"
+    },
+    "releaseYear": {
+      "type": "string",
+      "pattern": "^\\d{4}$",
+      "description": "the year the game was published"
+    },
+    "developer": {
+      "type": "string",
+      "description": "the studio that developed or made the game"
+    },
+    "publisher": {
+      "type": "string",
+      "description": "the company that published or distributed the game"
+    },
+    "platform": {
+      "type": "string",
+      "description": "the console or hardware system",
+      "x-pydi-taxonomy": ["Windows PC", "Xbox", "PlayStation", "Nintendo Switch"],
+      "x-pydi-taxonomy-aliases": {"PC": "Windows PC", "XBOX": "Xbox", "PS": "PlayStation"}
+    },
+    "genres": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "list of genres"
+    },
+    "criticScore": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "critic press rating out of 100"
+    },
+    "ESRB": {
+      "type": "string",
+      "description": "ESRB age rating",
+      "x-pydi-taxonomy": ["E", "E10+", "T", "M", "AO"],
+      "x-pydi-taxonomy-aliases": {"K-A": "E", "Kids to Adults": "E", "Mature": "M", "Teen": "T"}
+    }
+  },
+  "required": ["name", "releaseYear"]
+}

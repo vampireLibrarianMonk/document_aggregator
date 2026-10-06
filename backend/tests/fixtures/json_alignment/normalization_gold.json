@@ -1,0 +1,17 @@
+{
+  "description": "Value-normalization expectations: feed raw_value through the transform for target_field, expect expected_value. Categories mirror MaDI's identity|normalization|knowledge taxonomy. 'knowledge' cases require world knowledge our bounded transforms do not have and are expected to be declined (honest misses, never fabricated).",
+  "cases": [
+    {"target_field": "releaseYear", "raw_value": "2001", "expected_value": "2001", "category": "identity"},
+    {"target_field": "releaseYear", "raw_value": "10/09/2007", "expected_value": "2007", "category": "normalization"},
+    {"target_field": "releaseYear", "raw_value": "October 27, 2017", "expected_value": "2017", "category": "normalization"},
+    {"target_field": "criticScore", "raw_value": "97", "expected_value": 97, "category": "normalization"},
+    {"target_field": "criticScore", "raw_value": "90", "expected_value": 90, "category": "normalization"},
+    {"target_field": "genres", "raw_value": "Shooter;Action", "expected_value": ["Shooter", "Action"], "category": "normalization"},
+    {"target_field": "genres", "raw_value": "Platformer", "expected_value": ["Platformer"], "category": "normalization"},
+    {"target_field": "platform", "raw_value": "PC", "expected_value": "Windows PC", "category": "normalization"},
+    {"target_field": "platform", "raw_value": "Xbox", "expected_value": "Xbox", "category": "identity"},
+    {"target_field": "ESRB", "raw_value": "K-A", "expected_value": "E", "category": "normalization"},
+    {"target_field": "ESRB", "raw_value": "M", "expected_value": "M", "category": "identity"},
+    {"target_field": "ESRB", "raw_value": "Mature", "expected_value": "M", "category": "normalization"}
+  ]
+}

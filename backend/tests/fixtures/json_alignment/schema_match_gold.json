@@ -1,0 +1,14 @@
+{
+  "description": "Ground-truth semantic correspondences for the self-generated game alignment benchmark. The full truth includes correspondences our purely deterministic (name+description) matcher legitimately abstains on (opaque 'hw', weakly-overlapping 'made_by'); those become honest recall misses rather than fabricated guesses.",
+  "mappings": [
+    {"source_column": "game_title", "target_column": "name", "label": true},
+    {"source_column": "year_published", "target_column": "releaseYear", "label": true},
+    {"source_column": "made_by", "target_column": "developer", "label": true},
+    {"source_column": "publisher", "target_column": "publisher", "label": true},
+    {"source_column": "hw", "target_column": "platform", "label": true},
+    {"source_column": "genres", "target_column": "genres", "label": true},
+    {"source_column": "critic_score", "target_column": "criticScore", "label": true},
+    {"source_column": "age_rating", "target_column": "ESRB", "label": true}
+  ],
+  "unmapped_source_fields": ["internal_id", "scraped_at"]
+}

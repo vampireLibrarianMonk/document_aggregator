@@ -15,6 +15,26 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (needs_review → 0, genuine conflicts preserved, capped rounds). It is
   deliberately generic so future workflows (e.g. JSON schema alignment) plug in
   as additional sub-agents without a second orchestration framework.
+- Deterministic JSON→golden-JSON schema-alignment capability
+  (`app/json_alignment/`), orchestrated by the command center as a five-task DAG
+  (profile_source → extract_target → infer_mapping → execute → validate).
+  Precision-first and non-fabricating: it maps source fields to a target JSON
+  Schema via a strongest-first cascade (exact name → normalized token-set →
+  declared alias → name+description token overlap), **abstains** (`needs_review`)
+  when nothing clears the floor and marks genuine ties `conflict`, applies
+  bounded fail-closed transforms (number cast, date→year/ISO, enum/alias
+  canonicalization, delimited→list), and validates every produced value against
+  the schema plus a grounding check that rejects any value without a traceable
+  source. Learned mappings persist as reusable Conversion Profiles for
+  deterministic replay on future batches.
+- Benchmark harness + our own metric code (`app/json_alignment/scoring.py`,
+  `benchmark.py`): schema-match precision/recall/F1 and category-wise value
+  normalization accuracy. A committed, air-gap-clean self-generated games
+  benchmark is the enforced primary (`backend/tests/fixtures/json_alignment/`);
+  MaDI-Bench is supported as an optional external comparison read from a local
+  checkout via `MADI_BENCH_PATH` (no MaDI data or code is committed or imported).
+  Results and methodology documented in
+  `docs/testing/json-alignment-benchmark.md`.
 
 ### Changed
 - The Correction Pipeline now runs through the command center by default. The
