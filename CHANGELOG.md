@@ -6,6 +6,26 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Promoted the command-center orchestrator from the bake-off harness into
+  production (`app/command_center/`): a JEV-style Coordinator that decomposes a
+  correction run into a bounded sub-task DAG (load_artifacts → parse_corrections
+  → reconcile), dispatches each task through a parallel queue with a
+  deterministic order-preserving assembler, and iterates to convergence
+  (needs_review → 0, genuine conflicts preserved, capped rounds). It is
+  deliberately generic so future workflows (e.g. JSON schema alignment) plug in
+  as additional sub-agents without a second orchestration framework.
+
+### Changed
+- The Correction Pipeline now runs through the command center by default. The
+  Coordinator reorganizes HOW the pipeline executes (DAG + queue + convergence),
+  not WHAT it computes — it calls the same production refine + reconcile, so the
+  output is byte-identical to the previous inline path (proven across all six
+  sample projects and both pathways in `backend/tests/test_command_center.py`).
+  The inline path is retained as a fallback via `engine="direct"` on
+  `run_reconciliation` and the `?engine=` query parameter on
+  `GET /projects/{id}/reconcile`.
+
 ## [0.2.0] - 2026-10-05
 
 Phase 2 (document ingestion UX) and Phase 3 (the correction-engine
