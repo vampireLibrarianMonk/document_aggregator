@@ -35,3 +35,6 @@ backend/eval_adversarial_report_*.json
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# ---- Bake-off model-response cache (runtime; re-created on demand) ----
+backend/tests/command_center/_model_cache/

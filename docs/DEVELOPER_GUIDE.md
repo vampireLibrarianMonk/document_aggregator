@@ -39,7 +39,7 @@ deploy/
   AIRGAP_RHEL.md  enclave deployment checklist
 sample_docs/
   project/<id>/  corpus (+ figures/), corrections, first_attempt (+ generated/)
-docs/             this guide + the user guide
+docs/             this guide + the user guide + testing/ (bake-off research)
 docker-compose.yml
 ```
 
@@ -167,6 +167,28 @@ npm run audit:a11y       # axe-core + keyboard/focus audit (needs a running/seed
 
 The a11y toolkit lives in `frontend/a11y/` and is transferable to other
 projects; see `frontend/a11y/ACCESSIBILITY.md`.
+
+### Research & bake-offs
+
+The experiments that decided the Correction Pipeline's engine architecture are
+documented under [`docs/testing/`](testing/README.md), each with a self-contained
+harness under `backend/tests/` and persisted machine-readable results:
+
+- `backend/tests/bakeoff/` — structure-extraction bake-off (can the engine
+  reproduce the gold from raw uploads? — no; the manifest is the decisive input).
+- `backend/tests/command_center/` — the command-center correction engine bake-off
+  (coordinator + sub-agents + manifest strategies + pathways; 72-cell matrix).
+- `backend/tests/command_center/alpha/` — the precision-correction scaling alpha
+  loop (precision-editing techniques vs document size; micro-model verdict).
+- `backend/tests/command_center/datagen/` — the synthetic growth-dataset
+  generator the alpha loop runs on.
+
+The winner (figure-relabel corpus grounding + Option-B model refinement over the
+deterministic reconcile baseline) is integrated into the app in
+`app/corrections/refine.py`; the bake-off harnesses themselves inform the design
+and are not wired into the running app. See
+[`docs/testing/README.md`](testing/README.md) for method, metrics, and the
+recommended architecture.
 
 ## Air-gapped / RHEL deployment
 

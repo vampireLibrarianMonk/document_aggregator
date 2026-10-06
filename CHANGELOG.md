@@ -6,14 +6,91 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-05
+
+Phase 2 (document ingestion UX) and Phase 3 (the correction-engine
+architecture: research bake-offs + integration of the winner into the app).
+
 ### Added
-- Human-in-the-loop resolution for unresolved units in the Correction Pipeline.
-  A `conflict` row now offers a "Use <value>" button per candidate, and a
+
+**Ingestion board (Phase 2)**
+- A four-area ingestion board (corpus / template / corrections / first draft)
+  with a readiness rule gating the move to the Correction Pipeline: corpus and
+  corrections are required, plus at least one of {template, first draft} — the
+  two valid upload pathways. A small circular progress indicator sits to the
+  left of the upload buttons during uploads.
+- Document CRUD on uploaded materials (delete, move between areas) and a
+  DocumentViewer with Raw/Canonical views and a Close control.
+- Inline preview rendering for image / PDF / DOCX / PPTX via a new
+  `app/preview.py` (LibreOffice headless → PDF, cached, air-gap safe, degrades
+  cleanly when LibreOffice is absent).
+- New-project isolation: a fresh project no longer shows a previous project's
+  documents.
+- Human correction emails: each sample project now ships raw reviewer emails at
+  `sample_docs/project/<id>/corrections/emails/email_N.txt` (the raw upload
+  form), alongside the machine-digested `comments.json`.
+- The template component moved to its own sibling folder (`template/…`) in all
+  six sample projects, separating it from the first-draft.
+
+**Human-in-the-loop resolution (Phase 2)**
+- A `conflict` row offers a "Use <value>" button per candidate, and a
   `needs_review` row offers an input + "Set value". The decision is recorded via
-  a new `POST /project/resolve` endpoint as a fresh correction round, so the
-  engine's last-good-wins collapse supersedes the conflict (or fills the
-  needs_review) while leaving the rest of the report unchanged. Never fabricates:
-  a value is required, and the target must be a resolvable unit.
+  `POST /project/resolve` as a fresh correction round, so the engine's
+  last-good-wins collapse supersedes the conflict (or fills the needs_review)
+  while leaving the rest of the report unchanged. Never fabricates: a value is
+  required, and the target must be a resolvable unit.
+
+**Correction-engine integration — the bake-off winner (Phase 3)**
+- A deterministic corpus-grounding step for figure relabels
+  (`app/corrections/refine.py`): when reviewer feedback describes a figure in
+  prose without naming the file ("the Timeline chart is wrong, it should be the
+  packet-loss-versus-temperature figure"), the intended graphic is resolved
+  against the corpus graphics manifest and emitted as a relabel op carrying the
+  exact filename. The filename comes verbatim from the corpus — nothing is
+  invented, and an ambiguous reference emits nothing.
+- Option-B model refinement on top of the deterministic reconcile baseline: the
+  deterministic engine always runs; when Bedrock is enabled, the feedback
+  interpreter proposes additional validated, grounded operations that AUGMENT
+  (never override) the structured corrections, so genuine conflicts are
+  preserved and a no-fabrication gate drops any ungrounded model value. Offline,
+  this is a no-op and the pipeline runs on the structured corrections alone.
+- Both these refinements run in `run_reconciliation` (and the freeform
+  `/project/interpret` apply path), so both upload pathways (draft / template)
+  and both the API and worker reconcile paths benefit. The draft + authored
+  manifest path reproduces the gold corrected report on all six sample projects.
+
+**Correction-engine research (Phase 3, harness-only)**
+- Structure-extraction bake-off (`backend/tests/bakeoff/`): proved the engine
+  cannot reproduce the gold corrected report from raw uploads alone (~27.8%
+  value accuracy across approaches); the correction manifest is the decisive
+  input.
+- Command-center bake-off (`backend/tests/command_center/`): a JEV-style
+  coordinator + sub-task DAG + swappable sub-agents (deterministic + model-backed
+  gpt-oss-120b) + deterministic order-preserving queue assembler + convergence
+  loop; a 72-cell matrix (pathway × agent × manifest-strategy × project) that
+  selected the integrated architecture above. A model-efficiency precursor fixed
+  the prompting shape (one batched, cached, temperature-0 call).
+- Precision-correction scaling alpha loop (`backend/tests/command_center/alpha/`):
+  pits four precision-editing techniques against each other as documents grow;
+  concluded a deterministic diff/edit-tagger matches the LLM with zero drift, so
+  a trained micro-model is not needed under the air-gap/no-training constraints.
+- Synthetic growth-dataset generator (`backend/tests/command_center/datagen/`):
+  deterministic, air-gap-clean, domain-matched documents at increasing sizes
+  with a known edit ledger, for the scaling study.
+
+**Documentation + tests**
+- `docs/testing/`: modular write-ups of all three bake-offs and the dataset
+  generator, with method, metrics, results, and the recommended architecture;
+  linked from the Developer Guide.
+- `backend/tests/test_corrections_refine.py`: grounding + refinement coverage
+  (prose→filename, vague→no-op, idempotence, conflict preservation,
+  determinism, both pathways across all six projects). The suite is pinned
+  offline/deterministic by default via a conftest fixture.
+
+### Changed
+- The Correction Pipeline now routes loaded corrections through the refinement
+  step before reconciliation. The deterministic baseline is unchanged when no
+  refinement applies.
 
 ## [0.1.0] - 2026-09-28
 
@@ -104,4 +181,5 @@ frontend, and an air-gapped RHEL/UBI container stack.
   Cloud pieces (e.g. a Bedrock feedback interpreter) are optional adapters behind
   the same interfaces and are disabled by default.
 
+[0.2.0]: https://example.com/releases/0.2.0
 [0.1.0]: https://example.com/releases/0.1.0
