@@ -1,0 +1,4 @@
+From: soc_reviewer
+Subject: severity assessment
+
+On severity, I'd land this at Medium rather than High. Yes, 1,240 attempts is a lot of noise, but we had no confirmed account takeovers. Per the matrix, attempted-but-unsuccessful against production is Medium. Flagging the disagreement so someone can make the call.

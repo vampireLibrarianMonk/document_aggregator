@@ -17,6 +17,25 @@ export interface Stage {
 
 export type OverallStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
+export type DocKind = 'corpus' | 'template' | 'corrections' | 'first_draft'
+
+export interface Readiness {
+  counts: Record<DocKind, number>
+  ready: boolean
+  problems: string[]
+}
+
+export type PreviewKind = 'text' | 'image' | 'pdf' | 'office-pdf' | 'unsupported'
+
+export interface RawDoc {
+  filename: string
+  mime_type: string
+  is_text: boolean
+  byte_size: number
+  text: string | null
+  preview_kind: PreviewKind
+}
+
 export interface DocumentRecord {
   id: string
   project_id: string
@@ -25,6 +44,7 @@ export interface DocumentRecord {
   sha256: string
   byte_size: number
   doc_class: string
+  kind: DocKind
   ingested_at: string
   stages: Stage[]
   error: string | null

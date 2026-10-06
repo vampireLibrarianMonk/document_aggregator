@@ -79,6 +79,38 @@ header.app-header h1 { font-size: 20px; margin: 0; }
 .tab.disabled { opacity: 0.4; cursor: not-allowed; }
 .app-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); }
 
+/* Workflow step navigator (Back / dots / Next) pinned under the active view. */
+.step-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel, rgba(255, 255, 255, 0.02));
+}
+.step-nav-dots { display: flex; align-items: center; gap: 6px; }
+.step-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--border);
+  display: inline-block;
+}
+.step-dot.current { background: var(--accent); box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08); }
+.step-dot.disabled { opacity: 0.4; }
+
+/* Small circular upload progress indicator (indeterminate, no number). */
+.upload-spinner { display: inline-flex; align-items: center; }
+.upload-spinner svg { animation: spin 0.9s linear infinite; }
+.upload-spinner .spinner-track { stroke: var(--border); }
+.upload-spinner .spinner-head {
+  stroke: var(--accent);
+  stroke-dasharray: 42;      /* ~0.75 of the 2*pi*r circumference */
+  stroke-dashoffset: 14;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);

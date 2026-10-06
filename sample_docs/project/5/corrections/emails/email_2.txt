@@ -1,0 +1,8 @@
+From: maint_reviewer
+Subject: duration + blank actions
+
+Two things.
+
+The ground time is wrong. The aircraft was down from 05:50 to 12:50, that's seven hours, not three. Please fix the description.
+
+Corrective Actions is blank and needs to be filled in.

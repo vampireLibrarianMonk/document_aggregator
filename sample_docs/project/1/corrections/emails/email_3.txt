@@ -1,0 +1,4 @@
+From: regional.director@example.com
+Subject: This is unacceptable
+
+I don't know who signed off on calling this Low severity, but a four hour data loss event is not Low. This needs to be High. Please change it.

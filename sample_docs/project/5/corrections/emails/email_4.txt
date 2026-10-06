@@ -1,0 +1,4 @@
+From: maint_reviewer
+Subject: severity assessment
+
+On severity, I'd call this Major, not Critical. We caught it on the ground with no in-flight event, so per the matrix that's Major. Noting the disagreement with the maintenance director's read.

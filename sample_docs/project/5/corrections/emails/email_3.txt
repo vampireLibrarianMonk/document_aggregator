@@ -1,0 +1,4 @@
+From: director.maint@example.com
+Subject: severity too low
+
+A hydraulic system decay that grounds an aircraft is not Routine. This is Critical. Please raise the severity.

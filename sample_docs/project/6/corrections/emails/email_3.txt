@@ -1,0 +1,4 @@
+From: program.manager@example.com
+Subject: approve for release
+
+The interface is stable and we're ready to move. Please mark the ICD Approved for release.

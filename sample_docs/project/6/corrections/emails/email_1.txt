@@ -1,0 +1,4 @@
+From: interface.lead@example.com
+Subject: signaling rate is wrong
+
+The signaling rate in the Interface Overview is wrong. We confirmed 100 kbps on the bench. The draft says 50 kbps, which is incorrect. Please correct it to 100 kbps.

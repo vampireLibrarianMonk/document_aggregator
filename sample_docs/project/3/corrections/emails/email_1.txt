@@ -1,0 +1,4 @@
+From: biomed.eng@example.com
+Subject: wrong software version
+
+The control-software version is wrong in the draft. The analyzer that spilled was running 7.1.2, not 7.2.0, and that matters because the analyzers already on 7.2.0 halt aspiration correctly and didn't have this problem. Please correct it in Contributing Factors.

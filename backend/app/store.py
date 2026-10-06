@@ -165,6 +165,43 @@ class Store:
         data = _read_json(settings.project_dir(project_id) / "documents" / f"{document_id}.canonical.json")
         return CanonicalDocument(**data) if data else None
 
+    def read_source_bytes(self, project_id: str, document_id: str, filename: str) -> bytes | None:
+        p = self.source_path(project_id, document_id, filename)
+        return p.read_bytes() if p.exists() else None
+
+    def delete_document(self, project_id: str, document_id: str) -> bool:
+        """Remove a document from a project: its record, canonical JSON, source
+        bytes, and any of its chunks/vectors from the search index. Returns
+        False if the document does not exist."""
+        with _lock:
+            rec = self.get_record(project_id, document_id)
+            if rec is None:
+                return False
+            pdir = settings.project_dir(project_id)
+            # record + canonical
+            (pdir / "documents" / f"{document_id}.record.json").unlink(missing_ok=True)
+            (pdir / "documents" / f"{document_id}.canonical.json").unlink(missing_ok=True)
+            # source bytes (filename is embedded in the stored name)
+            sp = self.source_path(project_id, document_id, rec.filename)
+            sp.unlink(missing_ok=True)
+            # any cached preview PDFs for this document
+            pcache = pdir / "preview_cache"
+            if pcache.is_dir():
+                for f in pcache.glob(f"{document_id}.*.pdf"):
+                    f.unlink(missing_ok=True)
+            # prune the index: drop every chunk/vector belonging to this doc
+            vectors, chunks, manifest = self.load_index(project_id)
+            drop = {cid for cid, ch in chunks.items()
+                    if (ch or {}).get("document_id") == document_id}
+            if drop:
+                for cid in drop:
+                    chunks.pop(cid, None)
+                    vectors.pop(cid, None)
+                manifest["document_count"] = max(0, int(manifest.get("document_count", 1)) - 1)
+                manifest["chunk_count"] = len(chunks)
+                self.save_index(project_id, vectors, chunks, manifest)
+            return True
+
     # ----- supplementals -----
     def save_supplemental(self, project_id: str, supp: Supplemental) -> None:
         path = settings.project_dir(project_id) / "supplementals" / f"{supp.id}.json"

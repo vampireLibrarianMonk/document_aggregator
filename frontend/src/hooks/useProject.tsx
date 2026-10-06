@@ -8,7 +8,7 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import { api } from '../api/client'
-import type { DocumentRecord, Project, Supplemental } from '../api/types'
+import type { DocumentRecord, Project, Readiness, Supplemental } from '../api/types'
 
 /**
  * Shared ACTIVE-PROJECT context. A project is the single top-level container
@@ -23,6 +23,7 @@ interface ProjectCtx {
   project: Project | null
   documents: DocumentRecord[]
   supplementals: Supplemental[]
+  readiness: Readiness | null
   error: string | null
   setActiveId: (id: string) => void
   refreshProjects: () => Promise<void>
@@ -40,18 +41,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [documents, setDocuments] = useState<DocumentRecord[]>([])
   const [supplementals, setSupplementals] = useState<Supplemental[]>([])
+  const [readiness, setReadiness] = useState<Readiness | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [samplesEnabled, setSamplesEnabled] = useState(false)
   const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false)
 
   const refresh = useCallback(async (projectId: string) => {
     try {
-      const [docs, supps] = await Promise.all([
+      const [docs, supps, rdy] = await Promise.all([
         api.listDocuments(projectId),
         api.listSupplementals(projectId),
+        api.getReadiness(projectId),
       ])
       setDocuments(docs)
       setSupplementals(supps)
+      setReadiness(rdy)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -120,8 +124,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
-  // Load the active project's data whenever the selection changes.
+  // Load the active project's data whenever the selection changes. Clear the
+  // previous project's data IMMEDIATELY so a newly-created or newly-selected
+  // project never momentarily shows another project's documents while the
+  // fresh fetch is in flight.
   useEffect(() => {
+    setDocuments([])
+    setSupplementals([])
+    setReadiness(null)
     if (activeId) void refresh(activeId)
   }, [activeId, refresh])
 
@@ -144,6 +154,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const value: ProjectCtx = {
     projects,
     activeId,
+    readiness,
     project,
     documents,
     supplementals,

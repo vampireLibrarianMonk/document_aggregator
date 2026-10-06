@@ -55,7 +55,8 @@ def op_render_geometry(payload: dict[str, Any]) -> dict[str, Any]:
     sid = payload.get("project_id", sc.DEFAULT_PROJECT)
     mode = payload.get("mode", "draft")
     fmt = payload.get("source_format", "docx")
-    gen = sc._dir(sid) / "first_attempt" / "generated" / f"{mode}.{fmt}"
+    subdir = "template" if mode == "template" else "first_attempt"
+    gen = sc._dir(sid) / subdir / "generated" / f"{mode}.{fmt}"
     if not gen.exists():
         return {"ran": False, "reason": f"no generated {fmt} for {sid}/{mode}", "findings": []}
     discipline = load_discipline(sc.load_template(sid))

@@ -1,25 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api/client'
-import { CanonicalViewer } from './components/CanonicalViewer'
+import { DocumentViewer } from './components/CanonicalViewer'
 import { CorrectionPipeline } from './components/CorrectionPipeline'
 import { DiagnosticsPanel } from './components/DiagnosticsPanel'
+import { IngestionBoard } from './components/IngestionBoard'
 import { NewProjectForm } from './components/NewProjectForm'
-import { PipelineBoard } from './components/PipelineBoard'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
-import { SupplementalsPanel } from './components/SupplementalsPanel'
 import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'new' | 'correction' | 'pipeline' | 'supplementals' | 'search' | 'report' | 'samples'
+type Tab = 'new' | 'pipeline' | 'correction' | 'search' | 'report' | 'samples'
 
 interface TabDef { id: Tab; label: string }
 
+// Workflow order: create -> ingest -> correct -> search -> export.
 const BASE_TABS: TabDef[] = [
   { id: 'new', label: 'New Project' },
-  { id: 'correction', label: 'Correction Pipeline' },
   { id: 'pipeline', label: 'Ingestion' },
-  { id: 'supplementals', label: 'Supplementals' },
+  { id: 'correction', label: 'Correction Pipeline' },
   { id: 'search', label: 'Search' },
   { id: 'report', label: 'Report & Export' },
 ]
@@ -31,17 +30,17 @@ const SAMPLES_TAB: TabDef = { id: 'samples', label: 'Samples' }
 // Diagnostics is a separate page (/diagnostics), handled before this app shell.
 const ALL_TAB_IDS = new Set<Tab>([...BASE_TABS.map((t) => t.id), SAMPLES_TAB.id])
 
-/** Map a URL path to a tab. The Correction Pipeline is the root ('/'); every
- *  other tab is '/<id>' (e.g. '/diagnostics'). Unknown paths fall back to the
- *  Correction Pipeline so a stray URL never shows a blank screen. */
+/** Map a URL path to a tab. New Project is the root ('/'); every other tab is
+ *  '/<id>' (e.g. '/pipeline'). Unknown paths fall back to New Project so a
+ *  stray URL never shows a blank screen. */
 function tabFromPath(pathname: string): Tab {
   const seg = pathname.replace(/^\/+|\/+$/g, '').split('/')[0]
-  if (!seg) return 'correction'
-  return ALL_TAB_IDS.has(seg as Tab) ? (seg as Tab) : 'correction'
+  if (!seg) return 'new'
+  return ALL_TAB_IDS.has(seg as Tab) ? (seg as Tab) : 'new'
 }
 
 function pathForTab(tab: Tab): string {
-  return tab === 'correction' ? '/' : `/${tab}`
+  return tab === 'new' ? '/' : `/${tab}`
 }
 
 export default function App() {
@@ -119,7 +118,7 @@ function AppShell() {
     projects,
     activeId,
     documents,
-    supplementals,
+    readiness,
     error,
     setActiveId,
     refreshProjects,
@@ -155,30 +154,34 @@ function AppShell() {
 
   // Prerequisite gating: a tab is only usable once its upstream step is done.
   //  - New Project: always available (it is how you create a project).
-  //  - Correction Pipeline / Ingestion / Supplementals: need a selected project.
-  //  - Search / Report & Export: additionally need at least one ingested
-  //    (completed) document, since there is nothing to search or report on yet.
+  //  - Ingestion: needs a selected project.
+  //  - Search: needs at least one completed ingested document.
+  //  - Correction Pipeline / Report & Export: need the ingestion inputs to
+  //    satisfy the pipeline prerequisites (readiness.ready from the backend).
   const hasProject = !!activeId
   const hasCompletedDocs = documents.some((d) => d.overall_status === 'completed')
+  const inputsReady = !!readiness?.ready
   const tabDisabled = useCallback((id: Tab): boolean => {
     switch (id) {
       case 'new':
         return false
-      case 'correction':
       case 'pipeline':
-      case 'supplementals':
         return !hasProject
       case 'search':
-      case 'report':
         return !hasProject || !hasCompletedDocs
+      case 'correction':
+      case 'report':
+        return !hasProject || !inputsReady
       default:
         return false
     }
-  }, [hasProject, hasCompletedDocs])
+  }, [hasProject, hasCompletedDocs, inputsReady])
   const tabReason = (id: Tab): string => {
-    if (!hasProject) return 'Select or create a project first'
-    if ((id === 'search' || id === 'report') && !hasCompletedDocs)
+    if (!hasProject) return 'Create a project first'
+    if (id === 'search' && !hasCompletedDocs)
       return 'Upload documents on the Ingestion tab first'
+    if ((id === 'correction' || id === 'report') && !inputsReady)
+      return 'Finish the Ingestion inputs first (see the Ingestion tab)'
     return ''
   }
 
@@ -192,7 +195,7 @@ function AppShell() {
   // met), fall back to a safe tab so the user is never stuck on a dead view.
   useEffect(() => {
     if (tabDisabled(tab)) {
-      setTab(hasProject ? 'correction' : 'new')
+      setTab(hasProject ? 'pipeline' : 'new')
     }
   }, [tab, tabDisabled, hasProject, setTab])
 
@@ -364,23 +367,18 @@ function AppShell() {
         <>
           {tab === 'pipeline' && (
             <div id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline">
-              <PipelineBoard
+              <IngestionBoard
                 projectId={activeId}
+                projects={projects}
                 documents={documents}
+                readiness={readiness}
                 onChange={reload}
                 onInspect={(id) => setInspecting(id)}
               />
-              <CanonicalViewer projectId={activeId} documentId={inspecting} />
-            </div>
-          )}
-
-          {tab === 'supplementals' && (
-            <div id="panel-supplementals" role="tabpanel" aria-labelledby="tab-supplementals">
-              <SupplementalsPanel
+              <DocumentViewer
                 projectId={activeId}
-                supplementals={supplementals}
-                documents={documents}
-                onChange={reload}
+                documentId={inspecting}
+                onClose={() => setInspecting(null)}
               />
             </div>
           )}
@@ -403,11 +401,21 @@ function AppShell() {
             <strong>{isEmpty ? 'No projects yet' : 'No project selected'}</strong>
             <p className="small muted">
               {isEmpty
-                ? 'Open the New Project tab to generate a project, or upload documents on the Ingestion tab.'
+                ? 'Open the New Project tab to create a project, then add documents on the Ingestion tab.'
                 : 'Pick a project from the selector above to use this view.'}
             </p>
           </div>
         )
+      )}
+
+      {BASE_TABS.some((t) => t.id === tab) && (
+        <StepNav
+          steps={BASE_TABS}
+          current={tab}
+          disabled={tabDisabled}
+          reason={tabReason}
+          onGo={setTab}
+        />
       )}
 
       {diagnosticsEnabled && (
@@ -416,5 +424,59 @@ function AppShell() {
         </footer>
       )}
     </div>
+  )
+}
+
+/** A simple, elegant step navigator pinned under the workflow: Back / Next
+ *  through the ordered steps, each enabled only when its gate is clear. */
+function StepNav({ steps, current, disabled, reason, onGo }: {
+  steps: TabDef[]
+  current: Tab
+  disabled: (id: Tab) => boolean
+  reason: (id: Tab) => string
+  onGo: (id: Tab) => void
+}) {
+  const i = steps.findIndex((s) => s.id === current)
+  if (i < 0) return null
+  const prev = i > 0 ? steps[i - 1] : null
+  const next = i < steps.length - 1 ? steps[i + 1] : null
+  const prevBlocked = prev ? disabled(prev.id) : true
+  const nextBlocked = next ? disabled(next.id) : true
+
+  return (
+    <nav className="step-nav" aria-label="Workflow steps">
+      <button
+        className="btn secondary"
+        disabled={!prev || prevBlocked}
+        title={prev && prevBlocked ? reason(prev.id) : undefined}
+        onClick={() => prev && !prevBlocked && onGo(prev.id)}
+      >
+        ← {prev ? prev.label : 'Back'}
+      </button>
+
+      <div className="step-nav-dots" role="list">
+        {steps.map((s, idx) => (
+          <span
+            key={s.id}
+            role="listitem"
+            className={`step-dot ${idx === i ? 'current' : ''}${disabled(s.id) ? ' disabled' : ''}`}
+            title={s.label}
+            aria-label={`Step ${idx + 1}: ${s.label}${idx === i ? ' (current)' : ''}`}
+          />
+        ))}
+        <span className="muted small" style={{ marginLeft: 8 }}>
+          Step {i + 1} of {steps.length}: {steps[i].label}
+        </span>
+      </div>
+
+      <button
+        className="btn"
+        disabled={!next || nextBlocked}
+        title={next && nextBlocked ? reason(next.id) : undefined}
+        onClick={() => next && !nextBlocked && onGo(next.id)}
+      >
+        {next ? next.label : 'Done'} →
+      </button>
+    </nav>
   )
 }

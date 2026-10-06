@@ -1,0 +1,8 @@
+From: qa_reviewer
+Subject: duration and blank section
+
+Two things on this one.
+
+First, the outage duration is wrong. It wasn't two hours. Packet loss started at 02:14 and we didn't recover until the manual power cycle at 06:31, so that's a four hour window. Please correct it in the description.
+
+Second, the Corrective Actions section is completely blank. It needs to be filled in before this goes anywhere.

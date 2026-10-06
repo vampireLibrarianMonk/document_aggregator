@@ -1,0 +1,4 @@
+From: qa_reviewer
+Subject: severity assessment
+
+Pushing back on the severity a bit. Per our severity matrix, a recoverable degradation lasting about four hours comes out to Medium at most, not High. It was disruptive, but we did recover it with a power cycle and there was no permanent loss. I'd put this at Medium.

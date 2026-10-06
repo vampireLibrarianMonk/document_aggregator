@@ -4,12 +4,15 @@ import type {
   Convergence,
   CorrectedReport,
   Diagnostics,
+  DocKind,
   DocumentRecord,
   ExportFormat,
+  Readiness,
   GenerateResult,
   GovernorEvent,
   GovernorSummary,
   Project,
+  RawDoc,
   Report,
   ProjectComponent,
   ProjectInfo,
@@ -60,19 +63,63 @@ export const api = {
     )
   },
 
-  uploadDocument(projectId: string, file: File): Promise<{ document_id: string }> {
+  uploadDocument(
+    projectId: string,
+    file: File,
+    kind: DocKind = 'corpus',
+  ): Promise<{ document_id: string; kind: DocKind }> {
     const form = new FormData()
     form.append('file', file)
+    form.append('kind', kind)
     return fetch(`${BASE}/projects/${projectId}/documents`, {
       method: 'POST',
       body: form,
-    }).then((r) => json<{ document_id: string }>(r))
+    }).then((r) => json<{ document_id: string; kind: DocKind }>(r))
+  },
+
+  getReadiness(projectId: string): Promise<Readiness> {
+    return fetch(`${BASE}/projects/${projectId}/readiness`).then((r) =>
+      json<Readiness>(r),
+    )
+  },
+
+  deleteDocument(projectId: string, documentId: string): Promise<{ deleted: string }> {
+    return fetch(`${BASE}/projects/${projectId}/documents/${documentId}`, {
+      method: 'DELETE',
+    }).then((r) => json<{ deleted: string }>(r))
+  },
+
+  moveDocument(
+    projectId: string,
+    documentId: string,
+    targetProjectId: string,
+  ): Promise<{ moved: string; to: string; new_document_id: string }> {
+    return fetch(`${BASE}/projects/${projectId}/documents/${documentId}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_project_id: targetProjectId }),
+    }).then((r) => json<{ moved: string; to: string; new_document_id: string }>(r))
   },
 
   getCanonical(projectId: string, documentId: string): Promise<unknown> {
     return fetch(
       `${BASE}/projects/${projectId}/documents/${documentId}/canonical`,
     ).then((r) => json<unknown>(r))
+  },
+
+  getRaw(projectId: string, documentId: string): Promise<RawDoc> {
+    return fetch(
+      `${BASE}/projects/${projectId}/documents/${documentId}/raw`,
+    ).then((r) => json<RawDoc>(r))
+  },
+
+  // Inline-byte URLs used as <img>/<iframe> src for in-browser rendering.
+  rawFileUrl(projectId: string, documentId: string): string {
+    return `${BASE}/projects/${projectId}/documents/${documentId}/rawfile`
+  },
+
+  previewPdfUrl(projectId: string, documentId: string): string {
+    return `${BASE}/projects/${projectId}/documents/${documentId}/preview.pdf`
   },
 
   listSupplementals(projectId: string): Promise<Supplemental[]> {

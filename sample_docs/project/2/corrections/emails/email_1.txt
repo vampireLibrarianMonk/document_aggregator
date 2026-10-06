@@ -1,0 +1,4 @@
+From: sec.eng@example.com
+Subject: wrong gateway version
+
+The auth-gateway version in the report is wrong. The service that got hit was on 3.4.0, not 3.5.2. The portals already on 3.5.2 were not affected, so please make sure the writeup doesn't blame 3.5.2. Correct the version in Contributing Factors.

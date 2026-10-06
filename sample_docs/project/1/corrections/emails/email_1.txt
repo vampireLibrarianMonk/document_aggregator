@@ -1,0 +1,4 @@
+From: reliability.lead@example.com
+Subject: firmware version is wrong
+
+Took a look at the draft and the firmware version is off. The affected gateways were running 4.2.1, not 4.2.0. Worth stressing that the sites still on 4.1.8 never saw this, so please don't let the report imply 4.1.8 was involved. Fix the version in the Contributing Factors section.

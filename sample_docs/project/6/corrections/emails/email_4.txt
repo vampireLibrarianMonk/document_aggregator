@@ -1,0 +1,4 @@
+From: icb_reviewer
+Subject: not ready
+
+I don't think this is ready to approve. There are still open items on the message register, and until those close this should be Rejected, not Approved. Flagging the disagreement with the PM's request.

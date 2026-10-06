@@ -1,0 +1,4 @@
+From: qc_reviewer
+Subject: severity assessment
+
+On severity, I'd put this at Major rather than Critical. We caught it on hold and nothing shipped, so per the matrix a contained structural defect with no escape is Major. Flagging the disagreement with the plant manager's call.

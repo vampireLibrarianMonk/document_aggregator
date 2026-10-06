@@ -1,0 +1,4 @@
+From: lab.director@example.com
+Subject: severity too low
+
+A reagent spill that contaminated patient samples cannot be logged as Minor. This is a Major safety event. Please raise the severity.

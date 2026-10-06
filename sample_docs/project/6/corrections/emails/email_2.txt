@@ -1,0 +1,4 @@
+From: icb_reviewer
+Subject: wrong figure in data formats
+
+The chart in the Data Formats section is the wrong image reference. It should be the message timing figure. Please swap it for the correct one.

@@ -1,0 +1,4 @@
+From: qa_reviewer
+Subject: wrong figure
+
+The chart in the Timeline section is the wrong image. That's not the right reference. It should be the packet-loss-versus-temperature figure. Please swap it for the correct one.

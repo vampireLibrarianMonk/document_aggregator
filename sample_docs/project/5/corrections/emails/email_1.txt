@@ -1,0 +1,4 @@
+From: fleet.eng@example.com
+Subject: wrong software version
+
+The actuator-controller software version is wrong in the draft. The affected unit was on B2.3, not B2.5. The aircraft already on B2.5 annunciated the decay promptly and didn't have this issue, so please correct the version in Contributing Factors so the report doesn't implicate B2.5.

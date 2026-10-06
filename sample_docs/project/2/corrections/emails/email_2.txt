@@ -1,0 +1,8 @@
+From: soc_reviewer
+Subject: duration + blank actions
+
+Couple of corrections.
+
+The attack window is wrong. It ran from 23:05 to 05:10 UTC, so that's a six hour window, not two. Please fix the duration.
+
+Also, Corrective Actions is blank. That has to be completed.

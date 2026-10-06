@@ -34,6 +34,16 @@ class DocClass(str, Enum):
     configuration_document = "CONFIGURATION_DOCUMENT"
 
 
+class DocKind(str, Enum):
+    """Which of the four Ingestion areas a document was uploaded into. The area
+    the user chooses tags the document; the correction engine reads these to
+    decide what role each document plays."""
+    corpus = "corpus"            # original source material (ground truth)
+    template = "template"        # the required structure/rubric (may be absent)
+    corrections = "corrections"  # reviewer feedback (comments / emails)
+    first_draft = "first_draft"  # the completed-but-flawed attempt
+
+
 class Stage(BaseModel):
     name: str
     status: StageStatus = StageStatus.pending
@@ -141,6 +151,7 @@ class DocumentRecord(BaseModel):
     sha256: str
     byte_size: int
     doc_class: DocClass = DocClass.source_document
+    kind: DocKind = DocKind.corpus
     ingested_at: str = Field(default_factory=utcnow)
 
     stages: list[Stage] = Field(default_factory=list)

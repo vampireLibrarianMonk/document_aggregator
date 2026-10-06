@@ -1,0 +1,8 @@
+From: qc_reviewer
+Subject: duration + blank actions
+
+Two corrections.
+
+The affected run duration is wrong. It ran 06:40 to 11:40, so five hours, not two. Please correct the description.
+
+Corrective Actions is blank and needs to be completed.

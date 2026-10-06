@@ -1,0 +1,4 @@
+From: qa_reviewer
+Subject: severity assessment
+
+On the severity, I'd call this Moderate, not Major. It was contained, and we have no confirmed patient impact beyond the one affected tray. Per the matrix that's Moderate. Noting the disagreement with the director's read.

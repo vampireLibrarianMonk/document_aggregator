@@ -1,0 +1,4 @@
+From: mfg.eng@example.com
+Subject: wrong firmware version
+
+The mold-controller firmware version in the report is wrong. The affected line was running 2.0.5, not 2.1.1. The lines on 2.1.1 did not reproduce the defect, so please don't let the report point at 2.1.1. Fix it in Contributing Factors.

@@ -1,0 +1,4 @@
+From: ciso@example.com
+Subject: severity too low
+
+Calling this Informational is not acceptable. We logged 1,240 unauthorized login attempts against production. That is a High severity event. Please update it.

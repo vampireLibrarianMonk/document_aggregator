@@ -1,0 +1,8 @@
+From: qa_reviewer
+Subject: duration + blank actions
+
+Two issues.
+
+The halt duration is wrong. It was down from 08:20 to 11:20, so three hours, not one. Please fix the description.
+
+Corrective Actions is blank and needs to be filled in.

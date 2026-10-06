@@ -25,6 +25,7 @@ from .models import (
     Block,
     CanonicalDocument,
     Chunk,
+    DocKind,
     DocumentRecord,
     Provenance,
     Stage,
@@ -144,7 +145,8 @@ def chunk_blocks(document_id: str, blocks: list[Block], max_chars: int = 800) ->
 # --------------------------------------------------------------------------
 
 def ingest_document(project_id: str, filename: str, data: bytes,
-                    source_meta: dict | None = None) -> DocumentRecord:
+                    source_meta: dict | None = None,
+                    kind: str = "corpus") -> DocumentRecord:
     source_meta = source_meta or {}
     doc_id = new_document_id()
     mime = guess_mime(filename)
@@ -153,6 +155,7 @@ def ingest_document(project_id: str, filename: str, data: bytes,
     rec = DocumentRecord(
         id=doc_id, project_id=project_id, filename=filename,
         mime_type=mime, sha256=sha, byte_size=len(data), stages=_init_stages(),
+        kind=DocKind(kind),
     )
     store.save_record(rec)
 

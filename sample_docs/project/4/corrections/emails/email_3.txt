@@ -1,0 +1,4 @@
+From: plant.manager@example.com
+Subject: severity too low
+
+A structural hairline crack in the part is not Cosmetic. That is a Critical defect. Please change the severity.
