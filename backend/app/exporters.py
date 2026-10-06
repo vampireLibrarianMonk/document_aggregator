@@ -62,9 +62,12 @@ def export_docx(report: dict) -> tuple[bytes, str, str]:
     document.add_heading(f"Aggregated Report — {proj.get('name', '')}", level=0)
     for sec in report.get("sections", []):
         document.add_heading(sec["title"], level=1)
-        document.add_paragraph(
+        dtg_para = document.add_paragraph(
             f"Effective DTG: {sec.get('effective_dtg')} (source: {sec.get('effective_dtg_source')})"
-        ).italic = True
+        )
+        # Italic is a run-level property in python-docx, not a paragraph one.
+        if dtg_para.runs:
+            dtg_para.runs[0].italic = True
         for item in sec.get("content", []):
             if item.get("table") and item["table"]:
                 rows = item["table"]

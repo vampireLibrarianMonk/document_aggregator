@@ -85,8 +85,9 @@ class DeterministicSectionAuthor:
         self._spec: ProjectSpec | None = None
 
     def plan(self, brief) -> list[dict]:
-        self._spec = self._generator.generate(brief)
-        return _project_sections(self._spec)
+        spec = self._generator.generate(brief)
+        self._spec = spec
+        return _project_sections(spec)
 
     def author_section(self, key: str, model: str | None = None) -> dict:
         # Deterministic: the section is already in the pre-built spec.
@@ -133,12 +134,13 @@ class BedrockSectionAuthor:
     def plan(self, brief) -> list[dict]:
         if hasattr(self._generator, "generate_with_metrics"):
             res = self._generator.generate_with_metrics(brief)
-            self._spec = res.spec
+            spec = res.spec
             if self._sink:
                 self._sink(res.metrics)
         else:
-            self._spec = self._generator.generate(brief)
-        return _project_sections(self._spec)
+            spec = self._generator.generate(brief)
+        self._spec = spec
+        return _project_sections(spec)
 
     def author_section(self, key: str, model: str | None = None) -> dict:
         assert self._spec is not None, "call plan() first"

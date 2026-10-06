@@ -141,7 +141,7 @@ def map_to_first_attempt(
             consumed = _absorb_fields(blk.text, fields_by_section.get(current_key, []), sec["fields"])
             if not consumed:
                 body_acc[current_key].append(blk.text)
-        elif blk.kind == "table":
+        elif blk.kind == "table" and blk.table is not None:
             sec["table"] = {
                 "title": blk.table.title, "font": blk.table.font,
                 "header_style": blk.table.header_style,

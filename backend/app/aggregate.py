@@ -10,6 +10,8 @@ exporters render into DOCX / PPTX / PDF.
 """
 from __future__ import annotations
 
+from typing import Any
+
 from .config import settings
 from .models import utcnow
 from .store import store
@@ -47,7 +49,7 @@ def build_report(project_id: str) -> dict:
         blocks = canonical.structure.get("blocks", [])
         rendered = []
         for b in blocks:
-            entry = {"type": b.type, "text": b.text}
+            entry: dict[str, Any] = {"type": b.type, "text": b.text}
             if b.table:
                 entry["table"] = b.table
             if b.page is not None:

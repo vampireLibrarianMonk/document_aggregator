@@ -75,6 +75,11 @@ def _clear_table_title(sec: dict) -> None:
         tbl["title"] = ""
 
 
+def _wrong_caption(sec: dict) -> None:
+    for g in sec.get("graphics", []):
+        g["caption"] = "Wrong caption text"
+
+
 # ---- catalog -------------------------------------------------------------
 # Injectors are applied to whichever section the alpha loop targets; the
 # expected status is what the engine should report for the affected unit.
@@ -106,7 +111,7 @@ DEFECTS: list[Defect] = [
            lambda s: _corrupt_field(s, next(iter(s.get("fields") or {"x": ""}), "x"), "DRIFTED_TERM"),
            {"corrected", "needs_review", "filled", "unchanged", "conflict"}),
     Defect("wrong_caption", "furniture", "figure caption text is wrong",
-           lambda s: [g.__setitem__("caption", "Wrong caption text") for g in s.get("graphics", [])] and None,
+           _wrong_caption,
            {"corrected", "filled", "unchanged"}),
     Defect("wrong_table_cell", "table", "a single table cell holds a wrong value",
            lambda s: _corrupt_first_cell(s),

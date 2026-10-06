@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import random
+from typing import Any
 
 from .catalog import DEFECTS, Defect
 
@@ -31,11 +32,11 @@ def build_multipage(base_project: dict, base_template: dict, base_draft: dict,
     injected for a `pages`-page document with per-page shuffled defects."""
     rng = random.Random(seed)
 
-    project = {"id": f"pg{seed}", "title": f"{pages}-page synthetic",
+    project: dict[str, Any] = {"id": f"pg{seed}", "title": f"{pages}-page synthetic",
                 "fields": [], "section_bodies": {}, "table": None}
-    template = {"artifact_kind": "template", "title": "Multi-page template",
+    template: dict[str, Any] = {"artifact_kind": "template", "title": "Multi-page template",
                 "required_sections": [], "table_specs": {}, "furniture": base_template["furniture"]}
-    draft = {"artifact_kind": "draft", "title": "Multi-page draft", "sections": [],
+    draft: dict[str, Any] = {"artifact_kind": "draft", "title": "Multi-page draft", "sections": [],
              "furniture": copy.deepcopy(base_draft.get("furniture", {})), "cross_references": []}
     corpus = dict(base_corpus)
     graphics: list[dict] = []
@@ -141,12 +142,12 @@ def build_multipage_from_pool(base_project: dict, base_template: dict, base_draf
     rng = random.Random(seed)
     records = pool.withdraw_n(pages)  # raises PoolExhaustedError if pages > capacity
 
-    project = {"id": f"pool{seed}", "title": f"{pages}-page pool-backed",
+    project: dict[str, Any] = {"id": f"pool{seed}", "title": f"{pages}-page pool-backed",
                 "fields": [], "section_bodies": {}, "table": None}
-    template = {"artifact_kind": "template", "title": "Multi-page template",
+    template: dict[str, Any] = {"artifact_kind": "template", "title": "Multi-page template",
                 "required_sections": [], "table_specs": base_template.get("table_specs", {}),
                 "furniture": base_template["furniture"]}
-    draft = {"artifact_kind": "draft", "title": "Multi-page draft", "sections": [],
+    draft: dict[str, Any] = {"artifact_kind": "draft", "title": "Multi-page draft", "sections": [],
              "furniture": copy.deepcopy(base_draft.get("furniture", {})), "cross_references": []}
     corpus: dict[str, str] = {}
     graphics: list[dict] = []

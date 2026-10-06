@@ -56,8 +56,17 @@ def _init_stages() -> list[Stage]:
     return [Stage(name=n) for n in STAGE_NAMES]
 
 
-def _start(rec: DocumentRecord, name: str, detail: str = "") -> Stage:
+def _stage(rec: DocumentRecord, name: str) -> Stage:
+    """Fetch a known pipeline stage. The stage names are a fixed set created by
+    `_init_stages`, so a missing one is a programming error, not runtime input."""
     s = rec.stage(name)
+    if s is None:
+        raise KeyError(f"unknown pipeline stage: {name!r}")
+    return s
+
+
+def _start(rec: DocumentRecord, name: str, detail: str = "") -> Stage:
+    s = _stage(rec, name)
     s.status = StageStatus.processing
     s.started_at = utcnow()
     if detail:
@@ -67,7 +76,7 @@ def _start(rec: DocumentRecord, name: str, detail: str = "") -> Stage:
 
 
 def _finish(rec: DocumentRecord, name: str, detail: str, status: StageStatus = StageStatus.completed) -> None:
-    s = rec.stage(name)
+    s = _stage(rec, name)
     s.status = status
     s.completed_at = utcnow()
     if detail:

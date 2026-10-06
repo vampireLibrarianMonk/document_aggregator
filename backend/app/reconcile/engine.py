@@ -338,7 +338,7 @@ def converge(
             "report": report.model_dump(),
         })
     final = trajectory[-1] if trajectory else None
-    converged = bool(final) and final["unresolved"] == 0
+    converged = final is not None and final["unresolved"] == 0
     return {
         "rounds": last,
         "converged": converged,

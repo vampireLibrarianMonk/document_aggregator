@@ -274,7 +274,7 @@ def component_overview(project_id: str = DEFAULT_PROJECT) -> list[dict]:
 
 def _first_attempt_for(project_id: str, mode: str, source_format: str | None) -> dict:
     """JSON baseline when source_format is None/'json', else convert a real doc."""
-    if source_format in (None, "json"):
+    if source_format is None or source_format == "json":
         return load_first_attempt(project_id, mode)
     return load_first_attempt_from_document(project_id, mode, source_format)
 

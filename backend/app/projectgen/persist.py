@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 from ..config import settings
 from .schema import ProjectSpec, validate_spec
@@ -83,7 +84,7 @@ def _manifest_json(spec: ProjectSpec, project_id: str) -> dict:
 def _template_json(spec: ProjectSpec) -> dict:
     required = []
     for s in spec.required_sections:
-        entry = {"key": s.key, "heading": s.heading}
+        entry: dict[str, Any] = {"key": s.key, "heading": s.heading}
         if s.requires_graphic:
             entry["requires_graphic"] = s.requires_graphic
         if s.requires_table:

@@ -8,6 +8,7 @@ report, and export to json/markdown/docx/pptx/pdf.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -731,7 +732,7 @@ def _governed_event_stream(brief_kwargs: dict, model: str | None, adjudicator: s
 
     threading.Thread(target=worker, daemon=True).start()
 
-    def sse() -> str:
+    def sse() -> Iterator[str]:
         while True:
             kind, data = q.get()
             if kind is _DONE:

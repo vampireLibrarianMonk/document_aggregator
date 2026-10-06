@@ -19,7 +19,7 @@ import hashlib
 import math
 import re
 from collections.abc import Iterable
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from .config import settings
 
@@ -35,7 +35,11 @@ class EmbeddingProvider(Protocol):
     """Stable contract. Vectors are unit-normalized so cosine == dot product."""
     model: str
     revision: str
-    dim: int
+
+    # Read-only so a provider may back it with a plain attribute OR a lazy
+    # @property (SentenceTransformerProvider computes it on first model load).
+    @property
+    def dim(self) -> int: ...
 
     def embed(self, text: str) -> list[float]: ...
 
@@ -74,7 +78,8 @@ class SentenceTransformerProvider:
     def __init__(self, model_name: str | None = None) -> None:
         self.model = model_name or settings.EMBEDDING_ST_MODEL
         self.revision = "sentence-transformers"
-        self._st = None
+        # Typed Any: the concrete SentenceTransformer type is a lazy import.
+        self._st: Any = None
         self._dim: int | None = None
 
     def _ensure(self) -> None:
@@ -82,7 +87,7 @@ class SentenceTransformerProvider:
             from sentence_transformers import SentenceTransformer  # lazy
 
             self._st = SentenceTransformer(self.model, device="cpu")
-            get_dim = getattr(self._st, "get_embedding_dimension", None) or \
+            get_dim: Any = getattr(self._st, "get_embedding_dimension", None) or \
                 self._st.get_sentence_embedding_dimension
             self._dim = int(get_dim())
 
