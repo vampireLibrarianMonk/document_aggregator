@@ -79,6 +79,12 @@ header.app-header h1 { font-size: 20px; margin: 0; }
 .tab.disabled { opacity: 0.4; cursor: not-allowed; }
 .app-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); }
 
+/* Links: the browser default (#0000ee) fails contrast on the dark theme
+   (1.96:1). Use the accent blue, which clears AA (~6:1 on --bg). Covers
+   anchors that are not styled as buttons (e.g. the footer Diagnostics link). */
+a { color: var(--accent); }
+a:hover { color: var(--text); }
+
 /* Workflow step navigator (Back / dots / Next) pinned under the active view. */
 .step-nav {
   display: flex;
