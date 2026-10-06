@@ -1,0 +1,77 @@
+{
+  "model": "openai.gpt-oss-120b-1:0",
+  "results": [
+    {
+      "shape": "per_email",
+      "model": "openai.gpt-oss-120b-1:0",
+      "available": true,
+      "ops_count": 5,
+      "accuracy": {
+        "recovered": 4,
+        "of": 5,
+        "detail": {
+          "firmware": true,
+          "duration": true,
+          "severity_high": true,
+          "severity_med": true,
+          "figure": false
+        }
+      },
+      "stats": {
+        "calls": 5,
+        "cache_hits": 0,
+        "input_tokens": 1107,
+        "output_tokens": 779,
+        "latency_ms": 4374
+      }
+    },
+    {
+      "shape": "batched",
+      "model": "openai.gpt-oss-120b-1:0",
+      "available": true,
+      "ops_count": 5,
+      "accuracy": {
+        "recovered": 4,
+        "of": 5,
+        "detail": {
+          "firmware": true,
+          "duration": true,
+          "severity_high": true,
+          "severity_med": true,
+          "figure": false
+        }
+      },
+      "stats": {
+        "calls": 1,
+        "cache_hits": 0,
+        "input_tokens": 493,
+        "output_tokens": 821,
+        "latency_ms": 1492
+      }
+    },
+    {
+      "shape": "whole_doc",
+      "model": "openai.gpt-oss-120b-1:0",
+      "available": true,
+      "ops_count": 5,
+      "accuracy": {
+        "recovered": 4,
+        "of": 5,
+        "detail": {
+          "firmware": true,
+          "duration": true,
+          "severity_high": true,
+          "severity_med": true,
+          "figure": false
+        }
+      },
+      "stats": {
+        "calls": 1,
+        "cache_hits": 0,
+        "input_tokens": 1080,
+        "output_tokens": 915,
+        "latency_ms": 13866
+      }
+    }
+  ]
+}

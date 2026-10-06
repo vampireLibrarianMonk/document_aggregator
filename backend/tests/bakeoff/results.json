@@ -1,0 +1,52 @@
+[
+  {
+    "approach": "A: deterministic",
+    "value_pct": 27.8,
+    "status_pct": 43.3,
+    "fabrications": 1,
+    "conflicts_preserved": "0/6",
+    "deterministic": false,
+    "offline": true,
+    "errors": 0,
+    "notes": [],
+    "per_project_errors": {}
+  },
+  {
+    "approach": "B: governor+model",
+    "value_pct": 27.8,
+    "status_pct": 44.4,
+    "fabrications": 1,
+    "conflicts_preserved": "0/6",
+    "deterministic": false,
+    "offline": true,
+    "errors": 0,
+    "notes": [
+      "model"
+    ],
+    "per_project_errors": {}
+  },
+  {
+    "approach": "B: governor offline",
+    "value_pct": 27.8,
+    "status_pct": 44.4,
+    "fabrications": 1,
+    "conflicts_preserved": "0/6",
+    "deterministic": false,
+    "offline": true,
+    "errors": 0,
+    "notes": [],
+    "per_project_errors": {}
+  },
+  {
+    "approach": "C: simple pass",
+    "value_pct": 0.0,
+    "status_pct": 5.6,
+    "fabrications": 28,
+    "conflicts_preserved": "0/6",
+    "deterministic": true,
+    "offline": true,
+    "errors": 0,
+    "notes": [],
+    "per_project_errors": {}
+  }
+]
