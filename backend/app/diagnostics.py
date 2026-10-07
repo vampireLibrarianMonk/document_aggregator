@@ -99,10 +99,14 @@ def _bedrock_status() -> dict:
         info = {"available": False, "models": [], "detail": str(exc)[:200]}
 
     available = bool(info.get("available"))
+    enabled = bool(settings.BEDROCK_ENABLED)
+    # "ok" ONLY when Bedrock is both enabled AND reachable. When it is disabled
+    # by config it reads "offline" (the normal air-gap posture) even if creds
+    # happen to be present on the host, so the page never shows a turned-off
+    # integration as green/operating. (Finding D1 in docs/testing/diagnostics-audit.md.)
     return {
-        # Bedrock being off is a normal air-gap posture, not a fault.
-        "state": "ok" if available else "offline",
-        "enabled": bool(settings.BEDROCK_ENABLED),
+        "state": "ok" if (enabled and available) else "offline",
+        "enabled": enabled,
         "available": available,
         "region": settings.BEDROCK_REGION,
         "models": info.get("models", []),

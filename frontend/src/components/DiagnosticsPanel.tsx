@@ -88,10 +88,11 @@ export function DiagnosticsPanel() {
           title: 'Bedrock (optional model generation)',
           state: svc.bedrock.state,
           rows: [
-            { key: 'en', label: 'Enabled', value: svc.bedrock.enabled ? 'yes' : 'no' },
-            { key: 'av', label: 'Available', value: svc.bedrock.available ? 'yes' : 'no (offline generator used)' },
+            { key: 'en', label: 'Enabled', value: svc.bedrock.enabled ? 'yes' : 'no (disabled by config)' },
+            { key: 'av', label: 'Reachable', value: svc.bedrock.available ? 'yes' : 'no' },
+            { key: 'us', label: 'In use', value: svc.bedrock.enabled && svc.bedrock.available ? 'yes' : 'no (offline generator used)' },
             { key: 'rg', label: 'Region', value: svc.bedrock.region },
-            { key: 'mo', label: 'Approved models', value: svc.bedrock.models.length ? svc.bedrock.models.map((m) => m.name).join(', ') : 'none (offline)' },
+            { key: 'mo', label: 'Approved models', value: svc.bedrock.models.length ? svc.bedrock.models.map((m) => m.name).join(', ') : 'none' },
           ],
         },
       ]
