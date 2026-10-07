@@ -20,6 +20,8 @@ import { config } from './a11y.config.mjs'
 import { flows } from './flows.mjs'
 import { createAppServer } from './serve.mjs'
 
+const CWD = process.cwd()  // report path is resolved relative to the frontend dir
+
 // ---- static server + /api proxy (shared with the Playwright E2E suite) -----
 let backendUp = false
 const server = createAppServer({

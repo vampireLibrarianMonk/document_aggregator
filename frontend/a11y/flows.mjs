@@ -151,6 +151,22 @@ export const flows = [
     },
   },
   {
+    id: 'ingestion-batch',
+    title: 'Ingestion — Batch conversion section (switch on)',
+    needsProject: true,
+    async setup(page) {
+      await ensureProject(page)
+      await openTab(page, 'Ingestion')
+      // Flip the Batch conversion switch so the golden-schema editor, relevance
+      // dial, upload controls, and approval area render for the audit.
+      const toggle = page.getByRole('checkbox', { name: 'Enable batch conversion mode' })
+      if (await toggle.count()) {
+        await toggle.first().check().catch(() => {})
+        await page.waitForTimeout(600)
+      }
+    },
+  },
+  {
     id: 'supplementals-default',
     title: 'Supplementals — form + list',
     needsProject: true,
