@@ -5,3 +5,9 @@ dist/
 
 # a11y audit generated artifact (the toolkit itself is committed)
 a11y/a11y-report.json
+
+# Playwright E2E generated artifacts (the specs themselves are committed)
+test-results/
+playwright-report/
+e2e/e2e-report.json
+

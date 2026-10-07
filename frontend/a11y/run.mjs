@@ -14,67 +14,19 @@
 
 import { AxeBuilder } from '@axe-core/playwright'
 import { chromium } from 'playwright'
-import { createServer } from 'node:http'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { join, extname, dirname } from 'node:path'
+import { writeFile, mkdir } from 'node:fs/promises'
+import { join, dirname } from 'node:path'
 import { config } from './a11y.config.mjs'
 import { flows } from './flows.mjs'
+import { createAppServer } from './serve.mjs'
 
-const CWD = process.cwd()
-const DIST = join(CWD, config.distDir)
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.json': 'application/json', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
-  '.woff': 'font/woff', '.woff2': 'font/woff2',
-}
-
-function readBody(req) {
-  return new Promise((resolve) => {
-    const chunks = []
-    req.on('data', (c) => chunks.push(c))
-    req.on('end', () => resolve(Buffer.concat(chunks)))
-  })
-}
-
-// ---- static server + /api proxy -------------------------------------------
+// ---- static server + /api proxy (shared with the Playwright E2E suite) -----
 let backendUp = false
-const server = createServer(async (req, res) => {
-  const url = req.url || '/'
-  if (url.startsWith(config.apiPrefix + '/')) {
-    try {
-      const upstream = await fetch(config.apiTarget + url.slice(config.apiPrefix.length), {
-        method: req.method,
-        headers: { 'content-type': req.headers['content-type'] || 'application/json' },
-        body: ['GET', 'HEAD'].includes(req.method) ? undefined : await readBody(req),
-      })
-      backendUp = true
-      const buf = Buffer.from(await upstream.arrayBuffer())
-      res.writeHead(upstream.status, {
-        'Content-Type': upstream.headers.get('content-type') || 'application/json',
-      })
-      res.end(buf)
-    } catch {
-      res.writeHead(502)
-      res.end('{"detail":"backend unreachable"}')
-    }
-    return
-  }
-  try {
-    const urlPath = decodeURIComponent(url.split('?')[0])
-    let filePath = join(DIST, urlPath === '/' ? 'index.html' : urlPath)
-    let body
-    try {
-      body = await readFile(filePath)
-    } catch {
-      filePath = join(DIST, 'index.html') // SPA fallback
-      body = await readFile(filePath)
-    }
-    res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' })
-    res.end(body)
-  } catch (e) {
-    res.writeHead(500)
-    res.end(String(e))
-  }
+const server = createAppServer({
+  distDir: config.distDir,
+  apiPrefix: config.apiPrefix,
+  apiTarget: config.apiTarget,
+  onBackend: (up) => { if (up) backendUp = true },
 })
 
 // ---- keyboard / focus assertions (what axe can't do) ----------------------
