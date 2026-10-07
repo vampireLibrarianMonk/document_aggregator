@@ -49,7 +49,7 @@ const AREAS: AreaDef[] = [
   },
 ]
 
-const ACCEPT = '.txt,.md,.docx,.pdf,.pptx,.png,.jpg,.jpeg'
+const ACCEPT = '.txt,.md,.json,.docx,.pdf,.pptx,.png,.jpg,.jpeg'
 
 /** A small, indeterminate circular progress indicator (no number). */
 function Spinner() {
