@@ -83,6 +83,44 @@ export interface Project {
   reject_below: number
 }
 
+/** One learned shape in a project's alignment profile library. */
+export interface LibraryEntry {
+  profile_id: string
+  state: 'provisional' | 'approved' | 'retired'
+  version: number
+  mapped: Record<string, string>
+  needs_review: string[]
+  conflicts: string[]
+}
+
+export interface AlignmentLibrary {
+  project_id: string
+  target_title: string
+  approved: string[]
+  provisional: string[]
+  entries: LibraryEntry[]
+}
+
+/** The per-cluster outcome summary a batch job returns on completion. */
+export interface BatchSummary {
+  clusters: number
+  doc_counts_by_pathway: Record<string, number>
+  produced_records: number
+  conformed_records: number
+  needs_review_records: number
+  quarantined_docs: number
+  provisional_profiles_awaiting_approval: string[]
+}
+
+export interface JobStatus {
+  job_id: string
+  op: string
+  state: 'pending' | 'processing' | 'completed' | 'failed' | 'retryable'
+  attempts: number
+  error: string | null
+  result: unknown
+}
+
 export interface SearchHit {
   _id: string
   _score: number

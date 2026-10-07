@@ -1,6 +1,7 @@
 // Thin API client. All calls go through the Vite proxy (/api -> backend).
 
 import type {
+  AlignmentLibrary,
   Convergence,
   CorrectedReport,
   Diagnostics,
@@ -11,6 +12,7 @@ import type {
   GenerateResult,
   GovernorEvent,
   GovernorSummary,
+  JobStatus,
   Project,
   RawDoc,
   Report,
@@ -379,5 +381,57 @@ export const api = {
       }
     })()
     return () => ctrl.abort()
+  },
+
+  // ---- Batch JSON -> golden alignment ----
+
+  setTargetSchema(
+    projectId: string,
+    target: unknown,
+  ): Promise<{ project_id: string; title: string; fields: number; required: string[] }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/target-schema`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target }),
+    }).then((r) => json(r))
+  },
+
+  getTargetSchema(projectId: string): Promise<{ project_id: string; target: unknown }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/target-schema`).then((r) =>
+      json(r),
+    )
+  },
+
+  submitBatch(
+    projectId: string,
+    docs: { doc_id?: string; records: unknown[]; descriptions?: Record<string, string> }[],
+    research?: boolean,
+  ): Promise<{ job_id: string; state: string; documents: number }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(research === undefined ? { docs } : { docs, research }),
+    }).then((r) => json(r))
+  },
+
+  getLibrary(projectId: string): Promise<AlignmentLibrary> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/library`).then((r) =>
+      json<AlignmentLibrary>(r),
+    )
+  },
+
+  approveProfile(
+    projectId: string,
+    profileId: string,
+  ): Promise<{ project_id: string; approved: string; state: string }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId }),
+    }).then((r) => json(r))
+  },
+
+  getJob(jobId: string): Promise<JobStatus> {
+    return fetch(`${BASE}/jobs/${jobId}`).then((r) => json<JobStatus>(r))
   },
 }

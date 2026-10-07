@@ -374,6 +374,7 @@ function AppShell() {
                 readiness={readiness}
                 onChange={reload}
                 onInspect={(id) => setInspecting(id)}
+                onProjectChange={() => void refreshProjects()}
               />
               <DocumentViewer
                 projectId={activeId}
