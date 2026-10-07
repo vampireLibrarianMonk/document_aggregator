@@ -92,9 +92,14 @@ def _learn_profile(cluster: Cluster, target_schema: dict[str, Any],
                    library: ProfileLibrary, *, pid: str) -> AlignmentResult:
     """Infer a mapping for a cluster, register it as a PROVISIONAL profile (with
     a fill-rate baseline), and return the alignment result. The human approves it
-    later; until then it does not participate in approved-only routing."""
+    later; until then it does not participate in approved-only routing.
+
+    Research pathways enable the optional LLM semantic tier (use_semantic): it
+    upgrades deterministic abstentions with re-verified model picks when Bedrock
+    is enabled, and is a no-op offline (inference stays deterministic)."""
     result = run_alignment(cluster.records, target_schema,
-                           source_descriptions=cluster.descriptions or None)
+                           source_descriptions=cluster.descriptions or None,
+                           use_semantic=True)
     src = profile_source(cluster.records, cluster.descriptions or None)
     target = extract_target(target_schema)
     baseline = FillBaseline.from_provenance(result.provenance)

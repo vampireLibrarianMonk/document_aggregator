@@ -47,16 +47,28 @@ class AlignmentResult:
 def run_alignment(records: list[dict[str, Any]], target_schema: dict[str, Any],
                   *, profile: ConversionProfile | None = None,
                   source_descriptions: dict[str, str] | None = None,
-                  ) -> AlignmentResult:
-    """Profile -> extract -> map (or reuse) -> execute -> validate a batch.
+                  use_semantic: bool = False) -> AlignmentResult:
+    """Profile -> extract -> map (or reuse) -> [semantic tier] -> execute ->
+    validate a batch.
 
     When `profile` is given, its frozen mapping is reused verbatim (replay);
     otherwise a mapping is inferred deterministically from the source batch.
     `source_descriptions` (path -> text) is an optional semantic signal used
-    only during inference (e.g. a source metadata document)."""
+    only during inference (e.g. a source metadata document).
+
+    `use_semantic` opts into the optional LLM tier that tries to UPGRADE the
+    deterministic abstentions (needs_review/conflict) with re-verified model
+    picks. It is a no-op offline or when a profile is replayed (a frozen mapping
+    is never re-opened), so default behavior stays fully deterministic."""
     src = profile_source(records, source_descriptions)
     target = extract_target(target_schema)
-    mapping = profile.mapping if profile is not None else infer_mapping(src, target)
+    if profile is not None:
+        mapping = profile.mapping          # replay: frozen, never re-opened
+    else:
+        mapping = infer_mapping(src, target)
+        if use_semantic:
+            from .semantic import apply_semantic_tier
+            mapping = apply_semantic_tier(mapping, src, target)
 
     produced, prov = execute_mapping(records, mapping, target)
     validation = [
