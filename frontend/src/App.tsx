@@ -7,10 +7,11 @@ import { IngestionBoard } from './components/IngestionBoard'
 import { NewProjectForm } from './components/NewProjectForm'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
+import { SupplementalsPanel } from './components/SupplementalsPanel'
 import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'new' | 'pipeline' | 'correction' | 'search' | 'report' | 'samples'
+type Tab = 'new' | 'pipeline' | 'correction' | 'supplementals' | 'search' | 'report' | 'samples'
 
 interface TabDef { id: Tab; label: string }
 
@@ -19,6 +20,7 @@ const BASE_TABS: TabDef[] = [
   { id: 'new', label: 'New Project' },
   { id: 'pipeline', label: 'Ingestion' },
   { id: 'correction', label: 'Correction Pipeline' },
+  { id: 'supplementals', label: 'Supplementals' },
   { id: 'search', label: 'Search' },
   { id: 'report', label: 'Report & Export' },
 ]
@@ -118,6 +120,7 @@ function AppShell() {
     projects,
     activeId,
     documents,
+    supplementals,
     readiness,
     hasCorrectionData,
     error,
@@ -171,6 +174,7 @@ function AppShell() {
       case 'new':
         return false
       case 'pipeline':
+      case 'supplementals':
         return !hasProject
       case 'search':
         return !hasProject || !hasCompletedDocs
@@ -385,6 +389,17 @@ function AppShell() {
                 projectId={activeId}
                 documentId={inspecting}
                 onClose={() => setInspecting(null)}
+              />
+            </div>
+          )}
+
+          {tab === 'supplementals' && (
+            <div id="panel-supplementals" role="tabpanel" aria-labelledby="tab-supplementals">
+              <SupplementalsPanel
+                projectId={activeId}
+                supplementals={supplementals}
+                documents={documents}
+                onChange={reload}
               />
             </div>
           )}
