@@ -556,6 +556,135 @@ def job_counts() -> dict:
     return {"counts": get_queue().counts()}
 
 
+# --------------------------------------------------------------------------
+# Batch JSON -> golden conversion: set the golden schema, submit a batch
+# (clustered + routed per shape, async), inspect the learned library, and
+# approve a cluster's provisional profile so that shape streamlines later.
+# --------------------------------------------------------------------------
+
+
+class TargetSchemaBody(BaseModel):
+    # The golden JSON Schema everything in this project maps to. Named `target`
+    # (not `schema`) to avoid shadowing a Pydantic BaseModel attribute.
+    target: dict
+
+
+@app.put("/projects/{project_id}/alignment/target-schema")
+def set_target_schema(project_id: str, body: TargetSchemaBody) -> dict:
+    """Set (or replace) the project's golden target JSON Schema."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import save_target_schema
+    from .json_alignment.target_profile import extract_target
+
+    # Validate it parses into a usable target (fields/required) before saving.
+    target = extract_target(body.target)
+    if not target.fields:
+        raise HTTPException(400, "target schema has no top-level properties")
+    save_target_schema(project_id, body.target)
+    return {"project_id": project_id, "title": target.title,
+            "fields": len(target.fields),
+            "required": list(target.required_names())}
+
+
+@app.get("/projects/{project_id}/alignment/target-schema")
+def get_target_schema(project_id: str) -> dict:
+    _resolve_project(project_id)
+    from .json_alignment.project_store import load_target_schema
+
+    schema = load_target_schema(project_id)
+    if schema is None:
+        raise HTTPException(404, "no golden target schema set for this project")
+    return {"project_id": project_id, "target": schema}
+
+
+class BatchDoc(BaseModel):
+    doc_id: str | None = None
+    records: list[dict] = []
+    descriptions: dict[str, str] = {}
+
+
+class BatchSubmit(BaseModel):
+    docs: list[BatchDoc]
+    research: bool | None = None  # default: whatever Bedrock enablement allows
+
+
+@app.post("/projects/{project_id}/alignment/batch")
+def submit_batch(project_id: str, body: BatchSubmit) -> dict:
+    """Queue a mass JSON->golden conversion for this project. Returns a job_id;
+    poll GET /jobs/{job_id} for the per-cluster summary + outcomes. The project's
+    reject_below dial and stored golden schema + profile library apply."""
+    proj = _resolve_project(project_id)
+    from .jobs.runtime import get_queue
+    from .json_alignment.project_store import load_target_schema
+
+    if load_target_schema(project_id) is None:
+        raise HTTPException(400, "set a golden target schema before submitting a batch")
+    if not body.docs:
+        raise HTTPException(400, "batch has no documents")
+
+    payload = {
+        "project_id": project_id,
+        "reject_below": proj.reject_below,
+        "docs": [d.model_dump() for d in body.docs],
+    }
+    if body.research is not None:
+        payload["research"] = body.research
+    job_id = get_queue().enqueue("batch_align", payload)
+    return {"job_id": job_id, "state": "pending", "documents": len(body.docs)}
+
+
+@app.get("/projects/{project_id}/alignment/library")
+def get_library(project_id: str) -> dict:
+    """The project's learned shapes: each cluster/profile with its approval
+    state, so the UI can show per-cluster approval cards."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import load_project_library
+
+    lib = load_project_library(project_id)
+    entries = []
+    for pid in sorted(lib.entries):
+        e = lib.entries[pid]
+        entries.append({
+            "profile_id": e.profile_id,
+            "state": e.state,
+            "version": e.version,
+            "mapped": e.profile.mapping.mapped(),
+            "needs_review": e.profile.mapping.needs_review(),
+            "conflicts": e.profile.mapping.conflicts(),
+        })
+    return {
+        "project_id": project_id,
+        "target_title": lib.target_title,
+        "approved": lib.approved_ids(),
+        "provisional": lib.provisional_ids(),
+        "entries": entries,
+    }
+
+
+class ApproveProfile(BaseModel):
+    profile_id: str
+
+
+@app.post("/projects/{project_id}/alignment/approve")
+def approve_profile(project_id: str, body: ApproveProfile) -> dict:
+    """Approve a provisional profile (one-time human sign-off for a novel/drifted
+    shape). After approval, that shape replays deterministically in future
+    batches with zero re-inference."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import (
+        load_project_library,
+        save_project_library,
+    )
+
+    lib = load_project_library(project_id)
+    if lib.get(body.profile_id) is None:
+        raise HTTPException(404, f"no such profile: {body.profile_id}")
+    lib.approve(body.profile_id)
+    save_project_library(project_id, lib)
+    return {"project_id": project_id, "approved": body.profile_id,
+            "state": "approved"}
+
+
 def _components(project_id: str = project.DEFAULT_PROJECT) -> list[dict]:
     return project.component_overview(project_id)
 

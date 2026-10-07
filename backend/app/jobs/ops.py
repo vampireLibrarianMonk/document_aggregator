@@ -130,6 +130,58 @@ def op_generate_document(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+@register_op("batch_align")
+def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
+    """Mass JSON->golden conversion for a project, run through the command
+    center. Clusters the uploaded documents by shape, decides a pathway per
+    cluster (replay approved profiles / research novel shapes / repair drift /
+    review / quarantine), and executes them concurrently (cores-1).
+
+    Payload:
+      project_id   the project whose golden target schema + profile library apply
+      docs         [{doc_id, records:[...], descriptions?:{...}}, ...]
+      research     whether the research/LLM pathway may try (default True)
+
+    Grows and PERSISTS the project's profile library (novel/drift shapes land as
+    PROVISIONAL profiles awaiting human approval), so a later batch of the same
+    shape replays once approved. Never fabricates: quarantined/review clusters
+    emit no golden records."""
+    from ..config import settings
+    from ..json_alignment.batch import SourceDoc
+    from ..json_alignment.batch_agent import run_batch_via_coordinator
+    from ..json_alignment.project_store import (
+        load_project_library,
+        load_target_schema,
+        save_project_library,
+    )
+
+    project_id = payload.get("project_id", "")
+    schema = load_target_schema(project_id)
+    if schema is None:
+        return {"ok": False, "error": "no golden target schema set for this project"}
+
+    docs = [
+        SourceDoc(doc_id=d.get("doc_id", f"doc_{i}"),
+                  records=list(d.get("records", [])),
+                  descriptions=dict(d.get("descriptions", {})))
+        for i, d in enumerate(payload.get("docs", []))
+    ]
+    if not docs:
+        return {"ok": False, "error": "no documents in batch"}
+
+    reject_below = float(payload.get("reject_below", 0.5))
+    research = bool(payload.get("research", settings.BEDROCK_ENABLED))
+
+    library = load_project_library(project_id)
+    result = run_batch_via_coordinator(
+        docs, schema, library, reject_below=reject_below,
+        research_available=research)
+    # Persist the grown library (new provisional profiles / version bumps).
+    save_project_library(project_id, library)
+
+    return {"ok": True, **result.to_dict()}
+
+
 @register_op("pipeline")
 def op_pipeline(payload: dict[str, Any]) -> dict[str, Any]:
     """Full end-to-end for a project document source: reconcile (which already
