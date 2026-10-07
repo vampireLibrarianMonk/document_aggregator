@@ -15,8 +15,9 @@ required. Cloud pieces would slot in as adapters behind the same interfaces.
 - [User Guide](docs/user-guide/USER_GUIDE.md) - using the app: the tabs, the
   correction pipeline, what statuses/colors mean, what to submit and where.
 - [Project walkthroughs](docs/user-guide/projects/) - step-by-step guides for
-  specific projects: the [TGX-9 correction case](docs/user-guide/projects/tgx-9/README.md)
-  and the [JSON→golden batch case](docs/user-guide/projects/json-batch/README.md).
+  each of the six sample correction cases (TGX-9, credential-stuffing,
+  reagent-spill, injection-molding, hydraulic-decay, nav-bus-icd) plus the
+  [JSON→golden batch case](docs/user-guide/projects/json-batch/README.md).
 - [Developer Guide](docs/DEVELOPER_GUIDE.md) - architecture, running it, the
   reconciliation + discipline engine, the project data model, testing.
 - [Coordinator prove-out](docs/testing/coordinator-proveout.md) - both pipelines

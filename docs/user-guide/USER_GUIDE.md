@@ -70,6 +70,22 @@ security incident, lab safety event, manufacturing defect, aviation maintenance,
 interface control document). They live under `sample_docs/project/` in the
 repository. There are two ways to run them.
 
+Each has a step-by-step walkthrough under `docs/user-guide/projects/` with the
+exact values to expect on screen:
+
+| # | Case | Walkthrough |
+|---|------|-------------|
+| 1 | TGX-9 Telemetry Gateway Incident | [tgx-9](projects/tgx-9/README.md) |
+| 2 | Customer Portal Credential-Stuffing Incident | [credential-stuffing](projects/credential-stuffing/README.md) |
+| 3 | Clinical Lab Reagent Spill Safety Event | [reagent-spill](projects/reagent-spill/README.md) |
+| 4 | Injection Molding Line Defect Event | [injection-molding](projects/injection-molding/README.md) |
+| 5 | Aircraft Hydraulic Decay Maintenance Event | [hydraulic-decay](projects/hydraulic-decay/README.md) |
+| 6 | Nav Bus Interface Control Document | [nav-bus-icd](projects/nav-bus-icd/README.md) |
+
+A seventh walkthrough covers the mass **JSON→golden** batch capability (which
+uses committed fixtures rather than a `sample_docs` case):
+[json-batch](projects/json-batch/README.md).
+
 ### In the app (optional, off by default)
 
 Sample instantiation is an opt-in feature so the app does not carry demo content
