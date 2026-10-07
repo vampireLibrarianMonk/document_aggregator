@@ -6,6 +6,13 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-07
+
+Phase 4: the command center promoted to the production orchestrator, a
+deterministic JSON→golden-JSON schema-alignment capability, and a mass batch
+conversion layer for the "thousands of files across teams" workload — all run
+through the one command center, benchmarked and proven out on both pipelines.
+
 ### Added
 - Promoted the command-center orchestrator from the bake-off harness into
   production (`app/command_center/`): a JEV-style Coordinator that decomposes a

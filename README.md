@@ -15,9 +15,14 @@ required. Cloud pieces would slot in as adapters behind the same interfaces.
 - [User Guide](docs/user-guide/USER_GUIDE.md) - using the app: the tabs, the
   correction pipeline, what statuses/colors mean, what to submit and where.
 - [Project walkthroughs](docs/user-guide/projects/) - step-by-step guides for
-  specific projects (e.g. TGX-9).
+  specific projects: the [TGX-9 correction case](docs/user-guide/projects/tgx-9/README.md)
+  and the [JSON→golden batch case](docs/user-guide/projects/json-batch/README.md).
 - [Developer Guide](docs/DEVELOPER_GUIDE.md) - architecture, running it, the
   reconciliation + discipline engine, the project data model, testing.
+- [Coordinator prove-out](docs/testing/coordinator-proveout.md) - both pipelines
+  measured through the command center.
+- [JSON-alignment benchmark](docs/testing/json-alignment-benchmark.md) - how the
+  schema-alignment slice is scored (and the MaDI-Bench assessment).
 - [Air-gapped RHEL deployment](deploy/AIRGAP_RHEL.md) - the enclave checklist.
 - [Accessibility toolkit](frontend/a11y/ACCESSIBILITY.md) - the transferable
   axe-core + keyboard/focus audit.
@@ -90,6 +95,57 @@ approvals) become `needs_review` rather than fabricated.
 
 Verify it: `python backend\verify_project.py` (15 assertions over the defect
 inventory). Inspect it: the **Correction Pipeline** tab in the frontend.
+
+## The command center (production orchestrator)
+
+A single **command center** (`app/command_center/`) orchestrates the work. It
+decomposes a run into a bounded sub-task DAG, dispatches each task through a
+parallel queue with a **deterministic order-preserving assembler**, threads
+results through a shared context, and iterates to convergence (`needs_review` →
+0, genuine conflicts preserved, capped rounds). The correction pipeline runs
+through it **by default** — the inline path is retained as a byte-identical
+fallback (`engine="direct"`), proven across all six sample projects in
+`backend/tests/test_command_center.py`. It is deliberately workflow-agnostic:
+the JSON→golden alignment below plugs in as additional sub-agents, not a second
+framework.
+
+## JSON → golden-JSON alignment (schema conversion)
+
+Beyond document correction, the platform converts arbitrary source JSON into one
+canonical **golden** JSON Schema — the "thousands of files across teams, few
+distinct shapes" workload — on the same command center and with the same
+precision-first, no-fabrication posture (`app/json_alignment/`).
+
+- **Deterministic mapping.** Source fields map to the golden schema by a
+  strongest-first cascade (exact name → normalized token-set → declared alias →
+  name+description overlap). It **abstains** (`needs_review`) when nothing clears
+  the floor and marks genuine ties `conflict` — it never invents a
+  correspondence. Bounded, fail-closed transforms (number cast, date→year/ISO,
+  enum/alias canonicalization, delimited→list) and a grounding check that
+  rejects any value without a traceable source complete the slice.
+- **Learn once, replay many.** A learned mapping persists as a **Conversion
+  Profile**; a library of profiles (one per source shape) is keyed by a
+  value-independent **shape signature**. A novel shape is researched once and
+  held `provisional` until a one-time human approval, after which every future
+  file of that shape **replays deterministically with zero inference**.
+- **Relevance cutoff.** A per-project dial (`reject_below`) quarantines a file as
+  unrelated when too few required golden fields map; zero mappable required
+  fields is always a reject. Nothing unrelated is ever force-converted.
+- **Drift → re-emerge.** Structural, type, and **behavioral** (fill-rate
+  collapse) drift detection pulls a shape back out of fast replay into research
+  on only the broken fields, then re-approval settles it again.
+- **Mass batch, async.** A batch is clustered by shape and one pathway is run
+  **per cluster** (replay / research / drift-repair / review / quarantine)
+  concurrently, under a **cgroup-aware** worker cap (reads the pod's CPU limit,
+  cores − 1) so it is safe in a container.
+- **Optional model tier.** When `BEDROCK_ENABLED`, an LLM tier recovers
+  abstentions by *picking among the profiled candidates* (tool-use, temperature
+  0) and re-verifying every pick deterministically. Offline it is a no-op and
+  the deterministic result stands.
+
+Measured end to end in [`docs/testing/coordinator-proveout.md`](docs/testing/coordinator-proveout.md);
+scored in [`docs/testing/json-alignment-benchmark.md`](docs/testing/json-alignment-benchmark.md).
+Walk it in the [JSON→golden batch guide](docs/user-guide/projects/json-batch/README.md).
 
 ## Build discipline (document inspection)
 
@@ -290,8 +346,10 @@ Heavy work runs through a job queue (`app/jobs/`), so the API stays responsive:
 - `GET /jobs/{job_id}` → state + result
 - `GET /jobs` → queue counts
 
-Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`. The worker
-(`backend/worker_main.py`) processes them; `WORKER_CONCURRENCY` sets thread count.
+Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`, `batch_align` (the
+mass JSON→golden conversion). The worker (`backend/worker_main.py`) processes
+them; `WORKER_CONCURRENCY` sets thread count, and the batch op additionally
+self-limits to cgroup-aware cores − 1 (`JSON_ALIGNMENT_MAX_WORKERS` overrides).
 
 Correction endpoints are **project-scoped** (a project IS a correction project
 in the unified model), under `/projects/{project_id}/project/...`:
@@ -304,6 +362,22 @@ in the unified model), under `/projects/{project_id}/project/...`:
 - `POST /projects/{id}/project/interpret` — turn freeform reviewer feedback into
   constrained, validated correction operations (optionally Bedrock-backed); never
   invents values
+
+Batch **JSON→golden** alignment is project-scoped too, under
+`/projects/{project_id}/alignment/...`:
+
+- `PUT /projects/{id}/alignment/target-schema` — set/replace the project's golden
+  target JSON Schema (`GET` fetches it)
+- `POST /projects/{id}/alignment/batch` — queue a mass conversion (`{docs}`);
+  returns a `job_id` to poll via `GET /jobs/{id}`. Honors the project's
+  `reject_below` dial; refuses until a golden schema is set
+- `GET /projects/{id}/alignment/library` — the learned shapes with their approval
+  state (approved vs provisional) and per-shape mappings
+- `POST /projects/{id}/alignment/approve` — one-time human sign-off on a
+  provisional shape, after which it replays automatically
+
+The per-project relevance dial is set via `PATCH /projects/{id}`
+(`{"reject_below": 0.0..1.0}`) or the Ingestion-tab slider.
 
 The legacy flat `/project/*` routes still exist as deprecated aliases during the
 transition. `GET /projects` lists every project, including the bundled demo
@@ -336,7 +410,9 @@ depends on them.
   report with per-unit status + provenance.
 - **Ingestion** — every submitted document with live stage status (ingest →
   parse → chunk → embed → index), block/chunk/artifact counts, resolved
-  effective DTG, and a canonical-JSON inspector.
+  effective DTG, and a canonical-JSON inspector. Also hosts the **Batch
+  conversion** section (opt-in switch): set a golden schema, tune the relevance
+  dial, upload many JSON files, and approve new shapes per cluster.
 - **Supplementals** — add and view comments, emails, corrections, and interview
   notes; sentiment is auto-classified.
 - **Search** — hybrid lexical + vector retrieval with per-hit provenance.
