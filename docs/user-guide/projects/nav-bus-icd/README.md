@@ -83,7 +83,7 @@ a human than the incident cases.)
 | `scope.spec_date` | **corrected** (green) | 2026-04-22 | updated to the review-board date |
 | `interface_overview.signaling_rate` | **corrected** (green) | The signaling rate is 100 kbps. | draft said 50 kbps |
 | `interface_overview.bus_voltage` | **corrected** (green) | differential pair physical layer | rebuilt from the spec |
-| `scope.approval_status` | **conflict** (red) | *blank* | "Draft" status challenged with no agreed value |
+| `scope.approval_status` | **conflict** (red) | *blank* | the draft's "Draft" status was challenged; the two candidates shown are **Approved** and **Rejected** |
 | section bodies (scope, interface_overview, data_formats) | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
 
 Confirm the guardrails: every corrected value has a **Source:** line;

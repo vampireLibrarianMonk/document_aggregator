@@ -78,7 +78,7 @@ review, 1 conflict.
 | `identifiers.incident_date` | **unchanged** (grey) | 2026-07-03 | already correct |
 | `contributing_factors.software_version` | **filled** (blue) | 7.1.2 | affected analyzer software (draft said 7.2.0) |
 | `description.duration` | **filled** (blue) | three hour | corrected (draft said "one hour") |
-| `identifiers.severity` | **conflict** (red) | *blank* | reviewers disagree; "Minor" was challenged |
+| `identifiers.severity` | **conflict** (red) | *blank* | the draft's "Minor" was challenged; the two candidates shown are **Major** and **Moderate** |
 | section bodies | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
 
 Confirm the guardrails: every corrected value has a **Source:** line; `severity`

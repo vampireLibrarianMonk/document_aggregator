@@ -78,7 +78,7 @@ review, 1 conflict.
 | `identifiers.incident_date` | **unchanged** (grey) | 2026-08-09 | already correct |
 | `contributing_factors.firmware` | **filled** (blue) | 2.0.5 | affected controller firmware (draft said 2.1.1) |
 | `description.duration` | **filled** (blue) | five hour | corrected (draft said "two hour") |
-| `identifiers.severity` | **conflict** (red) | *blank* | reviewers disagree; "Cosmetic" was challenged |
+| `identifiers.severity` | **conflict** (red) | *blank* | the draft's "Cosmetic" was challenged; the two candidates shown are **Critical** and **Major** |
 | section bodies | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
 
 Confirm the guardrails: every corrected value has a **Source:** line; `severity`

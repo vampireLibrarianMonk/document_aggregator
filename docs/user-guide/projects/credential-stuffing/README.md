@@ -80,7 +80,7 @@ review, 1 conflict.
 | `identifiers.incident_date` | **unchanged** (grey) | 2026-05-11 | already correct |
 | `contributing_factors.auth_version` | **filled** (blue) | 3.4.0 | affected auth version (draft said 3.5.2) |
 | `description.duration` | **filled** (blue) | six hour | corrected from the review (draft said "two hour") |
-| `identifiers.severity` | **conflict** (red) | *blank* | reviewers disagree; "Informational" was challenged |
+| `identifiers.severity` | **conflict** (red) | *blank* | the draft's "Informational" was challenged; the two candidates shown are **High** and **Medium** |
 | section bodies | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
 
 Confirm the guardrails: every corrected value carries a **Source:** line; the

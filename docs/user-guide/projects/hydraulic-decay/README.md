@@ -79,7 +79,7 @@ needs review, 1 conflict (the most corrected of the six cases).
 | `identifiers.incident_date` | **corrected** (green) | 2026-09-16 | draft date was wrong |
 | `contributing_factors.software_version` | **filled** (blue) | B2.3 | affected actuator software (draft said B2.5) |
 | `description.duration` | **filled** (blue) | seven hour | corrected (draft said "three hour") |
-| `identifiers.severity` | **conflict** (red) | *blank* | reviewers disagree; "Routine" was challenged |
+| `identifiers.severity` | **conflict** (red) | *blank* | the draft's "Routine" was challenged; the two candidates shown are **Critical** and **Major** |
 | section bodies | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
 
 Confirm the guardrails: every corrected value has a **Source:** line; `severity`

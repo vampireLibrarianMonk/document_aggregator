@@ -6,6 +6,59 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Post-0.3.0 vetting: an end-to-end UI test suite, an expanded accessibility
+audit, a Diagnostics-page audit and outfit, and the UI/doc fixes that work
+surfaced.
+
+### Added
+- End-to-end UI suite (`frontend/e2e/`, Playwright): 20 flows across five specs
+  that drive the **built** app through a real browser against the **live** Docker
+  stack and assert the on-screen values the project guides promise —
+  nav/tab-gating, all six sample correction cases (draft + template), the
+  four-pathway ingestion upload, the JSON→golden batch section (all five
+  pathways), and the Diagnostics page. On-demand (`npm run e2e`), deliberately
+  not wired into pre-commit/CI. Shares the static-server-with-`/api`-proxy with
+  the a11y audit (`frontend/a11y/serve.mjs`). See `frontend/e2e/README.md`.
+- Expanded the accessibility audit from 9 to 17 interactive UI states, adding the
+  Batch-conversion section and the Diagnostics page; still 0 axe violations and
+  0 keyboard/focus issues (`frontend/a11y/flows.mjs`).
+- Diagnostics page audit and outfit: every service row (embeddings / OCR / layout
+  geometry / Bedrock) now reports concrete, probed detail; Refresh re-probes;
+  versions, offline guards, and the data directory render; the overall posture
+  rolls up correctly (Bedrock-offline is not an error). Audit documented in
+  `docs/testing/diagnostics-audit.md`, covered by `backend/tests/test_diagnostics.py`.
+- Wired the **Supplementals** tab into the app shell. The panel and its API were
+  already implemented and the report already rendered supplementals, but the
+  add/view page was not reachable from the navigation; it is now a tab (scoped to
+  the selected project), matching the user guide.
+
+### Fixed
+- Sample/correction projects could never open the Correction Pipeline or Report
+  tabs in the UI: those tabs were gated solely on ingestion `readiness.ready`,
+  which only flips once documents are uploaded, so fixture-only projects (zero
+  uploads) stayed locked. The tabs now also unlock when a project carries
+  correction fixtures (`useProject` exposes `hasCorrectionData`; `App.tsx` gates
+  on `hasCorrectionData || inputsReady`).
+- The Ingestion upload picker greyed out the sample files: the accepted-extension
+  list omitted `.json`, but the sample template / first-draft / corrections are
+  all JSON. Added `.json` to the accepted extensions.
+- Diagnostics reported a disabled Bedrock integration as green: the state was
+  `ok` whenever the endpoint was merely reachable, even with
+  `BEDROCK_ENABLED=false` (credentials mounted on dev boxes). The state is now
+  `ok` only when the integration is both enabled and available, otherwise
+  `offline`; the panel shows explicit enabled / reachable / in-use rows.
+
+### Docs
+- Corrected the project-scoped correction endpoint paths in the README: they are
+  `/projects/{id}/reconcile`, `/components`, `/converge`, `/resolve`, `/convert`,
+  `/interpret` (no stray `/project/` segment), and removed the inaccurate claim
+  that flat `/project/*` aliases still exist.
+- Corrected the Diagnostics location in the user guide: it is a separate
+  `/diagnostics` page reached from a footer link (gated on
+  `DIAGNOSTICS_ENABLED`), not one of the top-bar tabs.
+- Added the conflict candidate pair each correction walkthrough surfaces, for
+  parity with the TGX-9 guide.
+
 ## [0.3.0] - 2026-10-07
 
 Phase 4: the command center promoted to the production orchestrator, a

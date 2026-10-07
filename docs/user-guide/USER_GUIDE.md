@@ -19,14 +19,18 @@ design: everything you see is something you made. The top of the screen has one
 **Project** selector that scopes all tabs, and these tabs:
 
 1. **New Project**
-2. **Correction Pipeline**
-3. **Ingestion**
+2. **Ingestion**
+3. **Correction Pipeline**
 4. **Supplementals**
 5. **Search**
 6. **Report & Export**
-7. **Diagnostics**
-8. **Samples** — only present when your administrator has enabled it (see
+7. **Samples** — only present when your administrator has enabled it (see
    "Running the sample cases" below)
+
+And, below the tabs, a footer link:
+
+- **Diagnostics** — a separate status page (see "Diagnostics" below). It appears
+  only when your administrator has enabled it (`DIAGNOSTICS_ENABLED=true`).
 
 On a fresh app you land on the **New Project** tab automatically. You can return
 to it anytime by clicking the **New Project** tab or the **+ New Project** button
@@ -187,7 +191,7 @@ query, press Enter.
 What to expect: a list of hits, each quoting the matched passage with its
 document and section, ranked by relevance. With real embeddings active (the
 default) this is semantic search, not just keyword matching — confirm the
-embedding model on the Diagnostics tab.
+embedding model on the Diagnostics page (footer link).
 
 ### Report & Export
 
@@ -201,7 +205,12 @@ date/time, with supplementals attached. Exports download as files.
 
 ### Diagnostics
 
-Shows, in plain terms, what the platform can actually do right now. Use this
+Diagnostics is a **separate page**, not one of the tabs. Reach it from the
+**Diagnostics** link in the footer at the bottom of the app (it appears only when
+your administrator has enabled it with `DIAGNOSTICS_ENABLED=true`), or by going
+to `/diagnostics` directly. A link on the page takes you back to the app.
+
+It shows, in plain terms, what the platform can actually do right now. Use it
 whenever something looks weaker than expected (for example, search feels shallow
 or a scanned PDF produced no text).
 
@@ -278,9 +287,10 @@ No. Using a sample copies it into a new project of your own. The sample stays
 untouched, and you can create as many copies as you like.
 
 **Search results feel shallow / my scanned PDF produced no text.**
-Open the **Diagnostics** tab. If Embeddings shows the hashing fallback, semantic
-search is degraded; if OCR shows Degraded, scanned documents are not being read.
-That tab tells you exactly which capability is reduced.
+Open the **Diagnostics** page (the link in the footer). If Embeddings shows the
+hashing fallback, semantic search is degraded; if OCR shows Degraded, scanned
+documents are not being read. That page tells you exactly which capability is
+reduced.
 
 **Why is a value blank with a red "conflict" tag?**
 Reviewers disagreed and no source settles it. Pick one of the listed candidates.

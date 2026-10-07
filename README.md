@@ -355,14 +355,17 @@ them; `WORKER_CONCURRENCY` sets thread count, and the batch op additionally
 self-limits to cgroup-aware cores − 1 (`JSON_ALIGNMENT_MAX_WORKERS` overrides).
 
 Correction endpoints are **project-scoped** (a project IS a correction project
-in the unified model), under `/projects/{project_id}/project/...`:
+in the unified model), under `/projects/{project_id}/...`:
 
-- `GET /projects/{id}/project/components` — the four components and their contents
-- `GET /projects/{id}/project/component/{cid}?mode=draft|template` — raw contents of one component
-- `GET /projects/{id}/project/reconcile?mode=draft|template` — the corrected intermediate JSON
-- `POST /projects/{id}/project/convert` — convert an uploaded real DOCX/PPTX/PDF
+- `GET /projects/{id}/components` — the four components and their contents
+- `GET /projects/{id}/component/{cid}?mode=draft|template` — raw contents of one component
+- `GET /projects/{id}/reconcile?mode=draft|template&source_format=json|docx|pptx|pdf` — the corrected intermediate JSON
+- `GET /projects/{id}/converge?mode=draft|template` — the multi-round convergence view
+- `POST /projects/{id}/resolve` — record a human decision on one unresolved unit
+  (pick a conflict candidate or supply a needs-review value) as a new round
+- `POST /projects/{id}/convert` — convert an uploaded real DOCX/PPTX/PDF
   into the internal first-attempt shape (the file-submission path)
-- `POST /projects/{id}/project/interpret` — turn freeform reviewer feedback into
+- `POST /projects/{id}/interpret` — turn freeform reviewer feedback into
   constrained, validated correction operations (optionally Bedrock-backed); never
   invents values
 
@@ -382,26 +385,25 @@ Batch **JSON→golden** alignment is project-scoped too, under
 The per-project relevance dial is set via `PATCH /projects/{id}`
 (`{"reject_below": 0.0..1.0}`) or the Ingestion-tab slider.
 
-The legacy flat `/project/*` routes still exist as deprecated aliases during the
-transition. `GET /projects` lists every project, including the bundled demo
-projects (which are surfaced as projects); the global project selector in the UI
-scopes all five tabs to the chosen project.
+`GET /projects` lists every project, including the bundled demo projects (which
+are surfaced as projects); the global project selector in the UI scopes every
+tab to the chosen project.
 
 ### What the UI surfaces vs. what's API-only
 
 To set expectations honestly: the **frontend exercises the synchronous path** —
-the Correction Pipeline tab calls the project-scoped `.../project/reconcile` and
-`.../project/converge` directly, and all five tabs scope to the selected project.
+the Correction Pipeline tab calls the project-scoped `.../reconcile` and
+`.../converge` directly, and every tab scopes to the selected project.
 The following are implemented and tested at the **API/worker level but not yet
 wired into the UI**:
 
 - the **async job queue** (`POST /jobs` … ) — the UI runs projects
   synchronously; jobs are for the worker/headless path;
-- **`/project/convert`** — uploading a real DOCX/PPTX/PDF as the first attempt.
-  In the Correction Pipeline tab, the "source fidelity" selector chooses which
-  **pre-converted** project artifact to read (JSON/DOCX/PPTX/PDF), so you can
-  see how fidelity affects extraction; it does not convert a file you upload;
-- **`/project/interpret`** — the feedback-to-operations interpreter.
+- **`/projects/{id}/convert`** — uploading a real DOCX/PPTX/PDF as the first
+  attempt. In the Correction Pipeline tab, the "source fidelity" selector chooses
+  which **pre-converted** project artifact to read (JSON/DOCX/PPTX/PDF), so you
+  can see how fidelity affects extraction; it does not convert a file you upload;
+- **`/projects/{id}/interpret`** — the feedback-to-operations interpreter.
 
 These are roadmap items for the frontend, not hidden features. Nothing in the UI
 depends on them.
