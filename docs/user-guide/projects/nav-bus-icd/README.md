@@ -37,13 +37,41 @@ don't, and invents nothing.
 
 ---
 
-## Step 2 — Choose the mode
+## Step 2 — Ingestion: upload the document pathways
 
-Set **Draft**, **Single pass**, **Source fidelity: JSON**.
+Open the **Ingestion** tab. There are four upload areas, and the readiness
+banner requires **corpus** + **corrections** + at least one of
+{**template**, **first draft**} — the two valid pathways. (If you used **Use
+this sample** in Step 1, these are already loaded; read this to see what the
+sample provided, then go to Step 3.)
+
+Upload the files from `sample_docs/project/6/`:
+
+| Area | Upload | Pathway |
+|---|---|---|
+| Original corpus | `corpus/interface_spec_2026-04-10.txt`, `corpus/review_board_notes_2026-04-22.md` | — (required) |
+| Template | `template/` ICD template JSON | **template pathway** |
+| First draft | `first_attempt/` draft ICD JSON | **first-draft pathway** |
+| Corrections | `corrections/comments.json` | — (required) |
+
+**What you should see:** each file advances **ingest → parse → chunk → embed →
+index** to **completed**, and the readiness banner flips from **"Inputs
+incomplete"** to **"Inputs ready"** once corpus + corrections + one of
+template/first-draft are present. The Correction Pipeline and Report & Export
+tabs then unlock. Here the **template** is a blank ICD structure and the
+**first-draft** is the flawed ICD — both ship so you can compare Draft and
+Template modes.
 
 ---
 
-## Step 3 — Read the corrected report (Draft mode)
+## Step 3 — Choose the mode
+
+Open the **Correction Pipeline** tab, then set **Draft**, **Single pass**,
+**Source fidelity: JSON**.
+
+---
+
+## Step 4 — Read the corrected report (Draft mode)
 
 Draft mode produces **17 units**: 2 unchanged, 3 filled, 9 corrected, **2 needs
 review**, 1 conflict. (Two needs-review items, not one — the ICD leaves more for
@@ -67,7 +95,7 @@ gaps).
 
 ---
 
-## Step 4 — Compare Template mode
+## Step 5 — Compare Template mode
 
 Switch to **Template**: **16 units — 11 filled, 2 corrected, 2 needs review, 1
 conflict**. The resolved values appear as **filled** (populating a blank ICD)
@@ -77,7 +105,7 @@ disagreement or a missing authority resolve itself.
 
 ---
 
-## Step 5 — Export (optional)
+## Step 6 — Export (optional)
 
 **Report & Export** → export the corrected ICD.
 

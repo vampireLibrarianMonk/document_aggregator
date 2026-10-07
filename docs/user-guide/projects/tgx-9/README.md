@@ -43,19 +43,66 @@ material under `sample_docs/project/1/`:
   draft) and `template/incident_report_template.json` (the blank template).
 - **corrections** — `corrections/comments.json` and the email exports.
 
-**What you should see:** the project is active in the top selector, and the
-Correction Pipeline tab shows four stage boxes — **Original corpus**, **First
-attempt**, **Comments / emails**, **Corrected intermediate JSON** — each with a
-count.
+**What you should see:** the project is active in the top selector. If you
+instantiated the sample (A), its four components are already populated and you
+land on the Correction Pipeline tab — you can skip to Step 3. If you created an
+empty project (B), do Step 2 next.
 
 ---
 
-## Step 2 — Choose the mode
+## Step 2 — Ingestion: upload the document pathways
 
-At the top of the Correction Pipeline tab, set:
+This step shows the four **Ingestion** areas and the two upload *pathways* that
+unlock the Correction Pipeline. (If you used **Use this sample** in Step 1, the
+sample is already loaded; read this to understand what it provided, then go to
+Step 3.)
+
+Open the **Ingestion** tab. You will see four upload areas, each tagging what you
+drop into it:
+
+1. **Original corpus** — the ground-truth source documents. **Required.**
+2. **Template** — the required output structure/rubric. *(template pathway)*
+3. **Corrections** — reviewer comments / emails. **Required.**
+4. **First draft** — the completed-but-flawed attempt. *(first-draft pathway)*
+
+The rule the readiness banner enforces: **corpus is required, corrections are
+required, and you need at least one of {template, first draft}** — those are the
+two valid pathways. A template-only project fills a blank template; a
+first-draft project repairs an existing attempt; providing both lets you do
+either (this is what the TGX-9 sample does).
+
+Upload the TGX-9 files from `sample_docs/project/1/` into their areas:
+
+| Area | Upload | Pathway |
+|---|---|---|
+| Original corpus | `corpus/field_report_2026-03-02.txt`, `corpus/root_cause_notes_2026-03-15.md` | — (required) |
+| Template | `template/incident_report_template.json` | **template pathway** |
+| First draft | `first_attempt/incident_report_draft.json` | **first-draft pathway** |
+| Corrections | `corrections/comments.json` | — (required) |
+
+**What you should see:** each file appears as a row and advances through
+**ingest → parse → chunk → embed → index** to **completed** (embeddings run
+locally with all-MiniLM-L6-v2). The readiness banner at the top starts as
+**"Inputs incomplete"** listing what's missing, and flips to **"Inputs ready"**
+once corpus + corrections + at least one of template/first-draft are present —
+the counts read `corpus: 2, template: 1, corrections: 1, first_draft: 1`. When
+it is ready, the **Correction Pipeline** and **Report & Export** tabs unlock.
+
+> The two pathways, concretely: the **template** file is the blank structure the
+> output must conform to; the **first-draft** file is the flawed attempt to be
+> corrected. TGX-9 ships both so you can compare Draft mode (repair the draft)
+> against Template mode (fill the blank) in Steps 3–4.
+
+---
+
+## Step 3 — Choose the mode
+
+Open the **Correction Pipeline** tab. You should see four stage boxes —
+**Original corpus**, **First attempt**, **Comments / emails**, **Corrected
+intermediate JSON** — each with a count. At the top, set:
 
 - **Draft vs Template:** start with **Draft** (fix the completed-but-flawed
-  report). You'll try **Template** in Step 4.
+  report). You'll try **Template** in Step 5.
 - **Single pass vs Rounds:** **Single pass**.
 - **Source fidelity:** **JSON** (the clean baseline).
 
@@ -64,7 +111,7 @@ row per unit, each with a status tag and a short **Source:** line.
 
 ---
 
-## Step 3 — Read the corrected report (Draft mode)
+## Step 4 — Read the corrected report (Draft mode)
 
 Draft mode produces **17 units**: 3 unchanged, 4 filled, 8 corrected, 1 needs
 review, 1 conflict. Here is what to look for and verify.
@@ -92,7 +139,7 @@ Things to confirm (the guardrails):
 
 ---
 
-## Step 4 — Compare Template mode
+## Step 5 — Compare Template mode
 
 Switch **Draft → Template**. Template mode fills the *blank* report template from
 the sources instead of correcting a draft.
@@ -110,7 +157,7 @@ no-fabrication rule.
 
 ---
 
-## Step 5 — Export (optional)
+## Step 6 — Export (optional)
 
 Open **Report & Export** and export the corrected report (JSON / Markdown / DOCX
 / PPTX / PDF). The export is the assembled corrected content — nothing is added

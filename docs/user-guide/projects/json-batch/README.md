@@ -241,6 +241,43 @@ unrelated file into the golden shape.
 
 ---
 
+## Step 9 — See drift pull an approved shape back (the last pathway)
+
+So far you have exercised four of the five batch pathways: **novel_research**
+(Step 5), **replay_clean** (Step 7), **review** (Step 8 note), and
+**reject_irrelevant** (Step 8). The fifth is **drift_repair** — what happens
+when an approved shape's *values* stop conforming even though its *keys* are
+unchanged.
+
+With `team_clean` already approved (Step 6), make a file **of the same shape**
+whose `criticScore` is no longer a number:
+
+**`team_clean_drifted.json`**
+
+```json
+[
+  { "name": "Hollow Knight", "releaseYear": "2017", "developer": "Team Cherry",
+    "publisher": "Team Cherry", "platform": "Windows PC",
+    "genres": ["Metroidvania"], "criticScore": "not available", "ESRB": "E10+" }
+]
+```
+
+Tick **Learn new shapes** and process it.
+
+**What you should see:** the file takes the **Drift — needs re-approval**
+pathway (`drift_repair`), not `replay_clean`. The keys still match the approved
+shape, but `criticScore` can no longer be grounded as an integer across the
+cluster (its fill rate collapsed), so the engine pulls the shape back out of
+fast replay, re-researches it, and surfaces it in **Shapes awaiting your
+approval** again — this time as a new *version* of the profile. You re-approve
+the delta (Step 6), and the shape settles back into deterministic replay.
+
+This is the full lifecycle: *research → approve → replay → drift → re-emerge →
+re-approve → replay.* The engine never silently mis-converts a drifted file; it
+flags it and asks.
+
+---
+
 ## What this demonstrates
 
 - **Template + first-draft, in JSON terms:** the golden schema is the template;
@@ -251,6 +288,10 @@ unrelated file into the golden shape.
   review, and nothing is ever fabricated into the golden output.
 - **The relevance dial is yours:** raise it to be stricter about what counts as
   "one of ours," lower it to let more through to review.
+- **All five batch pathways, exercised:** `novel_research` (Step 5),
+  `replay_clean` (Step 7), `review` (Step 8), `reject_irrelevant` (Step 8), and
+  `drift_repair` (Step 9) — the complete decision space the engine routes a
+  cluster through.
 
 Compare any produced record against the golden schema and the reference records
 in `backend/tests/fixtures/json_alignment/variations/golden_records.json` to
