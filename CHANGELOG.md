@@ -35,6 +35,39 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   checkout via `MADI_BENCH_PATH` (no MaDI data or code is committed or imported).
   Results and methodology documented in
   `docs/testing/json-alignment-benchmark.md`.
+- Mass batch JSON→golden conversion for the "thousands of files across teams"
+  workload, run through the command center. New in `app/json_alignment/`:
+  - `relevance.py` — a per-project reject dial (`Project.reject_below`, default
+    0.5, editable via `PATCH /projects/{id}` and the UI slider): a source is
+    quarantined as unrelated when the share of required golden fields it can map
+    falls below the dial; zero mappable required fields is always a reject.
+  - `signature.py` — value-independent source-shape fingerprints + banded
+    matching, so an incoming document routes to the right learned shape cheaply.
+  - `profile_store.py` `ProfileLibrary` — a catalog of learned shapes (one per
+    team shape), each `provisional` until a one-time human approval flips it to
+    `approved` so it replays automatically; drift bumps a version back to
+    provisional for re-approval.
+  - `drift.py` — structural + type + **behavioral** (fill-rate collapse) drift
+    detection that decides when a shape must leave deterministic replay.
+  - `concurrency.py` — cgroup-aware `available_cores()` (reads the pod's CPU
+    limit, not the node's) with a cores−1 worker cap for safe async in k8s.
+  - `batch.py` + `batch_agent.py` — clusters a batch by shape and decides +
+    runs ONE pathway per cluster (replay approved / research novel → provisional
+    profile / drift-repair the broken fields / review / quarantine), through the
+    command center, concurrently. Quarantine/review emit no golden records.
+  - `semantic.py` — an optional, `BEDROCK_ENABLED`-gated LLM tier that recovers
+    abstentions by picking among the profiled source candidates (tool-use,
+    temperature 0) and re-verifying every pick deterministically; offline no-op.
+  Exposed via `PUT/GET /projects/{id}/alignment/target-schema`,
+  `POST /projects/{id}/alignment/batch` (async job), `GET …/library`, and
+  `POST …/approve`, with a Batch conversion section on the Ingestion tab (mode
+  switch, relevance dial, multi-file upload, per-cluster approval cards).
+- Prove-out of both pipelines through the coordinator, measured and documented
+  in `docs/testing/coordinator-proveout.md`: the correction pipeline across all
+  six sample projects (both modes) and a 1,350-document / 9-shape JSON→golden
+  batch — ~1.1k docs/sec, model/human cost bounded to distinct shapes (not file
+  count), 75% zero-model replay once shapes are approved, zero fabrication, and
+  the drift→re-emerge→re-settle lifecycle.
 
 ### Changed
 - The Correction Pipeline now runs through the command center by default. The
