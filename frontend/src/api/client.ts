@@ -57,6 +57,17 @@ export const api = {
     )
   },
 
+  updateProject(
+    projectId: string,
+    patch: { name?: string; description?: string; reject_below?: number },
+  ): Promise<Project> {
+    return fetch(`${BASE}/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).then((r) => json<Project>(r))
+  },
+
   listDocuments(projectId: string): Promise<DocumentRecord[]> {
     return fetch(`${BASE}/projects/${projectId}/documents`).then((r) =>
       json<DocumentRecord[]>(r),

@@ -155,6 +155,31 @@ def get_project(project_id: str) -> Project:
     return _resolve_project(project_id)
 
 
+class UpdateProject(BaseModel):
+    """Partial update of a project's editable settings. Only provided fields
+    change; others keep their current value."""
+    name: str | None = None
+    description: str | None = None
+    reject_below: float | None = None  # batch relevance dial (0..1)
+
+
+@app.patch("/projects/{project_id}")
+def update_project(project_id: str, body: UpdateProject) -> Project:
+    """Update a project's editable settings (name, description, and the batch
+    relevance dial `reject_below`). Materializes an adopted demo project first,
+    so it works for any project id the app can resolve."""
+    proj = _resolve_project(project_id)
+    if body.name is not None:
+        proj.name = body.name
+    if body.description is not None:
+        proj.description = body.description
+    if body.reject_below is not None:
+        # The model validator clamps to [0,1]; re-validate via a round-trip.
+        proj = proj.model_copy(update={"reject_below": body.reject_below})
+        proj = Project(**proj.model_dump())
+    return store.update_project(proj)
+
+
 @app.delete("/projects/{project_id}")
 def delete_project(project_id: str) -> dict:
     """Permanently delete a project the user created, with all its data. 404 if

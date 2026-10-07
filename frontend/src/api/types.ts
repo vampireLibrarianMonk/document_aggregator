@@ -78,6 +78,9 @@ export interface Project {
   name: string
   description?: string
   created_at: string
+  /** Batch relevance dial (0..1): a source JSON is rejected as unrelated when
+   *  the share of required golden fields it can map falls below this. */
+  reject_below: number
 }
 
 export interface SearchHit {

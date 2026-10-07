@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 def utcnow() -> str:
@@ -183,6 +183,16 @@ class Project(BaseModel):
     name: str
     description: str = ""
     created_at: str = Field(default_factory=utcnow)
+    # Per-project relevance dial for batch JSON->golden conversion: a source
+    # document is rejected as unrelated when the share of REQUIRED golden fields
+    # it can confidently map falls below this (0..1). Zero mappable required
+    # fields is always a reject regardless of this value. Default 0.5.
+    reject_below: float = 0.5
+
+    @field_validator("reject_below")
+    @classmethod
+    def _clamp_reject_below(cls, v: float) -> float:
+        return 0.0 if v < 0.0 else (1.0 if v > 1.0 else float(v))
 
 
 class ExportProfile(BaseModel):

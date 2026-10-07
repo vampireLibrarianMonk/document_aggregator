@@ -91,6 +91,15 @@ class Store:
         data = _read_json(settings.project_dir(project_id) / "project.json")
         return Project(**data) if data else None
 
+    def update_project(self, project: Project) -> Project:
+        """Persist changes to an existing project record (overwrites its
+        project.json). Used by PATCH to update tunables like reject_below
+        without touching the project's data subdirs."""
+        with _lock:
+            _write_json(settings.project_dir(project.id) / "project.json",
+                        project.model_dump())
+        return project
+
     def delete_project(self, project_id: str) -> bool:
         """Permanently delete a stored project and all its data. Returns False
         if it does not exist. Only ever removes a directory UNDER the projects
