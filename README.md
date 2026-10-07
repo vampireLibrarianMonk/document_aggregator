@@ -27,6 +27,8 @@ required. Cloud pieces would slot in as adapters behind the same interfaces.
 - [Air-gapped RHEL deployment](deploy/AIRGAP_RHEL.md) - the enclave checklist.
 - [Accessibility toolkit](frontend/a11y/ACCESSIBILITY.md) - the transferable
   axe-core + keyboard/focus audit.
+- [End-to-end UI suite](frontend/e2e/README.md) - Playwright flows that drive the
+  built app against the live stack and assert the guide values (on-demand).
 
 ## What it does
 
@@ -443,8 +445,9 @@ pre-commit install
 
 `frontend/a11y/` is a transferable a11y gate: axe-core (machine-checkable WCAG
 2.1 A/AA) plus keyboard/focus checks axe can't do (focusability, no tab-order
-traps, `:focus-visible` ring, tablist roving), driven through 9 interactive UI
-states in headless Chromium. Run it after a build:
+traps, `:focus-visible` ring, tablist roving), driven through 17 interactive UI
+states in headless Chromium (every tab, plus the batch-conversion section and
+the diagnostics page). Run it against the live stack after a build:
 
 ```powershell
 cd frontend
@@ -457,6 +460,28 @@ enclave). It is **not** a conformance sign-off — manual screen-reader + keyboa
 testing is still required. See `frontend/a11y/ACCESSIBILITY.md` for the full
 process, the requirement-driven checklist, and how to transfer it to another
 project.
+
+### End-to-end UI suite
+
+`frontend/e2e/` drives the **built** app through a real browser against the
+**live** Docker stack, asserting the on-screen values the project guides promise
+— the UI counterpart to the backend's `pytest` and `verify_project.py`. 20 flows
+across five specs cover nav/tab-gating, all six sample correction cases
+(draft + template), the four-pathway ingestion upload, the JSON→golden batch
+section (all five pathways), and the diagnostics page. Run it against the live
+stack after a build:
+
+```powershell
+cd frontend
+npm run build
+npm run e2e          # headless; serves dist + proxies /api -> :8000
+```
+
+Prerequisites and the full flow-by-flow breakdown (including the three app bugs
+this suite caught and fixed) are in [`frontend/e2e/README.md`](frontend/e2e/README.md).
+
+Both the a11y audit and the E2E suite are **on-demand** gates: they need Docker
+and a browser binary, so they are deliberately **not** wired into pre-commit/CI.
 
 ## Notes
 
