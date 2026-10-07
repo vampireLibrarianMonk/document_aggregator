@@ -24,6 +24,10 @@ interface ProjectCtx {
   documents: DocumentRecord[]
   supplementals: Supplemental[]
   readiness: Readiness | null
+  /** True when the active project carries correction-pipeline fixtures (a
+   *  first-attempt draft or template), e.g. a sample/correction project. Such
+   *  projects unlock the Correction Pipeline tab even with no uploaded docs. */
+  hasCorrectionData: boolean
   error: string | null
   setActiveId: (id: string) => void
   refreshProjects: () => Promise<void>
@@ -42,6 +46,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([])
   const [supplementals, setSupplementals] = useState<Supplemental[]>([])
   const [readiness, setReadiness] = useState<Readiness | null>(null)
+  const [hasCorrectionData, setHasCorrectionData] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [samplesEnabled, setSamplesEnabled] = useState(false)
   const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false)
@@ -58,6 +63,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setReadiness(rdy)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    }
+    // Separately determine whether this project carries correction-pipeline
+    // fixtures (first-attempt draft/template). This is independent of uploaded
+    // Ingestion documents, so a sample/correction project unlocks the
+    // Correction Pipeline tab even though it has no uploaded docs. Best-effort:
+    // a project without components simply reports false.
+    try {
+      const components = await api.projectComponents(projectId)
+      const fa = components.find((c) => c.id === 'first_attempt')
+      setHasCorrectionData((fa?.items.length ?? 0) > 0)
+    } catch {
+      setHasCorrectionData(false)
     }
   }, [])
 
@@ -132,6 +149,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setDocuments([])
     setSupplementals([])
     setReadiness(null)
+    setHasCorrectionData(false)
     if (activeId) void refresh(activeId)
   }, [activeId, refresh])
 
@@ -155,6 +173,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     projects,
     activeId,
     readiness,
+    hasCorrectionData,
     project,
     documents,
     supplementals,

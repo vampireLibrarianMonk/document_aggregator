@@ -119,6 +119,7 @@ function AppShell() {
     activeId,
     documents,
     readiness,
+    hasCorrectionData,
     error,
     setActiveId,
     refreshProjects,
@@ -156,11 +157,15 @@ function AppShell() {
   //  - New Project: always available (it is how you create a project).
   //  - Ingestion: needs a selected project.
   //  - Search: needs at least one completed ingested document.
-  //  - Correction Pipeline / Report & Export: need the ingestion inputs to
-  //    satisfy the pipeline prerequisites (readiness.ready from the backend).
+  //  - Correction Pipeline / Report & Export: usable once the project can be
+  //    corrected — either it already carries correction fixtures (a sample /
+  //    correction project), OR the uploaded Ingestion inputs satisfy the
+  //    pipeline prerequisites (readiness.ready). Either path unlocks the tab.
   const hasProject = !!activeId
   const hasCompletedDocs = documents.some((d) => d.overall_status === 'completed')
   const inputsReady = !!readiness?.ready
+  // A project is correctable if it ships correction data OR its uploads are ready.
+  const correctable = hasCorrectionData || inputsReady
   const tabDisabled = useCallback((id: Tab): boolean => {
     switch (id) {
       case 'new':
@@ -171,17 +176,17 @@ function AppShell() {
         return !hasProject || !hasCompletedDocs
       case 'correction':
       case 'report':
-        return !hasProject || !inputsReady
+        return !hasProject || !correctable
       default:
         return false
     }
-  }, [hasProject, hasCompletedDocs, inputsReady])
+  }, [hasProject, hasCompletedDocs, correctable])
   const tabReason = (id: Tab): string => {
     if (!hasProject) return 'Create a project first'
     if (id === 'search' && !hasCompletedDocs)
       return 'Upload documents on the Ingestion tab first'
-    if ((id === 'correction' || id === 'report') && !inputsReady)
-      return 'Finish the Ingestion inputs first (see the Ingestion tab)'
+    if ((id === 'correction' || id === 'report') && !correctable)
+      return 'Add correction inputs first (upload on the Ingestion tab, or use a sample)'
     return ''
   }
 
