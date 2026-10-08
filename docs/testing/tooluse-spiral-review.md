@@ -59,24 +59,52 @@ synthetic id before validating — otherwise every model would falsely fail rung
 
 > After `--rung 2`, paste one row per model.
 
+**Run:** 2026-10-08, `--rung 2`, all 8 approved models, ~46s. **Headline: all 8
+pass both rungs cleanly** — every model honored forced `toolChoice`, returned a
+`toolUse` block, and emitted valid, uncorrupted ops. No forced-choice errors, no
+prose-only refusals, and (notably) **no harmony-channel name decoration observed
+in this run** — the sanitizer is defensive insurance here, not load-bearing. No
+`<parameter=…>` argument corruption on any model, including all four Nemotrons
+(the specific worry). This is the production tool-use path the text-path sweep
+never measured; it holds for every model at the cheap rungs.
+
 | Model | Rung reached | Forced tool-use | Name decorated | Input valid | Failure / fix hint |
 |---|---|---|---|---|---|
-| gpt-oss-120b | _ | _ | _ | _ | _ |
-| gpt-oss-20b | _ | _ | _ | _ | _ |
-| gpt-oss-safeguard-120b | _ | _ | _ | _ | _ |
-| gpt-oss-safeguard-20b | _ | _ | _ | _ | _ |
-| nemotron-super-3-120b | _ | _ | _ | _ | _ |
-| nemotron-nano-3-30b | _ | _ | _ | _ | _ |
-| nemotron-nano-12b-v2 | _ | _ | _ | _ | _ |
-| nemotron-nano-9b-v2 | _ | _ | _ | _ | _ |
+| gpt-oss-120b | 2 | yes | no (clean) | yes | — |
+| gpt-oss-20b | 2 | yes | no (clean) | yes | — |
+| gpt-oss-safeguard-120b | 2 | yes | no (clean) | yes | — |
+| gpt-oss-safeguard-20b | 2 | yes | no (clean) | yes | — |
+| nemotron-super-3-120b | 2 | yes | no (clean) | yes | — |
+| nemotron-nano-3-30b | 2 | yes | no (clean) | yes | — |
+| nemotron-nano-12b-v2 | 2 | yes | no (clean) | yes | — |
+| nemotron-nano-9b-v2 | 2 | yes | no (clean) | yes | — |
 
-### Rung 3–4 (real yield + scored, for models that cleared 1–2)
+### Rung 3 (real yield — one sample email through the production interpreter)
 
-> Paste after escalating the survivors.
+**Run:** 2026-10-08, `--rung 3`, ~43s. **All 8 pass.** Every model drove the real
+`interp=bedrock` path (not a fallback) and produced accepted, grounded ops with
+**zero rejections** — each proposed op cleared `validate_op` + target
+resolvability on the real email. The two larger GPT-OSS models recovered 2 ops
+from the first email vs 1 for the rest (slightly more thorough NL extraction).
 
-| Model | Accepted ops (rung 3) | Value % | Status % | Fabrications | Conflict kept |
-|---|---|---|---|---|---|
-| _ | _ | _ | _ | _ | _ |
+| Model | Interpreter | Accepted ops | Rejected ops |
+|---|---|---|---|
+| gpt-oss-120b | bedrock | 2 | 0 |
+| gpt-oss-20b | bedrock | 2 | 0 |
+| gpt-oss-safeguard-120b | bedrock | 1 | 0 |
+| gpt-oss-safeguard-20b | bedrock | 1 | 0 |
+| nemotron-super-3-120b | bedrock | 1 | 0 |
+| nemotron-nano-3-30b | bedrock | 1 | 0 |
+| nemotron-nano-12b-v2 | bedrock | 1 | 0 |
+| nemotron-nano-9b-v2 | bedrock | 1 | 0 |
+
+### Rung 4 (full project through tool-use path, scored vs gold)
+
+> Paste after `--rung 4`.
+
+| Model | Value % | Status % | Fabrications | Conflict kept |
+|---|---|---|---|---|
+| _ | _ | _ | _ | _ |
 
 ### Fixes identified
 
