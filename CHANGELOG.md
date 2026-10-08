@@ -63,7 +63,21 @@ surfaced.
   with default / recommended / inference-profile tags) instead of a single
   comma-joined line.
 
+### Fixed
+- GPT-OSS tool-use was silently under-counted. The correction interpreter and
+  the JSON-alignment semantic tier matched the Bedrock `toolUse` name by exact
+  string, but GPT-OSS / harmony models decorate it over Converse (e.g.
+  `propose_corrections<|channel|>commentary`), so a valid tool call yielded zero
+  operations and fell back to the deterministic path — depressing those models'
+  measured tool-use capability. Added `sanitize_tool_name()` (strips the channel
+  decoration) and matched on the sanitized name in both extractors.
+
 ### Changed
+- Refreshed the `recommend_model` ranking from the 2026-10-07 model sweep:
+  `gpt-oss-120b` stays the quality ceiling, and `nemotron-nano-12b` is promoted
+  to the explicit value pick (it tied gpt-oss-120b on every metric at ~1/5 the
+  estimated cost and ~1/3 the output tokens). Reasons now cite the measured
+  sweep rather than the earlier single-model eval.
 - Named the correction orchestration the **Correction Orchestrator** (its
   canonical, user-facing name). The reconcile API's `engine` parameter now
   accepts `"orchestrator"` as the canonical value and default, with

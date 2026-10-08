@@ -109,11 +109,18 @@ def profile_for(model_id: str) -> ModelProfile:
 # and was fast. The others follow by measured viability. The reason string is
 # surfaced in the UI so the pick is transparent, and the user can always
 # override. Matching is by substring so it works across exact ids / profiles.
+# Order refreshed from the 2026-10-07 model sweep (docs/testing/model-sweep-results.md),
+# which measured all approved models on the correction workload (not just the
+# earlier single-model eval). gpt-oss-120b stays the quality ceiling (perfect
+# run); nemotron-nano-12b is promoted to the clear VALUE pick because it tied
+# gpt-oss-120b on every metric at ~1/5 the estimated cost and ~1/3 the output
+# tokens. Both are override-safe defaults, never a lock-in.
 _RECOMMENDATION_ORDER: list[tuple[str, str]] = [
-    ("gpt-oss-120b", "lowest fallback (8%), cheapest usable, fast (model eval)"),
-    ("nemotron-super-3-120b", "richer output, less fabrication, but ~2x cost"),
-    ("gpt-oss-safeguard-20b", "usable small model (29% fallback)"),
-    ("nemotron-nano-3-30b", "only model with any valid-first-try in the eval"),
+    ("gpt-oss-120b", "quality ceiling: perfect run in the sweep (100% value/status, 0 fabrications, all conflicts kept)"),
+    ("nemotron-nano-12b", "best value: tied gpt-oss-120b in the sweep at ~1/5 the cost and ~1/3 the output tokens"),
+    ("nemotron-super-3-120b", "strong (98.9% in the sweep), but ~5x the cost of nemotron-nano-12b"),
+    ("gpt-oss-safeguard-20b", "usable small model; safety-tuned (lower yield in the sweep)"),
+    ("nemotron-nano-3-30b", "lean fallback option"),
 ]
 
 
