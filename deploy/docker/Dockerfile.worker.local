@@ -30,6 +30,8 @@ SentenceTransformer('${EMBEDDING_ST_MODEL}')" \
 
 COPY backend /app/backend
 COPY sample_docs /app/sample_docs
+# VERSION: single source of truth for the app version (read by app/config.py).
+COPY VERSION /app/VERSION
 
 ENV APP_ENV=production \
     DATA_DIR=/data \

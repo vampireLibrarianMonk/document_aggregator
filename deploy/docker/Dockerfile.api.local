@@ -45,6 +45,9 @@ SentenceTransformer('${EMBEDDING_ST_MODEL}')" \
 # --- Application -------------------------------------------------------------
 COPY backend /app/backend
 COPY sample_docs /app/sample_docs
+# VERSION is the single source of truth for the app version (read by
+# app/config.py for the Diagnostics footer). parents[2] from config.py is /app.
+COPY VERSION /app/VERSION
 
 ENV APP_ENV=production \
     DATA_DIR=/data \

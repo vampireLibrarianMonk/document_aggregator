@@ -68,6 +68,9 @@ SentenceTransformer('${EMBEDDING_ST_MODEL}')" \
 # --- Application -------------------------------------------------------------
 COPY backend /app/backend
 COPY sample_docs /app/sample_docs
+# VERSION is the single source of truth for the app version (read by
+# app/config.py for the Diagnostics footer). parents[2] from config.py is /app.
+COPY VERSION /app/VERSION
 
 # Writable data dir + readable model cache owned by group 0 (OpenShift runs as
 # an arbitrary UID in group 0, so group-write is the portable pattern).

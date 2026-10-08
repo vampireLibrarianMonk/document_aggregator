@@ -71,6 +71,8 @@ SentenceTransformer('${EMBEDDING_ST_MODEL}')" \
 
 COPY backend /app/backend
 COPY sample_docs /app/sample_docs
+# VERSION: single source of truth for the app version (read by app/config.py).
+COPY VERSION /app/VERSION
 
 # Non-root, OpenShift-compatible: writable data dir owned by group 0.
 RUN useradd -u 10001 -r -g 0 appuser || true \

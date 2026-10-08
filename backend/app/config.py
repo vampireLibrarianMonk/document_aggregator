@@ -9,6 +9,26 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# Fallback used only if the repo-root VERSION file is missing (should not happen
+# in a correct build; the image copies it in). Keep in sync with VERSION as a
+# last resort.
+_VERSION_FALLBACK = "0.3.0"
+
+
+def _read_version() -> str:
+    """Single source of truth for the app version: the repo-root VERSION file.
+
+    config.py lives at backend/app/config.py, so parents[2] is the repo root
+    (and /app in the container image, where VERSION is copied alongside
+    backend/). Falls back to a constant if the file is absent or unreadable so
+    diagnostics never crashes on a malformed deployment.
+    """
+    try:
+        text = (Path(__file__).resolve().parents[2] / "VERSION").read_text(encoding="utf-8").strip()
+        return text or _VERSION_FALLBACK
+    except OSError:
+        return _VERSION_FALLBACK
+
 
 class Settings:
     APP_ENV: str = os.getenv("APP_ENV", "development")
@@ -71,7 +91,10 @@ class Settings:
     BEDROCK_SCENARIO_MODEL_ALLOWLIST: str = os.getenv(
         "BEDROCK_SCENARIO_MODEL_ALLOWLIST", "nemotron,gpt-oss")
 
-    PIPELINE_VERSION: str = "0.1.0"
+    # Tracks the repo-root VERSION file so the Diagnostics footer, the app
+    # version, and the changelog can never disagree. SCHEMA_VERSION is the
+    # reconcile-output contract version and is bumped independently.
+    PIPELINE_VERSION: str = os.getenv("PIPELINE_VERSION", _read_version())
     SCHEMA_VERSION: str = "1.0"
 
     # Single source of truth for the project storage root. Previously this path

@@ -47,6 +47,11 @@ surfaced.
   `BEDROCK_ENABLED=false` (credentials mounted on dev boxes). The state is now
   `ok` only when the integration is both enabled and available, otherwise
   `offline`; the panel shows explicit enabled / reachable / in-use rows.
+- The Diagnostics footer reported a stale pipeline version (`0.1.0`,
+  hardcoded) while the app was at `0.3.0`. `PIPELINE_VERSION` now reads the
+  repo-root `VERSION` file (overridable via the `PIPELINE_VERSION` env var,
+  with a safe fallback), so the footer, the app version, and the changelog
+  stay in lockstep. The `VERSION` file is now copied into the api/worker images.
 
 ### Docs
 - Corrected the project-scoped correction endpoint paths in the README: they are
