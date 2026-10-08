@@ -135,3 +135,37 @@ def test_bedrock_semantic_tier_live():
     for fm in out.fields:
         if fm.method == "semantic_model":
             assert fm.source_path in valid_paths
+
+
+# --------------------------------------------------------------------------
+# Tool-name sanitization for the semantic proposer (offline). A harmony-channel
+# decorated name on the propose_field_mappings tool must still parse.
+# --------------------------------------------------------------------------
+
+def _mapping_resp(tool_name: str) -> dict:
+    return {
+        "output": {"message": {"content": [
+            {"toolUse": {"name": tool_name, "input": {"mappings": [
+                {"target": "name", "source_path": "title"},
+                {"target": "releaseYear", "source_path": "abstain"},
+            ]}}},
+        ]}}
+    }
+
+
+def test_semantic_extract_accepts_clean_tool_name():
+    from app.json_alignment.semantic import BedrockSemanticProposer
+
+    out = BedrockSemanticProposer._extract(_mapping_resp("propose_field_mappings"))
+    by = {p.target: p.source_path for p in out}
+    assert by["name"] == "title"
+    assert by["releaseYear"] is None  # 'abstain' -> None
+
+
+def test_semantic_extract_accepts_harmony_decorated_tool_name():
+    from app.json_alignment.semantic import BedrockSemanticProposer
+
+    out = BedrockSemanticProposer._extract(
+        _mapping_resp("propose_field_mappings<|channel|>commentary"))
+    assert len(out) == 2
+    assert {p.target for p in out} == {"name", "releaseYear"}

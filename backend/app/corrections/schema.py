@@ -101,6 +101,22 @@ def _engine_operation(schema_op: str) -> str:
     return "replace"
 
 
+def sanitize_tool_name(name: str | None) -> str:
+    """Normalize a Bedrock Converse `toolUse` name for matching.
+
+    Some models (notably the GPT-OSS / harmony family) decorate the tool name
+    with a channel suffix over Converse, e.g.
+    `propose_corrections<|channel|>commentary`, and may pad it with whitespace.
+    A strict equality check then rejects a VALID tool call, silently yielding
+    zero operations and masking the model's real capability. Strip any
+    `<|...|>` channel decoration (take the part before the first `<|`) and
+    surrounding whitespace; a clean name passes through unchanged.
+    """
+    if not name:
+        return ""
+    return name.split("<|", 1)[0].strip()
+
+
 def tool_spec() -> dict:
     """Bedrock (Converse API) tool specification generated from this schema.
     The model may ONLY call `propose_corrections` with ops from this vocabulary.

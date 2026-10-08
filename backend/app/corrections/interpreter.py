@@ -19,7 +19,7 @@ import re
 from typing import Protocol
 
 from ..config import settings
-from .schema import tool_spec, validate_op
+from .schema import sanitize_tool_name, tool_spec, validate_op
 
 
 class FeedbackInterpreter(Protocol):
@@ -121,7 +121,7 @@ class BedrockInterpreter:
         ops: list[dict] = []
         for block in resp.get("output", {}).get("message", {}).get("content", []):
             tool = block.get("toolUse")
-            if tool and tool.get("name") == "propose_corrections":
+            if tool and sanitize_tool_name(tool.get("name")) == "propose_corrections":
                 payload = tool.get("input", {})
                 if isinstance(payload, str):
                     payload = json.loads(payload)

@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from ..config import settings
+from ..corrections.schema import sanitize_tool_name
 from .mapping import (
     STATUS_MAPPED,
     STATUS_NEEDS_REVIEW,
@@ -140,7 +141,7 @@ class BedrockSemanticProposer:
         out: list[SemanticProposal] = []
         for block in resp.get("output", {}).get("message", {}).get("content", []):
             tool = block.get("toolUse")
-            if tool and tool.get("name") == "propose_field_mappings":
+            if tool and sanitize_tool_name(tool.get("name")) == "propose_field_mappings":
                 payload = tool.get("input", {})
                 if isinstance(payload, str):
                     payload = json.loads(payload)

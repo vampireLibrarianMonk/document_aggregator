@@ -96,3 +96,50 @@ def test_bedrock_interpreter_live():
     for op in res["accepted"]:
         ok, _ = validate_op(op)
         assert ok
+
+
+# --------------------------------------------------------------------------
+# Tool-name sanitization (offline; no Bedrock). GPT-OSS / harmony models
+# decorate the Converse toolUse name (e.g. "<|channel|>commentary"); a strict
+# equality match would silently drop a VALID tool call. These assert the
+# decorated name is still accepted.
+# --------------------------------------------------------------------------
+
+def _resp(tool_name: str) -> dict:
+    """A synthetic Bedrock Converse response carrying one propose_corrections
+    tool call under the given (possibly decorated) tool name."""
+    return {
+        "output": {"message": {"content": [
+            {"toolUse": {"name": tool_name, "input": {"operations": [
+                {"operation": "replace_field",
+                 "target": "contributing_factors.firmware",
+                 "new_value": "4.2.1", "reason": "x"},
+            ]}}},
+        ]}}
+    }
+
+
+def test_extract_ops_accepts_clean_tool_name():
+    from app.corrections.interpreter import BedrockInterpreter
+
+    ops = BedrockInterpreter._extract_ops(_resp("propose_corrections"))
+    assert len(ops) == 1 and ops[0]["new_value"] == "4.2.1"
+
+
+def test_extract_ops_accepts_harmony_decorated_tool_name():
+    from app.corrections.interpreter import BedrockInterpreter
+
+    # The bug this guards: a decorated name must NOT silently yield zero ops.
+    ops = BedrockInterpreter._extract_ops(
+        _resp("propose_corrections<|channel|>commentary"))
+    assert len(ops) == 1 and ops[0]["target"] == "contributing_factors.firmware"
+
+
+def test_sanitize_tool_name_variants():
+    from app.corrections.schema import sanitize_tool_name
+
+    assert sanitize_tool_name("propose_corrections") == "propose_corrections"
+    assert sanitize_tool_name("propose_corrections<|channel|>commentary") == "propose_corrections"
+    assert sanitize_tool_name("  propose_corrections <|x|>y") == "propose_corrections"
+    assert sanitize_tool_name(None) == ""
+    assert sanitize_tool_name("") == ""
