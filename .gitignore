@@ -39,6 +39,9 @@ backend/eval_adversarial_report_*.json
 # ---- Bake-off model-response cache (runtime; re-created on demand) ----
 backend/tests/command_center/_model_cache/
 
+# ---- Model-sweep results (generated on demand; a full cross-model run only) ----
+backend/tests/command_center/model_sweep_results.json
+
 # ---- MaDI-Bench external benchmark data (NEVER committed) ----
 # MaDI-Bench carries no license; its data is obtained by the developer
 # separately (public download) and lives outside the repo. Guard against any

@@ -5,10 +5,12 @@ engine architecture. Each study is a self-contained bake-off harness under
 `backend/tests/` with persisted results; the documents here capture the method,
 the numbers, and the reasoning so the decisions are reproducible and auditable.
 
-Everything is local-first and air-gap safe. The model-backed studies use the
-approved Bedrock model `openai.gpt-oss-120b-1:0`; every other technique runs
-fully offline. All model calls are cached on disk so re-runs do not re-spend
-tokens and are reproducible given a warm cache.
+Everything is local-first and air-gap safe. The original model-backed studies
+use the approved Bedrock model `openai.gpt-oss-120b-1:0`; the **model sweep**
+generalizes that single-model result across every approved model (GPT-OSS,
+GPT-OSS Safeguard, and Nemotron families). Every other technique runs fully
+offline. All model calls are cached on disk so re-runs do not re-spend tokens
+and are reproducible given a warm cache.
 
 ## Index
 
@@ -17,6 +19,7 @@ tokens and are reproducible given a warm cache.
 | Structure-extraction bake-off | Whether the engine can reproduce the gold corrected report from raw uploads alone | `backend/tests/bakeoff/` | [bakeoff-structure-extraction.md](bakeoff-structure-extraction.md) |
 | Command-center bake-off | The Phase-3 correction-engine architecture (coordinator, sub-agents, manifest strategy, pathway) | `backend/tests/command_center/` | [bakeoff-command-center.md](bakeoff-command-center.md) |
 | Precision-correction alpha loop | Which precision-editing technique to use, and whether a micro-model is worth integrating | `backend/tests/command_center/alpha/` | [precision-correction-alpha-loop.md](precision-correction-alpha-loop.md) |
+| Model sweep + interaction review | How the winning config behaves across every approved model, and how to correctly prompt/parse each family without breaking the no-fabrication / conflict invariants | `backend/tests/command_center/model_sweep.py` | [model-interaction-review.md](model-interaction-review.md) |
 | Synthetic growth dataset | The air-gap-clean, domain-matched test data the alpha loop runs on | `backend/tests/command_center/datagen/` | [dataset-generator.md](dataset-generator.md) |
 
 ## Reading order
