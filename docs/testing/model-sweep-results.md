@@ -137,3 +137,67 @@ they are load-bearing for anyone integrating these models over Bedrock Converse:
 Their caveat matches ours: their full cross-model sweep was still rolling up when
 they shared this, so the family-level guidance is load-bearing and their
 per-model numbers are pending — as are refinements to ours.
+
+
+---
+
+## Staging / runbook (for a fresh full re-run)
+
+One command, from `backend/`:
+
+```powershell
+.\tests\command_center\run_full_sweep.ps1
+```
+
+It wipes the on-disk model cache, sets `BEDROCK_ENABLED=true` + the offline
+guards + a temp `DATA_DIR`, runs the sweep across all approved models, and
+redirects the verbose output to `tests/command_center/_sweep_run.log`. Monitor by
+polling `tests/command_center/model_sweep_results.json` (mtime) rather than
+tailing the log, so an agent session stays token-frugal. Expect roughly 15–20
+minutes of live Bedrock calls on a cold cache.
+
+**Preconditions (verified 2026-10-07, re-check before a run):**
+
+- Bedrock reachable with credentials — `list_approved_models().available == True`,
+  8 models catalogued (GPT-OSS ×2, Safeguard ×2, Nemotron ×4).
+- `BEDROCK_ENABLED=true` in the environment the sweep runs in.
+- The bounded botocore timeout is present in `ModelClient.available()`
+  (`modelcall.py`) so a slow/non-invokable model fails fast instead of stalling.
+- `_model_cache/` and `model_sweep_results.json` are gitignored (the committed
+  record is this markdown, not the raw JSON).
+- Offline test suite green and the harness imports/resolves 8 model ids on a dry
+  run.
+
+**Important — what this sweep does and does not exercise.** The sweep's model
+agent uses the **text** path (`mc.complete` + `extract_json`), i.e. it asks the
+model for a JSON array in free text, not Bedrock tool-use. So:
+
+- The recent **tool-name sanitizer fix does NOT move these numbers** — that fix
+  repairs the *production* `BEDROCK_ENABLED` tiers (the feedback interpreter and
+  the JSON-alignment semantic picker, which DO use forced tool-use), not this
+  harness. Do not expect a re-sweep to change the per-model scores because of
+  that fix.
+- A fresh cold re-run is still worthwhile for a **uniform dataset with real
+  latency on every model** (the first run reused a warm cache for two models, so
+  their recorded latency was 0) and to confirm stability of the scores.
+
+**Future (not built):** a separate harness that drives the *production* tool-use
+correction path (`BedrockInterpreter`) per model would measure what the
+tool-name fix actually touched — the sweep cannot, by design.
+
+### Run 2 — fresh cold cache (PENDING)
+
+> Placeholder for the next full run. After `run_full_sweep.ps1` completes, paste
+> the scorecard here (same columns as Run 1) and note the run date, whether all
+> 8 models stayed invokable, and any score drift vs Run 1.
+
+| Model | Value % | Status % | Fabrications | Conflict kept as `conflict` | In tok | Out tok | Latency ms | Est. USD |
+|---|---|---|---|---|---|---|---|---|
+| gpt-oss-120b | _ | _ | _ | _/6 | _ | _ | _ | _ |
+| gpt-oss-20b | _ | _ | _ | _/6 | _ | _ | _ | _ |
+| gpt-oss-safeguard-120b | _ | _ | _ | _/6 | _ | _ | _ | _ |
+| gpt-oss-safeguard-20b | _ | _ | _ | _/6 | _ | _ | _ | _ |
+| nemotron-super-3-120b | _ | _ | _ | _/6 | _ | _ | _ | _ |
+| nemotron-nano-3-30b | _ | _ | _ | _/6 | _ | _ | _ | _ |
+| nemotron-nano-12b-v2 | _ | _ | _ | _/6 | _ | _ | _ | _ |
+| nemotron-nano-9b-v2 | _ | _ | _ | _/6 | _ | _ | _ | _ |
