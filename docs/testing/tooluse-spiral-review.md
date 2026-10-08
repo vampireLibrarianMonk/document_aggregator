@@ -100,11 +100,37 @@ from the first email vs 1 for the rest (slightly more thorough NL extraction).
 
 ### Rung 4 (full project through tool-use path, scored vs gold)
 
-> Paste after `--rung 4`.
+**Run:** 2026-10-08, `--rung 4`, ~512s (full reconcile per model with a live
+interpreter call). **All 8 pass — perfect.** Every model: 100% value, 100%
+status, 0 fabrications, conflict kept.
 
 | Model | Value % | Status % | Fabrications | Conflict kept |
 |---|---|---|---|---|
-| _ | _ | _ | _ | _ |
+| gpt-oss-120b | 100.0 | 100.0 | 0 | yes |
+| gpt-oss-20b | 100.0 | 100.0 | 0 | yes |
+| gpt-oss-safeguard-120b | 100.0 | 100.0 | 0 | yes |
+| gpt-oss-safeguard-20b | 100.0 | 100.0 | 0 | yes |
+| nemotron-super-3-120b | 100.0 | 100.0 | 0 | yes |
+| nemotron-nano-3-30b | 100.0 | 100.0 | 0 | yes |
+| nemotron-nano-12b-v2 | 100.0 | 100.0 | 0 | yes |
+| nemotron-nano-9b-v2 | 100.0 | 100.0 | 0 | yes |
+
+**Scope note:** rung 4 scores **project 1** (one of the six). The deterministic
+engine is the authoritative floor (model proposes → engine grounds), so these
+numbers validate the *production tool-use path end to end* on every model, not a
+six-project spread. The earlier text-path sweep (model-sweep-results.md) is the
+six-project view; it showed conflict-label drift for weaker models that does NOT
+appear here on project 1 via tool-use — a single-project signal, not over-read.
+
+## Verdict
+
+The adversarial spiral found **no per-model breakage anywhere** on the production
+tool-use path. All 8 approved models clear every rung: forced tool-use works,
+input is valid and uncorrupted, the real interpreter accepts grounded ops with
+zero rejections, and a full scored project holds every invariant. The feared
+failure modes (Nemotron + forced tool-use, `<parameter=…>` argument corruption,
+harmony-channel name mangling) did not materialize in this account/region. The
+tool-name sanitizer remains justified defensive insurance.
 
 ### Fixes identified
 
