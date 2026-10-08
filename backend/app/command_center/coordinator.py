@@ -1,4 +1,6 @@
-"""The Coordinator: the production command center.
+"""The Coordinator: the generic orchestration engine behind the Correction
+Orchestrator (the product name for its correction-pipeline role; the same engine
+also drives JSON-alignment and batch, hence the workflow-agnostic class name).
 
 Decomposes a correction run into a bounded sub-task DAG, dispatches each task to
 the sub-agent that handles its kind (through the parallel queue + deterministic
@@ -118,11 +120,13 @@ def run_correction(project_id: str, *, mode: str = "draft",
                    source_format: str | None = None,
                    extra_corrections: list[dict] | None = None,
                    parallel: bool = False, max_rounds: int = 4) -> dict:
-    """Convenience entry: run the production correction DAG for a project and
-    return the final CorrectedReport dict (same shape as run_reconciliation).
+    """Convenience entry: run the Correction Orchestrator's production DAG for a
+    project and return the final CorrectedReport dict (same shape as
+    run_reconciliation). This is the correction-pipeline role of the generic
+    Coordinator; `engine="orchestrator"` on run_reconciliation routes here.
 
     The optional vector-layout tier (DOCX/PDF geometry findings) is applied here
-    too, so the coordinator path matches the direct path's output exactly.
+    too, so the orchestrator path matches the direct path's output exactly.
     """
     from .agents import CorrectionAgent
 

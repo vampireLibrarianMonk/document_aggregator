@@ -145,8 +145,8 @@ export function DiagnosticsPanel() {
               // the model tier they drive. Make that explicit so a disabled
               // Bedrock never reads as "nothing is orchestrating".
               value: svc.bedrock.enabled && svc.bedrock.available
-                ? 'coordinator + governor active (Bedrock model tier)'
-                : 'coordinator + governor active (deterministic tier)',
+                ? 'Correction Orchestrator + governor active (Bedrock model tier)'
+                : 'Correction Orchestrator + governor active (deterministic tier)',
             },
             { key: 'rg', label: 'Region', value: svc.bedrock.region },
             {

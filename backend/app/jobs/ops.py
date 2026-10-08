@@ -27,7 +27,7 @@ def op_reconcile(payload: dict[str, Any]) -> dict[str, Any]:
         mode=payload.get("mode", "draft"),
         project_id=payload.get("project_id", sc.DEFAULT_PROJECT),
         source_format=payload.get("source_format"),
-        engine=payload.get("engine", "coordinator"),
+        engine=payload.get("engine", "orchestrator"),
     )
 
 

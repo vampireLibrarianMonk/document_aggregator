@@ -711,14 +711,15 @@ def _component(
 
 def _reconcile(
     mode: str = "draft", project_id: str = project.DEFAULT_PROJECT,
-    source_format: str = "json", engine: str = "coordinator"
+    source_format: str = "json", engine: str = "orchestrator"
 ) -> dict:
     if mode not in ("draft", "template"):
         raise HTTPException(400, "mode must be 'draft' or 'template'")
     if source_format not in ("json", "docx", "pptx", "pdf"):
         raise HTTPException(400, "source_format must be json|docx|pptx|pdf")
-    if engine not in ("direct", "coordinator"):
-        raise HTTPException(400, "engine must be 'direct' or 'coordinator'")
+    # "coordinator" is the legacy alias for "orchestrator" (kept for back-compat).
+    if engine not in ("direct", "orchestrator", "coordinator"):
+        raise HTTPException(400, "engine must be 'direct' or 'orchestrator'")
     try:
         return project.run_reconciliation(mode, project_id, source_format, engine=engine)
     except FileNotFoundError as exc:
@@ -1087,7 +1088,7 @@ def project_component(
 
 @app.get("/projects/{project_id}/reconcile")
 def project_reconcile(project_id: str, mode: str = "draft", source_format: str = "json",
-                      engine: str = "coordinator") -> dict:
+                      engine: str = "orchestrator") -> dict:
     return _reconcile(mode=mode, project_id=project_id, source_format=source_format,
                       engine=engine)
 

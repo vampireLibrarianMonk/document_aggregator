@@ -52,9 +52,20 @@ class ModelClient:
             return self._available
         try:
             import boto3
+            from botocore.config import Config
 
+            # Bound each call so a model that LISTS in the catalog but is not
+            # actually invokable on-demand (or is simply slow) fails fast and the
+            # sweep moves on, instead of hanging in botocore's default long
+            # retry/backoff. complete() catches the error and returns None, which
+            # the sweep records as "no output for this model".
+            cfg = Config(
+                read_timeout=120, connect_timeout=10,
+                retries={"max_attempts": 2, "mode": "standard"},
+            )
             self._client = boto3.client("bedrock-runtime",
-                                        region_name=settings.BEDROCK_REGION)
+                                        region_name=settings.BEDROCK_REGION,
+                                        config=cfg)
             self._adapter = ConverseAdapter(self.model_id)
             self._available = True
         except Exception:

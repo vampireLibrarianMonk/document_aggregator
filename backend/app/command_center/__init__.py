@@ -1,4 +1,13 @@
-"""Command center: the JEV-style orchestrator, promoted to production.
+"""Correction Orchestrator (a.k.a. the command center): the JEV-style
+orchestration layer, promoted to production.
+
+PRODUCT NAME: when this orchestration runs the document-correction pipeline it is
+the **Correction Orchestrator** — that is the canonical, user-facing name (and
+the `engine="orchestrator"` API value). The underlying `Coordinator` class and
+this package are deliberately GENERIC: the same queue + deterministic assembler +
+convergence machinery also drives JSON-alignment and the mass batch pathway, so
+the class/package keep their workflow-agnostic names while the correction-facing
+product name is "Correction Orchestrator".
 
 A Coordinator decomposes work into a bounded sub-task DAG, dispatches each task
 to the sub-agent that handles its kind through a parallel queue with a

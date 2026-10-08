@@ -284,20 +284,21 @@ def run_reconciliation(
     project_id: str = DEFAULT_PROJECT,
     source_format: str | None = None,
     extra_corrections: list[dict] | None = None,
-    engine: str = "coordinator",
+    engine: str = "orchestrator",
 ) -> dict:
     """Produce the corrected intermediate report for a project.
 
     `engine` selects HOW the pipeline is organized, not WHAT it computes:
-      - "coordinator" (default) the command center orchestrates the pipeline as
+      - "orchestrator" (default) the Correction Orchestrator runs the pipeline as
                       a sub-task DAG with a deterministic queue assembler and a
-                      convergence loop. This is the production path.
+                      convergence loop. This is the production path. ("coordinator"
+                      is accepted as a backward-compatible alias.)
       - "direct"      the inline pipeline: load -> refine -> reconcile. Retained
-                      as a fallback; proven byte-identical to the coordinator
+                      as a fallback; proven byte-identical to the orchestrator
                       path (see docs/testing/bakeoff-command-center.md and
                       backend/tests/test_command_center.py).
     """
-    if engine == "coordinator":
+    if engine in ("orchestrator", "coordinator"):
         from .command_center import run_correction
 
         return run_correction(project_id, mode=mode, source_format=source_format,

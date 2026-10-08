@@ -20,8 +20,8 @@ required. Cloud pieces would slot in as adapters behind the same interfaces.
   [JSON→golden batch case](docs/user-guide/projects/json-batch/README.md).
 - [Developer Guide](docs/DEVELOPER_GUIDE.md) - architecture, running it, the
   reconciliation + discipline engine, the project data model, testing.
-- [Coordinator prove-out](docs/testing/coordinator-proveout.md) - both pipelines
-  measured through the command center.
+- [Orchestrator prove-out](docs/testing/coordinator-proveout.md) - both pipelines
+  measured through the Correction Orchestrator.
 - [JSON-alignment benchmark](docs/testing/json-alignment-benchmark.md) - how the
   schema-alignment slice is scored (and the MaDI-Bench assessment).
 - [Air-gapped RHEL deployment](deploy/AIRGAP_RHEL.md) - the enclave checklist.
@@ -99,25 +99,27 @@ approvals) become `needs_review` rather than fabricated.
 Verify it: `python backend\verify_project.py` (15 assertions over the defect
 inventory). Inspect it: the **Correction Pipeline** tab in the frontend.
 
-## The command center (production orchestrator)
+## The Correction Orchestrator (production orchestrator)
 
-A single **command center** (`app/command_center/`) orchestrates the work. It
-decomposes a run into a bounded sub-task DAG, dispatches each task through a
-parallel queue with a **deterministic order-preserving assembler**, threads
-results through a shared context, and iterates to convergence (`needs_review` →
-0, genuine conflicts preserved, capped rounds). The correction pipeline runs
-through it **by default** — the inline path is retained as a byte-identical
-fallback (`engine="direct"`), proven across all six sample projects in
-`backend/tests/test_command_center.py`. It is deliberately workflow-agnostic:
-the JSON→golden alignment below plugs in as additional sub-agents, not a second
-framework.
+A single **Correction Orchestrator** (`app/command_center/`) runs the correction
+pipeline. It decomposes a run into a bounded sub-task DAG, dispatches each task
+through a parallel queue with a **deterministic order-preserving assembler**,
+threads results through a shared context, and iterates to convergence
+(`needs_review` → 0, genuine conflicts preserved, capped rounds). The correction
+pipeline runs through it **by default** (`engine="orchestrator"`) — the inline
+path is retained as a byte-identical fallback (`engine="direct"`), proven across
+all six sample projects in `backend/tests/test_command_center.py`. (`engine=
+"coordinator"` is accepted as a backward-compatible alias.) The underlying engine
+is deliberately workflow-agnostic: the same machinery also drives the JSON→golden
+alignment and batch below as additional sub-agents, not a second framework.
 
 ## JSON → golden-JSON alignment (schema conversion)
 
 Beyond document correction, the platform converts arbitrary source JSON into one
 canonical **golden** JSON Schema — the "thousands of files across teams, few
-distinct shapes" workload — on the same command center and with the same
-precision-first, no-fabrication posture (`app/json_alignment/`).
+distinct shapes" workload — on the same orchestration engine (the Correction
+Orchestrator's generic core) and with the same precision-first, no-fabrication
+posture (`app/json_alignment/`).
 
 - **Deterministic mapping.** Source fields map to the golden schema by a
   strongest-first cascade (exact name → normalized token-set → declared alias →

@@ -176,8 +176,10 @@ harness under `backend/tests/` and persisted machine-readable results:
 
 - `backend/tests/bakeoff/` — structure-extraction bake-off (can the engine
   reproduce the gold from raw uploads? — no; the manifest is the decisive input).
-- `backend/tests/command_center/` — the command-center correction engine bake-off
-  (coordinator + sub-agents + manifest strategies + pathways; 72-cell matrix).
+- `backend/tests/command_center/` — the bake-off for the correction engine now
+  known as the **Correction Orchestrator** (orchestrator + sub-agents + manifest
+  strategies + pathways; 72-cell matrix). The `command_center` package/test path
+  keeps its generic name because the same engine also drives alignment + batch.
 - `backend/tests/command_center/alpha/` — the precision-correction scaling alpha
   loop (precision-editing techniques vs document size; micro-model verdict).
 - `backend/tests/command_center/datagen/` — the synthetic growth-dataset
