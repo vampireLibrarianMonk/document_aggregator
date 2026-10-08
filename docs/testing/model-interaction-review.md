@@ -260,10 +260,23 @@ over a small subset and asserts the invariants; it **skips** unless
 
 ---
 
-## External comparison notes (to be filled in)
+## Results + external comparison
 
-> A sibling project's observations on interacting with the GPT-OSS, Claude, and
-> Nemotron models will be slotted here and reconciled against the findings above
-> — specifically whether their experience of reasoning-block handling, tool-use
-> support, refusal behavior (Claude/Safeguard), and JSON-emission quality matches
-> what our gates assume. _Pending hand-off._
+The full cross-model sweep has been run and recorded in
+[model-sweep-results.md](model-sweep-results.md): all 8 approved models, 6
+projects each. Headlines — **zero fabrications across every model** (the floor
+holds universally), and the apparent "lost conflict" cases are the disagreement
+being re-flagged as `needs_review` rather than silently resolved (safe either
+way). `gpt-oss-120b` and `nemotron-nano-12b` were the two perfect runs, the
+latter at ~1/5 the estimated cost.
+
+That doc also folds in a sibling project's hand-off on the same model families
+(document-generation workload), which sharpened three integration hazards worth
+acting on here: **GPT-OSS tool-name harmony-channel mangling** (sanitize the
+streamed tool name before matching, or tool-use silently under-fires),
+**Nemotron argument corruption** (`<parameter=…>` leaking inside a well-formed
+JSON value — the envelope parser won't catch it), and the case for **two
+deterministic gates — values AND citations/provenance** — since a model can pass
+every structure check while asserting sources that do not exist. The last is a
+genuine gap in our current gating (we re-verify values, not provenance
+resolvability).

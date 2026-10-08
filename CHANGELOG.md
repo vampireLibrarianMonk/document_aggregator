@@ -64,6 +64,26 @@ surfaced.
   comma-joined line.
 
 ### Changed
+- Named the correction orchestration the **Correction Orchestrator** (its
+  canonical, user-facing name). The reconcile API's `engine` parameter now
+  accepts `"orchestrator"` as the canonical value and default, with
+  `"coordinator"` kept as a backward-compatible alias (no breaking change); the
+  generic internal `Coordinator` class and `command_center` package keep their
+  workflow-agnostic names because the same engine also drives JSON-alignment and
+  batch. Updated the README, Developer Guide, and the Diagnostics "Orchestrators"
+  row accordingly.
+- Ran the model-backed studies across **every approved model** for the first
+  time (the sweep harness, previously only exercised on gpt-oss-120b). All 8
+  models, 6 projects each. Headline: **zero fabrications across every model** —
+  the no-fabrication floor holds universally, so model choice moves accuracy and
+  cost, not safety. `gpt-oss-120b` and `nemotron-nano-12b` were the two perfect
+  runs, the latter at roughly a fifth of the estimated cost. Recorded in
+  `docs/testing/model-sweep-results.md`, with a sibling project's cross-model
+  hand-off folded in (GPT-OSS tool-name harmony-channel mangling, Nemotron
+  argument corruption, and the case for a separate provenance/citation gate —
+  flagged as a genuine gap in current gating). The sweep's model client now sets
+  a bounded botocore timeout so a slow/non-invokable model fails fast instead of
+  stalling the run.
 - Made the optional Bedrock tier coherent and enclave-ready. `BEDROCK_MODEL`
   (the tool-use interpreter + JSON-alignment tiers) now defaults to an
   allowlisted `openai.gpt-oss-120b-1:0` instead of an off-allowlist Claude id,

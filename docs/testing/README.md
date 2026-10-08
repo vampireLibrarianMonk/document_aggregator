@@ -19,7 +19,7 @@ and are reproducible given a warm cache.
 | Structure-extraction bake-off | Whether the engine can reproduce the gold corrected report from raw uploads alone | `backend/tests/bakeoff/` | [bakeoff-structure-extraction.md](bakeoff-structure-extraction.md) |
 | Command-center bake-off | The Phase-3 correction-engine architecture (coordinator, sub-agents, manifest strategy, pathway) | `backend/tests/command_center/` | [bakeoff-command-center.md](bakeoff-command-center.md) |
 | Precision-correction alpha loop | Which precision-editing technique to use, and whether a micro-model is worth integrating | `backend/tests/command_center/alpha/` | [precision-correction-alpha-loop.md](precision-correction-alpha-loop.md) |
-| Model sweep + interaction review | How the winning config behaves across every approved model, and how to correctly prompt/parse each family without breaking the no-fabrication / conflict invariants | `backend/tests/command_center/model_sweep.py` | [model-interaction-review.md](model-interaction-review.md) |
+| Model sweep + interaction review | How the winning config behaves across every approved model, and how to correctly prompt/parse each family without breaking the no-fabrication / conflict invariants | `backend/tests/command_center/model_sweep.py` | [model-interaction-review.md](model-interaction-review.md) · [results](model-sweep-results.md) |
 | Synthetic growth dataset | The air-gap-clean, domain-matched test data the alpha loop runs on | `backend/tests/command_center/datagen/` | [dataset-generator.md](dataset-generator.md) |
 
 ## Reading order
