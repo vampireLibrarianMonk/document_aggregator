@@ -42,6 +42,10 @@ backend/tests/command_center/_model_cache/
 # ---- Model-sweep results (generated on demand; a full cross-model run only) ----
 backend/tests/command_center/model_sweep_results.json
 
+# ---- Tool-use spiral results + sweep run log (generated on demand) ----
+backend/tests/command_center/tooluse_spiral_results.json
+backend/tests/command_center/_sweep_run.log
+
 # ---- MaDI-Bench external benchmark data (NEVER committed) ----
 # MaDI-Bench carries no license; its data is obtained by the developer
 # separately (public download) and lives outside the repo. Guard against any

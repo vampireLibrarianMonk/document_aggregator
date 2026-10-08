@@ -1,0 +1,85 @@
+# Tool-use spiral review (production tool-use path)
+
+**Status:** harness built + offline-validated; **live run PENDING** (awaiting go).
+**Harness:** `backend/tests/command_center/tooluse_spiral.py`
+**Results:** `backend/tests/command_center/tooluse_spiral_results.json` (gitignored)
+
+## Why this exists
+
+The [model sweep](model-sweep-results.md) measures the correction agent's **text**
+path (JSON-in-free-text). It never exercises the **production** `BEDROCK_ENABLED`
+tiers, which use forced Converse **tool-use** — `BedrockInterpreter` (reviewer
+feedback → correction ops) and `BedrockSemanticProposer` (JSON-alignment). That
+tool-use path is exactly where the known hazards live (the harmony-channel tool-
+name mangling we already fixed; the sibling project's Nemotron argument
+corruption). This review is the adversarial, small→big ladder that measures it.
+
+## The ladder (each rung isolates one failure mode; a fail stops that model)
+
+| Rung | Question | Cost | What a failure tells us |
+|---|---|---|---|
+| 1 | Does **forced tool-use** even work? One minimal `converse` with our exact `toolConfig` + forced `toolChoice`. | 1 tiny call/model | Model rejects forced choice (some families only support `auto`), or answers in prose, or decorates the tool name. |
+| 2 | Does the tool **input parse + validate + stay uncorrupted**? Run the model's ops through the real `validate_op` + an argument-corruption check. | reuses rung-1 call | Malformed ops, or framing (`<parameter=…>`, `<\|…\|>`) leaked into a value — well-formed JSON, poisoned content. |
+| 3 | **One real email, one project** through `interpret_feedback()`. | a few calls | Interpreter falls off the Bedrock path; real per-model yield (accepted/rejected). |
+| 4 | **Full project**, scored vs gold (value/status/conflict/fabrication). | full run | Any fabrication = a value escaped the grounding gate (safety). |
+
+Gating is strict: a model that fails rung N is recorded (with `failure_reason` +
+`fix_hint`) and **skipped** for N+1, so no tokens are wasted chasing a model that
+already fell out at the cheap rung.
+
+## Running it (on-demand, NOT CI)
+
+From `backend/` with Bedrock reachable:
+
+```powershell
+$env:BEDROCK_ENABLED = "true"
+$env:HF_HUB_OFFLINE = "1"; $env:TRANSFORMERS_OFFLINE = "1"
+$env:DATA_DIR = "$env:TEMP\spiral"
+..\.venv\Scripts\python.exe -m tests.command_center.tooluse_spiral --rung 2
+#   --rung N      run rungs 1..N (start at 2 — the cheap diagnostic pair)
+#   --models a,b  subset (substring-matched to the live catalog)
+```
+
+Start at `--rung 2` (one tiny call per model, highest signal: who even honors
+forced tool-use, and whose input survives validation). Escalate to `--rung 3`
+then `--rung 4` only for the models that cleared the cheap rungs. Monitor by
+polling `tooluse_spiral_results.json`, not the console.
+
+The pure parsing rungs (`rung1_from_response`, `rung2_from_response`) are
+unit-tested offline against synthetic responses in
+`backend/tests/test_tooluse_spiral.py` (including a harmony-decorated name and a
+`<parameter=…>`-corrupted argument), so the ladder's logic is proven before any
+live call. One harness defect was already caught offline: `validate_op` requires
+an `id` the tool schema never asks the model for, so the harness stamps a
+synthetic id before validating — otherwise every model would falsely fail rung 2.
+
+## Results — PENDING
+
+### Rung 1–2 (forced tool-use + input validation)
+
+> After `--rung 2`, paste one row per model.
+
+| Model | Rung reached | Forced tool-use | Name decorated | Input valid | Failure / fix hint |
+|---|---|---|---|---|---|
+| gpt-oss-120b | _ | _ | _ | _ | _ |
+| gpt-oss-20b | _ | _ | _ | _ | _ |
+| gpt-oss-safeguard-120b | _ | _ | _ | _ | _ |
+| gpt-oss-safeguard-20b | _ | _ | _ | _ | _ |
+| nemotron-super-3-120b | _ | _ | _ | _ | _ |
+| nemotron-nano-3-30b | _ | _ | _ | _ | _ |
+| nemotron-nano-12b-v2 | _ | _ | _ | _ | _ |
+| nemotron-nano-9b-v2 | _ | _ | _ | _ | _ |
+
+### Rung 3–4 (real yield + scored, for models that cleared 1–2)
+
+> Paste after escalating the survivors.
+
+| Model | Accepted ops (rung 3) | Value % | Status % | Fabrications | Conflict kept |
+|---|---|---|---|---|---|
+| _ | _ | _ | _ | _ | _ |
+
+### Fixes identified
+
+> Record each per-model failure and the concrete fix (e.g. "model X needs
+> toolChoice=auto", "sanitize tool-input values for Nemotron", etc.) as the
+> ladder surfaces them.
