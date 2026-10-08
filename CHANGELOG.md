@@ -52,6 +52,16 @@ surfaced.
   repo-root `VERSION` file (overridable via the `PIPELINE_VERSION` env var,
   with a safe fallback), so the footer, the app version, and the changelog
   stay in lockstep. The `VERSION` file is now copied into the api/worker images.
+- The Diagnostics Bedrock block implied nothing was orchestrating when Bedrock
+  was disabled ("In use: no (offline generator used)"). It now states the
+  **model tier** status explicitly and adds an **Orchestrators** row making
+  clear the coordinator (corrections) and governor (project generation) run on
+  every request regardless of Bedrock — Bedrock only swaps the model tier they
+  drive (live Bedrock vs the deterministic/offline tier). Retitled the block to
+  "Bedrock (optional model tier)".
+- The approved-models list is now a scrollable list box (one model per line,
+  with default / recommended / inference-profile tags) instead of a single
+  comma-joined line.
 
 ### Docs
 - Corrected the project-scoped correction endpoint paths in the README: they are

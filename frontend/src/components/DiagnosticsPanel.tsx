@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { api } from '../api/client'
 import type { Diagnostics, ServiceState } from '../api/types'
 
@@ -20,10 +21,49 @@ function Indicator({ state }: { state: ServiceState }) {
   )
 }
 
+/** Scrollable list box of approved foundation models, one per line, with the
+ *  default/recommended ones tagged. Keyboard-focusable so the region is
+ *  reachable and scrollable without a mouse. */
+function ModelList({ models }: { models: { id: string; name: string; family: string; kind?: string; is_default: boolean; recommended?: boolean }[] }) {
+  if (!models.length) {
+    return <span className="muted">none (enable Bedrock to list approved models)</span>
+  }
+  return (
+    <ul
+      className="diag-model-list"
+      tabIndex={0}
+      aria-label={`${models.length} approved models`}
+      style={{
+        margin: 0,
+        padding: '4px 0',
+        listStyle: 'none',
+        maxHeight: 160,
+        overflowY: 'auto',
+        border: '1px solid var(--border, #ccc)',
+        borderRadius: 4,
+      }}
+    >
+      {models.map((m) => (
+        <li key={m.id} className="row" style={{ gap: 6, padding: '2px 8px', alignItems: 'baseline' }}>
+          <span>{m.name}</span>
+          {m.recommended && <span className="status-tag ok" aria-label="recommended">recommended</span>}
+          {m.is_default && !m.recommended && <span className="status-tag muted">default</span>}
+          {m.kind === 'inference_profile' && (
+            <span className="muted small" title="cross-region inference profile">· profile</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 interface Row {
   key: string
   label: string
-  value: string
+  /** Plain-text value (default). Ignored when `node` is provided. */
+  value?: string
+  /** Custom cell content (e.g. a list box) rendered instead of `value`. */
+  node?: ReactNode
 }
 
 /**
@@ -85,14 +125,35 @@ export function DiagnosticsPanel() {
           ],
         },
         {
-          title: 'Bedrock (optional model generation)',
+          title: 'Bedrock (optional model tier)',
           state: svc.bedrock.state,
           rows: [
             { key: 'en', label: 'Enabled', value: svc.bedrock.enabled ? 'yes' : 'no (disabled by config)' },
             { key: 'av', label: 'Reachable', value: svc.bedrock.available ? 'yes' : 'no' },
-            { key: 'us', label: 'In use', value: svc.bedrock.enabled && svc.bedrock.available ? 'yes' : 'no (offline generator used)' },
+            {
+              key: 'us',
+              label: 'Model tier in use',
+              value: svc.bedrock.enabled && svc.bedrock.available
+                ? 'yes (live Bedrock model)'
+                : 'no (deterministic/offline tier)',
+            },
+            {
+              key: 'orch',
+              label: 'Orchestrators',
+              // The coordinator (corrections) and governor (project generation)
+              // run on EVERY request regardless of Bedrock; Bedrock only swaps
+              // the model tier they drive. Make that explicit so a disabled
+              // Bedrock never reads as "nothing is orchestrating".
+              value: svc.bedrock.enabled && svc.bedrock.available
+                ? 'coordinator + governor active (Bedrock model tier)'
+                : 'coordinator + governor active (deterministic tier)',
+            },
             { key: 'rg', label: 'Region', value: svc.bedrock.region },
-            { key: 'mo', label: 'Approved models', value: svc.bedrock.models.length ? svc.bedrock.models.map((m) => m.name).join(', ') : 'none' },
+            {
+              key: 'mo',
+              label: `Approved models${svc.bedrock.models.length ? ` (${svc.bedrock.models.length})` : ''}`,
+              node: <ModelList models={svc.bedrock.models} />,
+            },
           ],
         },
       ]
@@ -133,9 +194,9 @@ export function DiagnosticsPanel() {
           </div>
           <dl className="diag-rows small" style={{ margin: '8px 0 0' }}>
             {s.rows.map((r) => (
-              <div key={r.key} className="row" style={{ gap: 8 }}>
+              <div key={r.key} className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
                 <dt className="muted" style={{ minWidth: 160 }}>{r.label}</dt>
-                <dd style={{ margin: 0 }}>{r.value}</dd>
+                <dd style={{ margin: 0, flex: 1 }}>{r.node ?? r.value}</dd>
               </div>
             ))}
           </dl>
