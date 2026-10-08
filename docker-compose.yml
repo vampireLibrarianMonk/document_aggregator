@@ -44,7 +44,12 @@ services:
       # profile/SSO/role inside the container exactly as it does locally.
       BEDROCK_ENABLED: "${BEDROCK_ENABLED:-false}"
       BEDROCK_REGION: "${BEDROCK_REGION:-us-east-1}"
+      # BEDROCK_MODEL drives the tool-use tiers (feedback interpreter + JSON
+      # semantic tier). Leave empty to use the code default; an enclave sets it
+      # to an allowlisted (nemotron/gpt-oss) id so all tiers agree.
+      BEDROCK_MODEL: "${BEDROCK_MODEL:-}"
       BEDROCK_SCENARIO_MODEL: "${BEDROCK_SCENARIO_MODEL:-}"
+      BEDROCK_SCENARIO_MODEL_ALLOWLIST: "${BEDROCK_SCENARIO_MODEL_ALLOWLIST:-nemotron,gpt-oss}"
       AWS_REGION: "${AWS_REGION:-us-east-1}"
       # The container runs as an arbitrary UID (OpenShift pattern), so $HOME is
       # unreliable; point boto3 at the mounted config EXPLICITLY instead of
@@ -84,10 +89,25 @@ services:
       OCR_ENABLED: "${OCR_ENABLED:-true}"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
-      BEDROCK_ENABLED: "false"
+      # Bedrock: the worker runs the ASYNC job path (reconcile / converge /
+      # batch_align), so it must honor the SAME Bedrock toggle as the api or an
+      # enclave with BEDROCK_ENABLED=true would silently keep running the async
+      # path offline. Mirrors the api service; offline-safe default.
+      BEDROCK_ENABLED: "${BEDROCK_ENABLED:-false}"
+      BEDROCK_REGION: "${BEDROCK_REGION:-us-east-1}"
+      BEDROCK_MODEL: "${BEDROCK_MODEL:-}"
+      BEDROCK_SCENARIO_MODEL: "${BEDROCK_SCENARIO_MODEL:-}"
+      BEDROCK_SCENARIO_MODEL_ALLOWLIST: "${BEDROCK_SCENARIO_MODEL_ALLOWLIST:-nemotron,gpt-oss}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+      AWS_CONFIG_FILE: /aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /aws/credentials
       WORKER_CONCURRENCY: "2"
     volumes:
       - data:/data
+      # Same read-only host AWS config mount as the api; harmless when absent
+      # (boto3 finds no creds -> offline). On Windows the host path is
+      # %USERPROFILE%\.aws.
+      - "${AWS_DIR:-${USERPROFILE}/.aws}:/aws:ro"
     depends_on:
       - api
 

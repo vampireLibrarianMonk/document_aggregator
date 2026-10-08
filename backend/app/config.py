@@ -78,13 +78,24 @@ class Settings:
     # fully without it (structured ops path). Never writes final state.
     BEDROCK_ENABLED: bool = os.getenv("BEDROCK_ENABLED", "false").lower() == "true"
     BEDROCK_REGION: str = os.getenv("BEDROCK_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-    # Use a cross-region inference profile ID (required for on-demand newer models).
-    BEDROCK_MODEL: str = os.getenv("BEDROCK_MODEL", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
+    # BEDROCK_MODEL drives the TOOL-USE tiers (feedback interpreter + JSON
+    # semantic tier). Its default is an allowlisted gpt-oss id so that, when
+    # Bedrock is enabled, EVERY tier (tool-use + the allowlist-gated project
+    # generation) agrees on an approved model out of the box. Previously this
+    # defaulted to a Claude id that is NOT on BEDROCK_SCENARIO_MODEL_ALLOWLIST
+    # (nemotron,gpt-oss), so "enabled" ran the tool-use tiers on a model the
+    # generation tier would refuse — an incoherent split. Override freely (an
+    # enclave that approves Claude sets this id AND adds it to the allowlist).
+    # Use a cross-region inference profile ID for on-demand newer models.
+    BEDROCK_MODEL: str = os.getenv("BEDROCK_MODEL", "openai.gpt-oss-120b-1:0")
 
     # Project-generation model: separate from the feedback-interpreter model so
     # the two roles can use different approved models. Must be on the allowlist.
+    # Falls back to BEDROCK_MODEL (env, then the allowlisted gpt-oss default) so
+    # that enabling Bedrock gives a coherent, approved generation model with no
+    # extra configuration.
     BEDROCK_SCENARIO_MODEL: str = os.getenv(
-        "BEDROCK_SCENARIO_MODEL", os.getenv("BEDROCK_MODEL", ""))
+        "BEDROCK_SCENARIO_MODEL", os.getenv("BEDROCK_MODEL", "openai.gpt-oss-120b-1:0"))
     # Approved models for project generation (comma-separated model ids or
     # substrings). Only Nemotron and GPT-OSS families are approved by default;
     # the generator refuses any model id not matching the allowlist.

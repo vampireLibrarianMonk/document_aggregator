@@ -63,7 +63,30 @@ surfaced.
   with default / recommended / inference-profile tags) instead of a single
   comma-joined line.
 
+### Changed
+- Made the optional Bedrock tier coherent and enclave-ready. `BEDROCK_MODEL`
+  (the tool-use interpreter + JSON-alignment tiers) now defaults to an
+  allowlisted `openai.gpt-oss-120b-1:0` instead of an off-allowlist Claude id,
+  and `BEDROCK_SCENARIO_MODEL` falls back to the same, so enabling Bedrock no
+  longer runs the tool-use tiers on a model the generation tier would refuse.
+  All call-sites now agree on an approved model with no extra configuration;
+  every value remains env-overridable.
+- The Docker `worker` service now honors `BEDROCK_ENABLED` / region / model /
+  allowlist from the environment and mounts the host AWS config read-only, like
+  the `api` service. It was hardcoded `BEDROCK_ENABLED=false` with no credential
+  passthrough, so an enclave that enabled Bedrock would have silently kept the
+  async job path (reconcile / converge / batch_align) offline. Added
+  `BEDROCK_MODEL` + `BEDROCK_SCENARIO_MODEL_ALLOWLIST` passthrough to both
+  services. The shipped default stays offline-first (`false`).
+
 ### Docs
+- Documented the Bedrock tier in `.env.example` (the full `BEDROCK_*` block +
+  `AWS_DIR`), making clear the coordinator/governor run deterministically by
+  default and Bedrock is an optional refinement, with guidance for air-gapped
+  enclaves that have an in-enclave Bedrock endpoint.
+- Updated `deploy/AIRGAP_RHEL.md`: replaced the "Bedrock stays disabled in the
+  enclave" assumption with the two valid postures (strict-offline vs
+  in-enclave-Bedrock), since an enclave may legitimately have Bedrock.
 - Corrected the project-scoped correction endpoint paths in the README: they are
   `/projects/{id}/reconcile`, `/components`, `/converge`, `/resolve`, `/convert`,
   `/interpret` (no stray `/project/` segment), and removed the inaccurate claim

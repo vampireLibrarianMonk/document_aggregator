@@ -128,8 +128,29 @@ In the enclave, mirror the CPU torch wheels into the wheelhouse and install with
   `TRANSFORMERS_OFFLINE=1` as a hard network guard, and default
   `EMBEDDING_BACKEND=hashing`. To use the real model in the enclave, bake/mount
   the weights and set `EMBEDDING_BACKEND=sentence-transformers`.
-- Bedrock interpreter stays disabled (`BEDROCK_ENABLED=false`) in the enclave;
-  it is an optional cloud adapter and never required.
+## Bedrock model tier (enclave-dependent)
+
+Bedrock is an **optional refinement tier**, never required: the correction
+coordinator and the project-generation governor always run on the deterministic
+engine (the authoritative, reproducible, no-fabrication floor). Enabling Bedrock
+only sharpens the natural-language steps and never writes final state — every
+value it proposes passes a grounding gate first.
+
+Two valid enclave postures:
+
+- **Enclave WITHOUT Bedrock (strict offline):** leave `BEDROCK_ENABLED=false`
+  (the default). The deterministic path is the whole system; nothing calls out.
+- **Enclave WITH an in-enclave Bedrock endpoint:** set `BEDROCK_ENABLED=true`
+  (plus `BEDROCK_REGION` and the mounted AWS config — see `.env.example`). The
+  HF/Transformers offline guards stay on; the only outbound calls are to the
+  enclave's own Bedrock service. Both the api and the worker honor the toggle
+  (the worker runs the async reconcile/converge/batch path, so it must agree).
+  Models are allowlist-gated to `nemotron,gpt-oss` by default; the tool-use and
+  generation tiers both default to an allowlisted `gpt-oss` id so "enabled" is
+  coherent out of the box.
+
+Either way the deterministic result is always available as the floor, so a
+Bedrock outage degrades cleanly rather than failing.
 
 ## OpenShift notes
 
