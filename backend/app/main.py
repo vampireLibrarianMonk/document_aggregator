@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+from . import correction_bridge
 from .aggregate import _sentiment, build_report
 from .config import settings
 from .exporters import export_report
@@ -65,7 +66,6 @@ def client_config() -> dict:
     """Lightweight, client-facing feature flags the frontend reads on load.
     Cheap (no model load), unlike /diagnostics."""
     return {
-        "samples_enabled": bool(settings.SAMPLES_ENABLED),
         "diagnostics_enabled": bool(settings.DIAGNOSTICS_ENABLED),
     }
 
@@ -89,47 +89,9 @@ def create_project(body: CreateProject) -> Project:
 @app.get("/projects")
 def list_projects() -> list[Project]:
     """The live project list: ONLY projects the user has actually created in the
-    store (by uploading documents, generating, or instantiating a sample case).
-    The app starts EMPTY. The bundled sample cases are NOT auto-listed here; they
-    are templates surfaced via GET /templates and instantiated on demand."""
+    store (by creating a project and uploading its documents, or generating one).
+    The app starts EMPTY."""
     return store.list_projects()
-
-
-class InstantiateTemplate(BaseModel):
-    name: str | None = None  # optional override for the new project's name
-
-
-def _require_samples() -> None:
-    """Guard: the in-app sample feature is opt-in (SAMPLES_ENABLED). When off,
-    the sample endpoints behave as if they do not exist, so the feature is fully
-    gated server-side, not just hidden in the UI."""
-    if not settings.SAMPLES_ENABLED:
-        raise HTTPException(
-            404, "sample instantiation is disabled (set SAMPLES_ENABLED=true to enable)"
-        )
-
-
-@app.get("/templates")
-def list_templates() -> list[dict]:
-    """The catalog of bundled sample cases a user can instantiate into a real,
-    persisted project on demand. Gated by SAMPLES_ENABLED (off by default):
-    samples are normally run from the repo per the user guide. Bundle-only, so
-    an already-instantiated copy never shows up here as a duplicate."""
-    _require_samples()
-    return project.list_templates()
-
-
-@app.post("/projects/from-template/{case_id}")
-def instantiate_template(case_id: str, body: InstantiateTemplate | None = None) -> Project:
-    """Create a NEW persisted project by copying a bundled sample case into the
-    store. Gated by SAMPLES_ENABLED. The source fixtures in the repo are never
-    modified."""
-    _require_samples()
-    name = body.name if body and body.name else None
-    try:
-        return store.instantiate_from_template(case_id, name)
-    except FileNotFoundError:
-        raise HTTPException(404, f"no such sample case: {case_id}")
 
 
 def _resolve_project(project_id: str) -> Project:
@@ -210,12 +172,23 @@ async def upload_document(
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
     if len(data) > max_bytes:
         raise HTTPException(413, f"file exceeds {settings.MAX_UPLOAD_MB} MB")
-    rec = ingest_document(project_id, file.filename or "unnamed", data, kind=kind)
+    fname = file.filename or "unnamed"
+    rec = ingest_document(project_id, fname, data, kind=kind)
+    # Bridge the upload into the correction-data store so the Correction Pipeline
+    # populates from genuine uploads (not only samples). Additive + best-effort:
+    # a file with no correction-store role (e.g. a binary figure) returns None,
+    # and a bridge failure must never fail the ingestion response.
+    bridged = None
+    try:
+        bridged = correction_bridge.bridge_upload(project_id, kind, fname, data)
+    except Exception:  # noqa: BLE001 - bridging is additive, never fatal to upload
+        bridged = None
     return {
         "document_id": rec.id,
         "kind": rec.kind.value,
         "overall_status": rec.overall_status,
         "stages": [s.model_dump() for s in rec.stages],
+        "bridged_to": bridged,
     }
 
 
@@ -237,10 +210,13 @@ def project_readiness(project_id: str) -> dict:
     Correction Pipeline tab and show the user what is still required.
 
     The two valid input shapes are:
-      A) corpus + template   + corrections
-      B) corpus + first_draft + corrections
-    So the requirements are: corpus present, corrections present, AND at least
-    one of {template, first_draft}.
+      A) manifest + corpus + template    + corrections
+      B) manifest + corpus + first_draft + corrections
+
+    `ready` reflects the CORRECTION-DATA STORE the engine actually reads (not
+    just that DocumentRecords were tagged), so "Correction Pipeline unlocked" is
+    honest: it is true only when the pipeline can genuinely run. `counts` is the
+    per-area upload tally for the Ingestion banner.
     """
     _resolve_project(project_id)
     counts = {"corpus": 0, "template": 0, "corrections": 0, "first_draft": 0}
@@ -248,23 +224,17 @@ def project_readiness(project_id: str) -> dict:
         k = getattr(r.kind, "value", r.kind)
         if k in counts:
             counts[k] += 1
-    has_corpus = counts["corpus"] > 0
-    has_template = counts["template"] > 0
-    has_draft = counts["first_draft"] > 0
-    has_corrections = counts["corrections"] > 0
 
-    problems: list[str] = []
-    if not has_corpus:
-        problems.append("Upload the original corpus (required).")
-    if not (has_template or has_draft):
-        problems.append("Upload a template or a first draft (at least one is required).")
-    if not has_corrections:
-        problems.append("Upload corrections — reviewer feedback is required.")
+    # Authoritative check: can the engine actually reconcile this project? This
+    # reads the bridged correction-data store (data/), which is what the
+    # Correction Pipeline consumes.
+    store_state = correction_bridge.correction_store_ready(project_id)
 
     return {
         "counts": counts,
-        "ready": len(problems) == 0,
-        "problems": problems,
+        "ready": store_state["ready"],
+        "problems": store_state["problems"],
+        "correction_store": store_state,
     }
 
 
