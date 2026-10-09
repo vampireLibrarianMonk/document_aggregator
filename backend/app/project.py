@@ -74,14 +74,70 @@ def load_graphics(project_id: str) -> list[dict]:
 
 def load_corrections(project_id: str, variant: str = "comments") -> list[dict]:
     """variant='comments' = single-round review (default); 'rounds' = the
-    multi-round convergence feedback if the project provides it."""
+    multi-round convergence feedback if the project provides it.
+
+    Persisted human resolutions (from the Correction Pipeline's resolve
+    controls) are MERGED on top so every reconcile reflects every decision the
+    user has made so far — resolving one unit never resets another."""
     fname = "rounds.json" if variant == "rounds" else "comments.json"
     path = _dir(project_id) / "corrections" / fname
     if not path.exists() and variant == "rounds":
         path = _dir(project_id) / "corrections" / "comments.json"
+    base = _read_json(path)["corrections"] if path.exists() else []
+    return base + load_resolutions(project_id)
+
+
+def load_resolutions(project_id: str) -> list[dict]:
+    """The persisted human decisions for this project (one per resolved unit,
+    latest-wins already enforced on write). Empty when the user has resolved
+    nothing. These are appended to the corrections the engine sees."""
+    path = _dir(project_id) / "corrections" / "resolutions.json"
     if not path.exists():
         return []
-    return _read_json(path)["corrections"]
+    try:
+        data = _read_json(path)
+        return data.get("resolutions", []) if isinstance(data, dict) else []
+    except Exception:
+        return []
+
+
+def remove_resolution(project_id: str, target: str) -> bool:
+    """Undo a persisted human resolution for one target so the unit reverts to
+    its engine state (and can be set again). Returns True if a resolution was
+    removed. Only touches the writable store (never the read-only bundle)."""
+    data_dir = settings.project_data_dir(project_id)
+    if _dir(project_id) != data_dir:
+        return False
+    path = data_dir / "corrections" / "resolutions.json"
+    if not path.exists():
+        return False
+    existing = load_resolutions(project_id)
+    kept = [r for r in existing if r.get("target") != target]
+    if len(kept) == len(existing):
+        return False
+    path.write_text(json.dumps({"resolutions": kept}, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
+def append_resolution(project_id: str, decision: dict) -> None:
+    """Persist one human resolution so subsequent reconciles include it. Keyed by
+    target: a newer decision for the same target REPLACES the older one (the user
+    changed their mind), so the store holds at most one resolution per unit.
+    Only writes when the project's data dir is writable (a user/generated
+    project under DATA_DIR); bundled read-only demos are left untouched."""
+    data_dir = settings.project_data_dir(project_id)
+    resolved_dir = _dir(project_id)
+    # Only persist for projects that live in the writable store (resolved dir is
+    # the store's data dir), never into the read-only bundle.
+    if resolved_dir != data_dir:
+        return
+    cdir = data_dir / "corrections"
+    cdir.mkdir(parents=True, exist_ok=True)
+    path = cdir / "resolutions.json"
+    existing = load_resolutions(project_id)
+    kept = [r for r in existing if r.get("target") != decision.get("target")]
+    kept.append(decision)
+    path.write_text(json.dumps({"resolutions": kept}, indent=2) + "\n", encoding="utf-8")
 
 
 def has_rounds(project_id: str) -> bool:
@@ -387,7 +443,31 @@ def resolve_unit(
         "new_value": str(value),
         "body": f"Resolved by {author}.",
     }
-    return run_reconciliation(mode, project_id, source_format, extra_corrections=[decision])
+    # PERSIST the decision so it survives subsequent resolves (resolving one unit
+    # must never reset another). load_corrections merges persisted resolutions,
+    # so the re-reconcile below already reflects every prior decision plus this
+    # one. For a read-only bundled demo (nothing persisted), fall back to the
+    # in-memory extra_corrections path so the response still reflects the change.
+    append_resolution(project_id, decision)
+    extra = None if load_resolutions(project_id) else [decision]
+    return run_reconciliation(mode, project_id, source_format, extra_corrections=extra)
+
+
+def unresolve_unit(
+    target: str,
+    mode: str = "draft",
+    project_id: str = DEFAULT_PROJECT,
+    source_format: str | None = None,
+) -> dict:
+    """Undo a human resolution for a unit so it reverts to the engine's own
+    result (and can be set again). Removes the persisted resolution for `target`
+    and re-reconciles. Raises ValueError if there was nothing to undo (the unit
+    was never human-resolved) so the UI can keep the control honest."""
+    if target not in resolvable_targets(project_id):
+        raise ValueError(f"'{target}' is not a resolvable unit for project {project_id}")
+    if not remove_resolution(project_id, target):
+        raise ValueError(f"'{target}' has no human resolution to undo")
+    return run_reconciliation(mode, project_id, source_format)
 
 
 def _vector_findings(project_id: str, mode: str, source_format: str, template: dict) -> list[dict]:

@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import correction_bridge
+from . import ingest_generate
 from .aggregate import _sentiment, build_report
 from .config import settings
 from .exporters import export_report
@@ -174,21 +174,22 @@ async def upload_document(
         raise HTTPException(413, f"file exceeds {settings.MAX_UPLOAD_MB} MB")
     fname = file.filename or "unnamed"
     rec = ingest_document(project_id, fname, data, kind=kind)
-    # Bridge the upload into the correction-data store so the Correction Pipeline
-    # populates from genuine uploads (not only samples). Additive + best-effort:
-    # a file with no correction-store role (e.g. a binary figure) returns None,
-    # and a bridge failure must never fail the ingestion response.
-    bridged = None
+    # Generate the project's correction-data store FROM the uploaded documents:
+    # the app derives the manifest/template/draft/corrections deterministically
+    # from the real source text, so the Correction Pipeline unlocks on genuine
+    # uploads with no hand-authored JSON. Additive + best-effort: a generation
+    # failure must never fail the ingestion response.
+    generation = None
     try:
-        bridged = correction_bridge.bridge_upload(project_id, kind, fname, data)
-    except Exception:  # noqa: BLE001 - bridging is additive, never fatal to upload
-        bridged = None
+        generation = ingest_generate.regenerate_from_uploads(project_id)
+    except Exception:  # noqa: BLE001 - generation is additive, never fatal to upload
+        generation = None
     return {
         "document_id": rec.id,
         "kind": rec.kind.value,
         "overall_status": rec.overall_status,
         "stages": [s.model_dump() for s in rec.stages],
-        "bridged_to": bridged,
+        "generated": bool(generation and generation.get("generated")),
     }
 
 
@@ -205,18 +206,14 @@ def list_documents(project_id: str) -> list[dict]:
 
 @app.get("/projects/{project_id}/readiness")
 def project_readiness(project_id: str) -> dict:
-    """Report what has been ingested per area and whether the correction
-    pipeline's input prerequisites are satisfied, so the UI can gate the
-    Correction Pipeline tab and show the user what is still required.
+    """Report what has been ingested per area and whether the Correction
+    Pipeline can run, so the UI can gate the Correction Pipeline tab.
 
-    The two valid input shapes are:
-      A) manifest + corpus + template    + corrections
-      B) manifest + corpus + first_draft + corrections
-
-    `ready` reflects the CORRECTION-DATA STORE the engine actually reads (not
-    just that DocumentRecords were tagged), so "Correction Pipeline unlocked" is
-    honest: it is true only when the pipeline can genuinely run. `counts` is the
-    per-area upload tally for the Ingestion banner.
+    The real flow: a user uploads their source documents and the app GENERATES
+    the project (manifest/template/draft/corrections) from them. So readiness is
+    honest and simple — the pipeline is ready once the project has been generated
+    from at least one uploaded source document. `counts` is the per-area upload
+    tally for the Ingestion banner.
     """
     _resolve_project(project_id)
     counts = {"corpus": 0, "template": 0, "corrections": 0, "first_draft": 0}
@@ -225,16 +222,20 @@ def project_readiness(project_id: str) -> dict:
         if k in counts:
             counts[k] += 1
 
-    # Authoritative check: can the engine actually reconcile this project? This
-    # reads the bridged correction-data store (data/), which is what the
-    # Correction Pipeline consumes.
-    store_state = correction_bridge.correction_store_ready(project_id)
+    # Authoritative check: has the app generated a reconcilable project from the
+    # uploaded documents? This reads the data/ store the Correction Pipeline
+    # consumes. If an earlier upload predates generation, regenerate now so
+    # readiness reflects what the user has actually uploaded.
+    state = ingest_generate.ingest_generation_ready(project_id)
+    if not state["ready"] and any(counts.values()):
+        ingest_generate.regenerate_from_uploads(project_id)
+        state = ingest_generate.ingest_generation_ready(project_id)
 
     return {
         "counts": counts,
-        "ready": store_state["ready"],
-        "problems": store_state["problems"],
-        "correction_store": store_state,
+        "ready": state["ready"],
+        "problems": state["problems"],
+        "correction_store": state,
     }
 
 
@@ -315,6 +316,39 @@ def get_rawfile(project_id: str, document_id: str) -> Response:
         raise HTTPException(415, f"{kind} is not served as a raw file")
     return Response(
         content=data,
+        media_type=media,
+        headers={
+            "Content-Disposition": "inline",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.get("/projects/{project_id}/figures/{name}")
+def get_project_figure(project_id: str, name: str) -> Response:
+    """Serve a project's corpus figure image by name for inline rendering in the
+    corrected report (so the pipeline shows the real figure, not a placeholder).
+    Reads data/corpus/figures/<name> from the resolved project store. 404 if the
+    figure is absent. Path traversal is refused (name must be a bare filename)."""
+    from pathlib import PurePosixPath
+
+    _resolve_project(project_id)
+    safe = PurePosixPath(name).name  # strip any path components
+    if safe != name or safe in ("", ".", ".."):
+        raise HTTPException(400, "invalid figure name")
+    fig = settings.resolve_project_data_dir(project_id) / "corpus" / "figures" / safe
+    if not fig.exists() or not fig.is_file():
+        raise HTTPException(404, "figure not found")
+    suffix = fig.suffix.lower()
+    media = {
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".gif": "image/gif", ".webp": "image/webp",
+    }.get(suffix)
+    if media is None:
+        raise HTTPException(415, f"{suffix} is not a servable image")
+    return Response(
+        content=fig.read_bytes(),
         media_type=media,
         headers={
             "Content-Disposition": "inline",
@@ -449,18 +483,108 @@ def get_report(project_id: str) -> dict:
 
 
 @app.get("/projects/{project_id}/export")
-def export(project_id: str, format: str = "json") -> Response:
-    _resolve_project(project_id)
-    report = build_report(project_id)
+def export(
+    project_id: str,
+    format: str = "json",
+    kind: str = "corrected",
+    mode: str = "draft",
+) -> Response:
+    """Export a project's report.
+
+    kind='corrected' (default): the Correction Pipeline's CORRECTED report —
+    the finished deliverable with every fix applied and your manual resolutions
+    reflected. mode='draft'|'template' selects which correction mode to render.
+    Falls back to the aggregated report for aggregation-only projects (no
+    first-attempt/template).
+
+    kind='aggregated': the raw aggregated corpus dump (source documents ordered
+    by effective DTG). Useful for aggregation-only projects.
+    """
+    from . import exporters, project
+
+    proj = _resolve_project(project_id)
+    if mode not in ("draft", "template"):
+        raise HTTPException(400, "mode must be 'draft' or 'template'")
+
+    want_corrected = kind == "corrected" and project.has_correction_pipeline(project_id)
     try:
-        data, media_type, filename = export_report(report, format)
+        if want_corrected:
+            report = project.run_reconciliation(mode=mode, project_id=project_id)
+            figures_dir = settings.resolve_project_data_dir(project_id) / "corpus" / "figures"
+            data, media_type, filename = exporters.export_corrected_report(
+                report, format, figures_dir=figures_dir if figures_dir.is_dir() else None)
+        else:
+            report = build_report(project_id)
+            data, media_type, filename = export_report(report, format)
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(400, str(exc))
+
+    # Machine-readable filename: <project-slug>_<UTC DTG to the second>.<ext>
+    ext = filename.rsplit(".", 1)[-1] if "." in filename else format
+    download_name = f"{_export_basename(proj.name or project_id)}.{ext}"
     return Response(
         content=data,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
     )
+
+
+def _export_basename(project_name: str) -> str:
+    """<project-slug>_<UTC timestamp to the second>, e.g.
+    'tgx-9-telemetry-gateway-incident_20261009T213708Z'. Deterministic, machine
+    sortable, filesystem-safe."""
+    import re as _re
+    from datetime import datetime, timezone
+
+    slug = _re.sub(r"[^a-z0-9]+", "-", (project_name or "project").lower()).strip("-") or "project"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{slug}_{stamp}"
+
+
+@app.get("/projects/{project_id}/export-formats")
+def export_formats(project_id: str) -> dict:
+    """Which corrected-report download formats to offer. Rule: if the user
+    uploaded their first-attempt as a specific office format (DOCX or PPTX), only
+    that office format is offered (not the other), so a DOCX source doesn't
+    offer a PPTX download and vice versa. JSON/Markdown/PDF are always offered
+    (format-neutral deliverables). When no office first-attempt was uploaded
+    (corpus-only generation), all formats are offered."""
+    _resolve_project(project_id)
+    office = {"docx": False, "pptx": False}
+    for r in store.list_records(project_id):
+        kind = getattr(r.kind, "value", r.kind)
+        if kind not in ("first_draft", "template"):
+            continue
+        name = (r.filename or "").lower()
+        if name.endswith(".docx"):
+            office["docx"] = True
+        elif name.endswith(".pptx"):
+            office["pptx"] = True
+    always = ["json", "markdown", "pdf"]
+    if office["docx"] and not office["pptx"]:
+        formats = [*always, "docx"]
+    elif office["pptx"] and not office["docx"]:
+        formats = [*always, "pptx"]
+    else:
+        # No office source, or both present: offer every format.
+        formats = [*always, "docx", "pptx"]
+    # Stable canonical order for the UI.
+    order = ["json", "markdown", "docx", "pptx", "pdf"]
+    return {"formats": [f for f in order if f in formats]}
+
+
+@app.get("/projects/{project_id}/corrected-report")
+def get_corrected_report(project_id: str, mode: str = "draft") -> dict:
+    """The CORRECTED report (reconcile output) for the Report & Export tab, so it
+    shows the finished deliverable rather than the aggregated corpus dump."""
+    from . import project
+
+    _resolve_project(project_id)
+    if mode not in ("draft", "template"):
+        raise HTTPException(400, "mode must be 'draft' or 'template'")
+    if not project.has_correction_pipeline(project_id):
+        raise HTTPException(409, "project has no correction pipeline (aggregation-only)")
+    return project.run_reconciliation(mode=mode, project_id=project_id)
 
 
 # --------------------------------------------------------------------------
@@ -705,6 +829,13 @@ class ResolveRequest(BaseModel):
     author: str = "reviewer"
 
 
+class UnresolveRequest(BaseModel):
+    target: str
+    mode: str = "draft"
+    project_id: str = project.DEFAULT_PROJECT
+    source_format: str = "json"
+
+
 class GenerateRequest(BaseModel):
     domain: str = ""
     doc_type: str = "incident report"
@@ -825,6 +956,57 @@ async def project_generate_from_document(
         model=None,
     )
     out["corpus_docs"] = [{"name": d.name, "chars": len(d.text)} for d in corpus]
+    return out
+
+
+@app.post("/generate/from-documents")
+async def project_generate_from_documents(
+    files: list[UploadFile] = File(...),
+    domain: str = "",
+    title: str = "",
+    dry_run: bool = False,
+) -> dict:
+    """Generate a project FROM a SET of uploaded real documents — the standard
+    user flow. Every text document (corpus notes, the report, reviewer memos)
+    becomes ground-truth corpus; binary figures (.png) are accepted and skipped
+    for text extraction (the generator derives the figure manifest from the
+    documents' own 'Figures' sections). A deterministic corpus-grounded generator
+    then builds the whole project (manifest, template, flawed draft, corrections)
+    around those real facts — no hand-authored JSON, no model inventing anything.
+    """
+    from .projectgen.corpus_intake import corpus_from_upload
+
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+    corpus: list = []
+    skipped: list[dict] = []
+    for f in files:
+        data = await f.read()
+        if len(data) > max_bytes:
+            raise HTTPException(413, f"{f.filename}: exceeds {settings.MAX_UPLOAD_MB} MB")
+        name = f.filename or "upload"
+        try:
+            corpus.extend(corpus_from_upload(name, data))
+        except ValueError as exc:
+            # A figure/binary (or an image-only PDF) carries no extractable text;
+            # it is not part of the ground-truth corpus, so note it and move on.
+            skipped.append({"name": name, "reason": str(exc)})
+    if not corpus:
+        raise HTTPException(
+            422,
+            "no usable text could be extracted from any uploaded document "
+            "(upload at least one text/markdown/docx/pdf source).",
+        )
+    out = _generate_project(
+        {
+            "domain": domain,
+            "title": title,
+            "corpus": [{"name": d.name, "text": d.text} for d in corpus],
+        },
+        dry_run,
+        model=None,
+    )
+    out["corpus_docs"] = [{"name": d.name, "chars": len(d.text)} for d in corpus]
+    out["skipped"] = skipped
     return out
 
 
@@ -1072,6 +1254,24 @@ def project_converge(project_id: str, mode: str = "draft", source_format: str = 
 def project_resolve(project_id: str, body: ResolveRequest) -> dict:
     body.project_id = project_id  # path wins over any body value
     return _resolve(body)
+
+
+@app.post("/projects/{project_id}/unresolve")
+def project_unresolve(project_id: str, body: UnresolveRequest) -> dict:
+    """Undo a human resolution for a unit so it reverts to the engine's result
+    and can be set again. Returns the re-reconciled report."""
+    body.project_id = project_id
+    if body.mode not in ("draft", "template"):
+        raise HTTPException(400, "mode must be 'draft' or 'template'")
+    try:
+        return project.unresolve_unit(
+            target=body.target,
+            mode=body.mode,
+            project_id=body.project_id,
+            source_format=body.source_format,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.post("/projects/{project_id}/interpret")
