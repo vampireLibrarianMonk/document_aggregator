@@ -1,13 +1,17 @@
 import { Fragment, useMemo, useState } from 'react'
+import { api } from '../api/client'
 import type { CorrectedField, CorrectedReport } from '../api/types'
 import {
   FieldRow,
   Prov,
   ResolveControls,
   StatusTag,
+  UndoControl,
   displayValue,
   isOpen,
+  isUndoable,
   type ResolveFn,
+  type UnresolveFn,
 } from './reportShared'
 
 type RenderMode = 'document' | 'audit'
@@ -17,7 +21,10 @@ type RenderMode = 'document' | 'audit'
  *  with status + provenance). A navigator rail jumps between sections and
  *  surfaces the units that still need the user. Driven entirely by the
  *  CorrectedReport, so it adapts to any document type (incident, ICD, ...). */
-export function ReportView({ report, onResolve }: { report: CorrectedReport; onResolve: ResolveFn }) {
+export function ReportView(
+  { report, onResolve, onUnresolve, projectId }:
+  { report: CorrectedReport; onResolve: ResolveFn; onUnresolve?: UnresolveFn; projectId?: string | null },
+) {
   const [renderMode, setRenderMode] = useState<RenderMode>('document')
 
   // Navigator model: one entry per section + page-elements + checks, each with
@@ -75,8 +82,8 @@ export function ReportView({ report, onResolve }: { report: CorrectedReport; onR
         {/* Body */}
         <div className="report-body">
           {renderMode === 'document'
-            ? <DocumentRender report={report} onResolve={onResolve} />
-            : <AuditRender report={report} onResolve={onResolve} />}
+            ? <DocumentRender report={report} onResolve={onResolve} onUnresolve={onUnresolve} projectId={projectId} />
+            : <AuditRender report={report} onResolve={onResolve} onUnresolve={onUnresolve} />}
         </div>
       </div>
     </div>
@@ -120,18 +127,26 @@ function buildNav(report: CorrectedReport): NavEntry[] {
 
 /** A subtle status chip + inline resolve, shown only when a unit needs action,
  *  so the document reads like a document and annotations stay out of the way. */
-function Annotation({ field, onResolve }: { field: CorrectedField; onResolve: ResolveFn }) {
+function Annotation(
+  { field, onResolve, onUnresolve }:
+  { field: CorrectedField; onResolve: ResolveFn; onUnresolve?: UnresolveFn },
+) {
   if (field.status === 'unchanged') return null
   const actionable = isOpen(field)
+  const undoable = !!onUnresolve && isUndoable(field)
   return (
     <span className={`doc-annotation ${field.status}`}>
       <StatusTag status={field.status} />
       {actionable && <ResolveControls field={field} onResolve={onResolve} />}
+      {undoable && onUnresolve && <UndoControl field={field} onUnresolve={onUnresolve} />}
     </span>
   )
 }
 
-function DocumentRender({ report, onResolve }: { report: CorrectedReport; onResolve: ResolveFn }) {
+function DocumentRender(
+  { report, onResolve, onUnresolve, projectId }:
+  { report: CorrectedReport; onResolve: ResolveFn; onUnresolve?: UnresolveFn; projectId?: string | null },
+) {
   const pe = report.furniture.elements
   const header = pe.find((e) => e.key === 'furniture.header')
 
@@ -148,7 +163,7 @@ function DocumentRender({ report, onResolve }: { report: CorrectedReport; onReso
           <h2>{sec.heading}</h2>
 
           {sec.fields.map((f) => (
-            <DocField key={f.key} field={f} onResolve={onResolve} />
+            <DocField key={f.key} field={f} onResolve={onResolve} onUnresolve={onUnresolve} />
           ))}
 
           {sec.tables.map((t) => (
@@ -185,19 +200,7 @@ function DocumentRender({ report, onResolve }: { report: CorrectedReport; onReso
           ))}
 
           {sec.graphics.map((g) => (
-            <figure key={g.graphic_id} className="doc-figure">
-              <div className="doc-figure-placeholder" aria-hidden="true">▦</div>
-              <figcaption>
-                {g.figure_number ? `Figure ${g.figure_number}: ` : ''}{g.caption || g.name}
-              </figcaption>
-              {g.status !== 'unchanged' && (
-                <div className="doc-annotation-row">
-                  <StatusTag status={g.status} />
-                  {g.note && <span className="small muted"> {g.note}</span>}
-                </div>
-              )}
-              <Prov provenance={g.provenance} />
-            </figure>
+            <DocFigure key={g.graphic_id} graphic={g} projectId={projectId} />
           ))}
         </section>
       ))}
@@ -208,9 +211,9 @@ function DocumentRender({ report, onResolve }: { report: CorrectedReport; onReso
         <div className="small muted" style={{ marginBottom: 6 }}>
           The parts that repeat on every page for this document type.
         </div>
-        {pe.map((f) => <DocField key={f.key} field={f} onResolve={onResolve} />)}
+        {pe.map((f) => <DocField key={f.key} field={f} onResolve={onResolve} onUnresolve={onUnresolve} />)}
         {report.furniture.cross_references.map((x) => (
-          <DocField key={x.key} field={x} onResolve={onResolve} />
+          <DocField key={x.key} field={x} onResolve={onResolve} onUnresolve={onUnresolve} />
         ))}
       </section>
 
@@ -218,7 +221,7 @@ function DocumentRender({ report, onResolve }: { report: CorrectedReport; onReso
         <section id="rv-checks" className="doc-section">
           <h2>Formatting &amp; placement checks</h2>
           {report.discipline_findings.map((f) => (
-            <DocField key={f.key} field={f} onResolve={onResolve} />
+            <DocField key={f.key} field={f} onResolve={onResolve} onUnresolve={onUnresolve} />
           ))}
         </section>
       )}
@@ -228,7 +231,10 @@ function DocumentRender({ report, onResolve }: { report: CorrectedReport; onReso
 
 /** One field rendered in document voice: "Label: value" with an annotation only
  *  when it is not an untouched value. */
-function DocField({ field, onResolve }: { field: CorrectedField; onResolve: ResolveFn }) {
+function DocField(
+  { field, onResolve, onUnresolve }:
+  { field: CorrectedField; onResolve: ResolveFn; onUnresolve?: UnresolveFn },
+) {
   return (
     <p className="doc-field">
       <span className="doc-field-label">{field.label}:</span>{' '}
@@ -236,11 +242,48 @@ function DocField({ field, onResolve }: { field: CorrectedField; onResolve: Reso
         ? <span className="muted">unresolved</span>
         : <span className="doc-field-value">{displayValue(field.value)}</span>}
       {' '}
-      <Annotation field={field} onResolve={onResolve} />
+      <Annotation field={field} onResolve={onResolve} onUnresolve={onUnresolve} />
       {field.note && field.status !== 'unchanged' && (
         <span className="small muted doc-field-note">{field.note}</span>
       )}
     </p>
+  )
+}
+
+/** A figure rendered in document voice: the REAL image (served by the backend)
+ *  with its caption, falling back to a placeholder box only if the image is
+ *  missing or fails to load. */
+function DocFigure(
+  { graphic, projectId }:
+  { graphic: CorrectedReport['sections'][number]['graphics'][number]; projectId?: string | null },
+) {
+  const g = graphic
+  const [failed, setFailed] = useState(false)
+  const src = projectId && g.name ? api.figureUrl(projectId, g.name) : null
+  return (
+    <figure className="doc-figure">
+      {src && !failed ? (
+        <img
+          className="doc-figure-img"
+          src={src}
+          alt={g.caption || g.name}
+          onError={() => setFailed(true)}
+          style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '0 auto' }}
+        />
+      ) : (
+        <div className="doc-figure-placeholder" aria-hidden="true">▦</div>
+      )}
+      <figcaption>
+        {g.figure_number ? `Figure ${g.figure_number}: ` : ''}{g.caption || g.name}
+      </figcaption>
+      {g.status !== 'unchanged' && (
+        <div className="doc-annotation-row">
+          <StatusTag status={g.status} />
+          {g.note && <span className="small muted"> {g.note}</span>}
+        </div>
+      )}
+      <Prov provenance={g.provenance} />
+    </figure>
   )
 }
 
@@ -253,14 +296,17 @@ function stripTablePrefix(title: string): string {
 // AUDIT render — the provenance-rich flat view (every unit + status + source)
 // --------------------------------------------------------------------------
 
-function AuditRender({ report, onResolve }: { report: CorrectedReport; onResolve: ResolveFn }) {
+function AuditRender(
+  { report, onResolve, onUnresolve }:
+  { report: CorrectedReport; onResolve: ResolveFn; onUnresolve?: UnresolveFn },
+) {
   return (
     <>
       {report.sections.map((sec) => (
         <div key={sec.key} id={`rv-${sec.key}`} className="section-card">
           <strong>{sec.heading}</strong>
           <div className="section-scroll" tabIndex={0} role="group" aria-label={`${sec.heading} items`}>
-            {sec.fields.map((f) => <FieldRow key={f.key} field={f} onResolve={onResolve} />)}
+            {sec.fields.map((f) => <FieldRow key={f.key} field={f} onResolve={onResolve} onUnresolve={onUnresolve} />)}
             {sec.graphics.map((g) => (
               <div key={g.graphic_id} className="unit-row">
                 <div className="label">Figure {g.figure_number}</div>
@@ -309,10 +355,10 @@ function AuditRender({ report, onResolve }: { report: CorrectedReport; onResolve
         </div>
         <div className="section-scroll" tabIndex={0} role="group" aria-label="Page elements">
           {report.furniture.elements.map((f) => (
-            <FieldRow key={f.key} field={f} onResolve={onResolve} />
+            <FieldRow key={f.key} field={f} onResolve={onResolve} onUnresolve={onUnresolve} />
           ))}
           {report.furniture.cross_references.map((x) => (
-            <FieldRow key={x.key} field={x} onResolve={onResolve} />
+            <FieldRow key={x.key} field={x} onResolve={onResolve} onUnresolve={onUnresolve} />
           ))}
         </div>
       </div>

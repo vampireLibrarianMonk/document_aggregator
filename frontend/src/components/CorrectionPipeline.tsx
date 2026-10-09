@@ -59,6 +59,22 @@ export function CorrectionPipeline({ projectId, onProjectsChanged, onSelectProje
     [mode, projectId, sourceFormat],
   )
 
+  // Undo a human resolution for a unit (revert to the engine result so it can
+  // be set again), then re-render with the updated report.
+  const handleUnresolve = useCallback(
+    async (target: string) => {
+      if (!projectId) return
+      setErr(null)
+      try {
+        const updated = await api.projectUnresolve(target, mode, projectId, sourceFormat)
+        setReport(updated)
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [mode, projectId, sourceFormat],
+  )
+
   useEffect(() => {
     if (!projectId) return
     api.projectComponents(projectId).then(setComponents).catch((e) =>
@@ -225,7 +241,7 @@ export function CorrectionPipeline({ projectId, onProjectsChanged, onSelectProje
       )}
 
       {!hasPipeline ? null : view === 'single' && selected === 'intermediate_json' && report ? (
-        <ReportView report={report} onResolve={handleResolve} />
+        <ReportView report={report} onResolve={handleResolve} onUnresolve={handleUnresolve} projectId={projectId} />
       ) : (
         view === 'single' && (
           <div className="panel">

@@ -328,6 +328,7 @@ export interface GenerateResult {
   metrics?: GenerationMetrics
   price_note?: { pinned: string; note: string }
   corpus_docs?: { name: string; chars: number }[]
+  skipped?: { name: string; reason: string }[]
 }
 
 // ---- Governed (decomposed) generation: live progress events ----

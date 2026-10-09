@@ -1,39 +1,164 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { ExportFormat, Report } from '../api/types'
+import type { CorrectedReport, ExportFormat, ProjectComponent, Report } from '../api/types'
+import { ReportView } from './ReportView'
 import { SentimentBadge } from './StatusBadges'
 
 const FORMATS: ExportFormat[] = ['json', 'markdown', 'docx', 'pptx', 'pdf']
+type Mode = 'draft' | 'template'
 
 /**
- * The final intermediate format: the aggregated report assembled from source
- * content, ordered by effective DTG, with export buttons to DOCX / PPTX / PDF.
+ * Report & Export. For a CORRECTION project (one with a first-attempt draft or
+ * template) this shows and exports the CORRECTED report — the finished
+ * deliverable with every fix applied and your manual resolutions reflected.
+ * For an aggregation-only project it falls back to the aggregated corpus report.
  */
 export function ReportPanel({ projectId }: { projectId: string }) {
-  const [report, setReport] = useState<Report | null>(null)
+  const [components, setComponents] = useState<ProjectComponent[] | null>(null)
+  const [mode, setMode] = useState<Mode>('draft')
+  const [corrected, setCorrected] = useState<CorrectedReport | null>(null)
+  const [aggregated, setAggregated] = useState<Report | null>(null)
+  const [formats, setFormats] = useState<ExportFormat[]>(FORMATS)
   const [err, setErr] = useState<string | null>(null)
   const [showJson, setShowJson] = useState(false)
 
+  const hasPipeline =
+    !!components &&
+    (components.find((c) => c.id === 'first_attempt')?.items.length ?? 0) > 0
+
   const load = useCallback(() => {
     setErr(null)
+    if (hasPipeline) {
+      api
+        .projectReconcile(mode, projectId, 'json')
+        .then(setCorrected)
+        .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+    } else {
+      api
+        .getReport(projectId)
+        .then(setAggregated)
+        .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+    }
+  }, [projectId, hasPipeline, mode])
+
+  // Discover whether this project has a correction pipeline, then load.
+  useEffect(() => {
+    setComponents(null)
+    setCorrected(null)
+    setAggregated(null)
     api
-      .getReport(projectId)
-      .then(setReport)
+      .projectComponents(projectId)
+      .then(setComponents)
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+    api
+      .exportFormats(projectId)
+      .then((r) => setFormats(r.formats))
+      .catch(() => setFormats(FORMATS))
   }, [projectId])
 
-  useEffect(() => load(), [load])
+  useEffect(() => {
+    if (components !== null) load()
+  }, [components, load])
 
+  // ---- Aggregation-only project: the raw aggregated report ----
+  if (components !== null && !hasPipeline) {
+    return <AggregatedReport report={aggregated} err={err} projectId={projectId} onReload={load} />
+  }
+
+  // ---- Correction project: the corrected deliverable ----
+  return (
+    <>
+      <div className="panel">
+        <div className="row">
+          <strong>Corrected report (final deliverable)</strong>
+          <div className="mode-toggle" style={{ marginLeft: 8 }}
+               title="Draft: the corrected version of the flawed draft. Template: the blank template filled from the sources.">
+            <button className={mode === 'draft' ? 'active' : ''} onClick={() => setMode('draft')}>
+              Draft
+            </button>
+            <button className={mode === 'template' ? 'active' : ''} onClick={() => setMode('template')}>
+              Template
+            </button>
+          </div>
+          <div className="spacer" />
+          <button className="btn secondary" onClick={load}>Rebuild</button>
+          {formats.map((f) => (
+            <a key={f} href={api.exportUrl(projectId, f, { kind: 'corrected', mode })} download>
+              <button className="btn">{f === 'markdown' ? 'MARKDOWN (ZIP)' : f.toUpperCase()}</button>
+            </a>
+          ))}
+        </div>
+        <div className="small muted" style={{ marginTop: 6 }}>
+          This is the Correction Pipeline&apos;s output: every value grounded in your
+          sources, conflicts shown unresolved for you to decide, and your
+          resolutions reflected. Rebuild re-runs the correction. Export downloads
+          this corrected report.
+        </div>
+        {corrected && (
+          <div className="row small muted" style={{ marginTop: 8 }}>
+            {Object.entries(corrected.summary)
+              .filter(([k]) => k !== 'total_units')
+              .map(([k, v]) => (
+                <span key={k}>
+                  <span className={`status-tag ${k}`}>{k.replace('_', ' ')}</span> {v}
+                </span>
+              ))}
+          </div>
+        )}
+        {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
+      </div>
+
+      {corrected && (
+        <ReportView
+          report={corrected}
+          onResolve={noResolve}
+          onUnresolve={async (target) => {
+            try {
+              const updated = await api.projectUnresolve(target, mode, projectId, 'json')
+              setCorrected(updated)
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : String(e))
+            }
+          }}
+          projectId={projectId}
+        />
+      )}
+
+      <div className="panel">
+        <div className="row">
+          <strong>Raw corrected JSON</strong>
+          <button className="btn secondary small" onClick={() => setShowJson((v) => !v)}>
+            {showJson ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        {showJson && corrected && (
+          <pre className="json" tabIndex={0} role="region" aria-label="Raw corrected report JSON">
+            {JSON.stringify(corrected, null, 2)}
+          </pre>
+        )}
+      </div>
+    </>
+  )
+}
+
+/** Resolve is done on the Correction Pipeline tab; here the report is read-only. */
+const noResolve = async () => {}
+
+/** The legacy aggregated-corpus report, shown only for aggregation-only projects. */
+function AggregatedReport(
+  { report, err, projectId, onReload }:
+  { report: Report | null; err: string | null; projectId: string; onReload: () => void },
+) {
   return (
     <>
       <div className="panel">
         <div className="row">
           <strong>Aggregated report (intermediate format)</strong>
           <div className="spacer" />
-          <button className="btn secondary" onClick={load}>Rebuild</button>
+          <button className="btn secondary" onClick={onReload}>Rebuild</button>
           {FORMATS.map((f) => (
-            <a key={f} href={api.exportUrl(projectId, f)} download>
-              <button className="btn">{f.toUpperCase()}</button>
+            <a key={f} href={api.exportUrl(projectId, f, { kind: 'aggregated' })} download>
+              <button className="btn">{f === 'markdown' ? 'MARKDOWN (ZIP)' : f.toUpperCase()}</button>
             </a>
           ))}
         </div>
@@ -100,18 +225,6 @@ export function ReportPanel({ projectId }: { projectId: string }) {
           )}
         </div>
       ))}
-
-      <div className="panel">
-        <div className="row">
-          <strong>Raw report JSON</strong>
-          <button className="btn secondary small" onClick={() => setShowJson((v) => !v)}>
-            {showJson ? 'Hide' : 'Show'}
-          </button>
-        </div>
-        {showJson && report && (
-          <pre className="json" tabIndex={0} role="region" aria-label="Raw report JSON">{JSON.stringify(report, null, 2)}</pre>
-        )}
-      </div>
     </>
   )
 }

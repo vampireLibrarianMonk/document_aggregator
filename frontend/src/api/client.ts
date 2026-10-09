@@ -125,6 +125,12 @@ export const api = {
     ).then((r) => json<RawDoc>(r))
   },
 
+  // Inline URL for a project's corpus figure (served by the backend), used as
+  // an <img> src so the corrected report shows the real figure.
+  figureUrl(projectId: string, name: string): string {
+    return `${BASE}/projects/${projectId}/figures/${encodeURIComponent(name)}`
+  },
+
   // Inline-byte URLs used as <img>/<iframe> src for in-browser rendering.
   rawFileUrl(projectId: string, documentId: string): string {
     return `${BASE}/projects/${projectId}/documents/${documentId}/rawfile`
@@ -171,8 +177,21 @@ export const api = {
     )
   },
 
-  exportUrl(projectId: string, format: ExportFormat): string {
-    return `${BASE}/projects/${projectId}/export?format=${format}`
+  exportUrl(
+    projectId: string,
+    format: ExportFormat,
+    opts: { kind?: 'corrected' | 'aggregated'; mode?: 'draft' | 'template' } = {},
+  ): string {
+    const qs = new URLSearchParams({ format })
+    if (opts.kind) qs.set('kind', opts.kind)
+    if (opts.mode) qs.set('mode', opts.mode)
+    return `${BASE}/projects/${projectId}/export?${qs.toString()}`
+  },
+
+  exportFormats(projectId: string): Promise<{ formats: ExportFormat[] }> {
+    return fetch(`${BASE}/projects/${projectId}/export-formats`).then((r) =>
+      json<{ formats: ExportFormat[] }>(r),
+    )
   },
 
   // ---- Correction project (four-component pipeline) ----
@@ -238,6 +257,21 @@ export const api = {
     }).then((r) => json<CorrectedReport>(r))
   },
 
+  // Undo a human resolution for a unit so it reverts to the engine result and
+  // can be set again. Returns the re-reconciled report.
+  projectUnresolve(
+    target: string,
+    mode: 'draft' | 'template',
+    projectId: string,
+    sourceFormat: string,
+  ): Promise<CorrectedReport> {
+    return fetch(`${BASE}/projects/${projectId}/unresolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, mode, source_format: sourceFormat }),
+    }).then((r) => json<CorrectedReport>(r))
+  },
+
   // ---- Diagnostics (live service status) ----
 
   getDiagnostics(): Promise<Diagnostics> {
@@ -289,6 +323,26 @@ export const api = {
     const form = new FormData()
     form.append('file', file)
     return fetch(`${BASE}/generate/from-document?${qs.toString()}`, {
+      method: 'POST',
+      body: form,
+    }).then((r) => json<GenerateResult>(r))
+  },
+
+  // Generate a project FROM a SET of uploaded real documents (the standard
+  // flow): every text document becomes ground-truth corpus; figure images are
+  // accepted and catalogued from the documents' own Figures sections. The app
+  // derives the whole project deterministically (no model invents facts).
+  projectGenerateFromDocuments(
+    files: File[],
+    opts: { domain?: string; title?: string; dry_run?: boolean } = {},
+  ): Promise<GenerateResult> {
+    const qs = new URLSearchParams()
+    if (opts.domain) qs.set('domain', opts.domain)
+    if (opts.title) qs.set('title', opts.title)
+    qs.set('dry_run', String(opts.dry_run ?? false))
+    const form = new FormData()
+    for (const f of files) form.append('files', f)
+    return fetch(`${BASE}/generate/from-documents?${qs.toString()}`, {
       method: 'POST',
       body: form,
     }).then((r) => json<GenerateResult>(r))

@@ -49,6 +49,31 @@ export function displayValue(v: unknown): string {
 }
 
 export type ResolveFn = (target: string, value: string) => Promise<void>
+export type UnresolveFn = (target: string) => Promise<void>
+
+/** True when this unit's current value came from a HUMAN resolution (a
+ *  Set/choose action), so it can be undone. Detected by a provenance correction
+ *  id of the form 'resolve_...' (what resolve_unit stamps). */
+export function isUndoable(f: CorrectedField): boolean {
+  return (f.provenance?.corrections || []).some((c) => c.startsWith('resolve_'))
+}
+
+/** A small Undo control for a human-resolved unit: reverts it to the engine's
+ *  result so the user can set it again. */
+export function UndoControl({ field, onUnresolve }: { field: CorrectedField; onUnresolve: UnresolveFn }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      className="btn secondary small"
+      disabled={busy}
+      title="Undo this value and set it again"
+      aria-label={`Undo ${field.label}`}
+      onClick={() => { setBusy(true); void onUnresolve(field.key).finally(() => setBusy(false)) }}
+    >
+      {busy ? 'Undoing…' : 'Undo'}
+    </button>
+  )
+}
 
 /** The resolve controls shared by the audit and document views: a candidate
  *  picker for conflicts, a value input for needs_review. */
@@ -115,8 +140,12 @@ export function ResolveControls({ field, onResolve }: { field: CorrectedField; o
 
 /** The audit-style unit row: label + status + value + candidates + note +
  *  provenance + inline resolve when actionable. Used by the Audit view. */
-export function FieldRow({ field, onResolve }: { field: CorrectedField; onResolve?: ResolveFn }) {
+export function FieldRow(
+  { field, onResolve, onUnresolve }:
+  { field: CorrectedField; onResolve?: ResolveFn; onUnresolve?: UnresolveFn },
+) {
   const resolvable = !!onResolve && (field.status === 'conflict' || field.status === 'needs_review')
+  const undoable = !!onUnresolve && isUndoable(field)
   return (
     <div className="unit-row">
       <div className="label">{field.label}</div>
@@ -138,6 +167,9 @@ export function FieldRow({ field, onResolve }: { field: CorrectedField; onResolv
         {/* The reason this unit is open reads as context ABOVE the control. */}
         {field.note && resolvable && <div className="resolve-reason small muted">{field.note}</div>}
         {resolvable && onResolve && <ResolveControls field={field} onResolve={onResolve} />}
+        {undoable && onUnresolve && (
+          <div style={{ marginTop: 4 }}><UndoControl field={field} onUnresolve={onUnresolve} /></div>
+        )}
         {field.note && !resolvable && <div className="small muted">{field.note}</div>}
         <Prov provenance={field.provenance} />
       </div>

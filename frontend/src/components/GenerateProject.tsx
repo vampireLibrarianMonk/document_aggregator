@@ -20,7 +20,7 @@ export function GenerateProject({ onGenerated }: { onGenerated?: (projectId: str
   const [docType, setDocType] = useState('incident report')
   const [title, setTitle] = useState('')
   const [freeform, setFreeform] = useState('')
-  const [docFile, setDocFile] = useState<File | null>(null)
+  const [docFiles, setDocFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [result, setResult] = useState<GenerateResult | null>(null)
@@ -50,8 +50,8 @@ export function GenerateProject({ onGenerated }: { onGenerated?: (projectId: str
       const common = { model: model || null, dry_run: dryRun }
       let res: GenerateResult
       if (briefMode === 'document') {
-        if (!docFile) throw new Error('choose a document first')
-        res = await api.projectGenerateFromDocument(docFile, { domain, title, dry_run: dryRun })
+        if (docFiles.length === 0) throw new Error('choose your documents first')
+        res = await api.projectGenerateFromDocuments(docFiles, { domain, title, dry_run: dryRun })
       } else if (briefMode === 'freeform') {
         res = await api.projectGenerateFromText({ text: freeform, ...common })
       } else {
@@ -88,7 +88,7 @@ export function GenerateProject({ onGenerated }: { onGenerated?: (projectId: str
 
   const canRun =
     briefMode === 'freeform' ? freeform.trim().length > 0
-      : briefMode === 'document' ? docFile != null
+      : briefMode === 'document' ? docFiles.length > 0
         : domain.trim().length > 0
 
   return (
@@ -180,22 +180,28 @@ export function GenerateProject({ onGenerated }: { onGenerated?: (projectId: str
       ) : (
         <div className="doc-upload">
           <div className="small muted" style={{ marginBottom: 6 }}>
-            Upload your source document. Its text becomes the project's
-            ground-truth corpus, so the result is faithful and reproducible (no
-            model invents facts). Supported: .txt, .md, .docx, .pdf, .pptx.
+            Upload your standard set of source documents (the corpus notes, the
+            report, reviewer memos, figures). Their text becomes the project's
+            ground-truth corpus and the app derives everything it needs — the
+            structure, fields, figures, a flawed draft, and the corrections — so
+            the result is faithful and reproducible (no model invents facts).
+            Supported: .txt, .md, .docx, .pdf, .pptx (figure images are accepted
+            and catalogued from the documents' own Figures sections).
           </div>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <label htmlFor="gen-docfile" className="btn secondary small"
               style={{ cursor: busy ? 'default' : 'pointer' }}>
-              Choose document
+              Choose documents
             </label>
-            <input id="gen-docfile" type="file"
+            <input id="gen-docfile" type="file" multiple
               accept=".txt,.md,.docx,.pdf,.pptx"
               disabled={busy}
-              onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => setDocFiles(Array.from(e.target.files ?? []))}
               style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }} />
             <span className="small" aria-live="polite">
-              {docFile ? docFile.name : 'No file chosen'}
+              {docFiles.length > 0
+                ? `${docFiles.length} file${docFiles.length === 1 ? '' : 's'} chosen: ${docFiles.map((f) => f.name).join(', ')}`
+                : 'No files chosen'}
             </span>
           </div>
           <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
@@ -313,9 +319,16 @@ function GenerationReadout({ result }: { result: GenerateResult }) {
       </div>
       {result.corpus_docs && result.corpus_docs.length > 0 && (
         <div className="small muted" style={{ marginTop: 4 }}>
-          Ground-truth corpus from your document:{' '}
+          Ground-truth corpus from your documents:{' '}
           {result.corpus_docs.map((d) => `${d.name} (${d.chars} chars)`).join(', ')}.
-          This generation is deterministic: the same document reproduces the same project.
+          This generation is deterministic: the same documents reproduce the same project.
+        </div>
+      )}
+      {result.skipped && result.skipped.length > 0 && (
+        <div className="small muted" style={{ marginTop: 4 }}>
+          Accepted but not used as text (figures catalogued from the documents'
+          Figures sections):{' '}
+          {result.skipped.map((s) => s.name).join(', ')}.
         </div>
       )}
       {m && (

@@ -21,31 +21,36 @@ interface AreaDef {
   optional: string
 }
 
-// The four intake areas, in the order the workflow expects them.
+// The four intake areas, in the order the workflow expects them. You upload
+// your REAL documents; the app builds the project from them automatically.
 const AREAS: AreaDef[] = [
   {
     kind: 'corpus',
     title: '1. Original corpus',
-    blurb: 'The source documents — the ground truth everything is checked against.',
+    blurb: 'Your source documents (notes, the report, specs) — the ground truth. '
+      + 'The app builds the project from these. Figures (.png) are catalogued too.',
     optional: 'required',
-  },
-  {
-    kind: 'template',
-    title: '2. Template',
-    blurb: 'The required structure / rubric the output must conform to.',
-    optional: 'template OR first draft required',
   },
   {
     kind: 'corrections',
-    title: '3. Corrections',
-    blurb: 'Reviewer feedback (comments / emails) saying what is wrong.',
-    optional: 'required',
+    title: '2. Corrections',
+    blurb: 'Optional reviewer feedback (emails). Used to resolve figure references; '
+      + 'the app derives the value corrections from the corpus itself.',
+    optional: 'optional',
+  },
+  {
+    kind: 'template',
+    title: '3. Template (optional)',
+    blurb: 'Optional. A separate structure/rubric document, if you have one. '
+      + 'Normally the app derives the structure from your corpus.',
+    optional: 'optional',
   },
   {
     kind: 'first_draft',
-    title: '4. First draft',
-    blurb: 'The completed-but-flawed attempt to be corrected.',
-    optional: 'template OR first draft required',
+    title: '4. First draft (optional)',
+    blurb: 'Optional. A completed-but-flawed attempt, if you have one, as extra '
+      + 'source text. The app also synthesizes a draft to correct.',
+    optional: 'optional',
   },
 ]
 
@@ -240,11 +245,11 @@ function UploadArea({
 }
 
 /**
- * Ingestion: four separate intake areas (original corpus, template,
- * corrections, first draft). The area a file is dropped into tags its kind.
- * A readiness banner shows whether the inputs satisfy the correction pipeline's
- * prerequisites (at least one of template/first-draft; a first draft needs
- * corrections).
+ * Ingestion: upload your real source documents and the app GENERATES the
+ * project from them (manifest, structure, a flawed draft, and grounded
+ * corrections) — no hand-authored JSON. The corpus area is all most projects
+ * need; the other areas are optional extra source material. A readiness banner
+ * shows when the Correction Pipeline has been built and is ready to run.
  */
 export function IngestionBoard({
   projectId, projects, documents, readiness, onChange, onInspect, onProjectChange,
@@ -257,17 +262,27 @@ export function IngestionBoard({
 
   return (
     <div>
+      <div className="panel" style={{ marginBottom: 12 }}>
+        <strong>Upload your documents — the app builds the project</strong>
+        <p className="small muted" style={{ margin: '4px 0 0' }}>
+          Drop your real source documents into <b>Original corpus</b> (the notes,
+          the report, specs, and any figure images). The app derives everything
+          the Correction Pipeline needs from them automatically — the structure,
+          the fields, a flawed draft, and grounded corrections. No JSON to
+          assemble. The other areas are optional extra source material.
+        </p>
+      </div>
       {readiness && (
         <div
           className="panel"
           role="status"
           style={{ borderColor: readiness.ready ? 'var(--ok)' : 'var(--warn)' }}
         >
-          <strong>{readiness.ready ? 'Inputs ready' : 'Inputs incomplete'}</strong>
+          <strong>{readiness.ready ? 'Project ready' : 'Add your documents'}</strong>
           {readiness.ready ? (
             <p className="small muted" style={{ margin: '4px 0 0' }}>
-              The Correction Pipeline tab is unlocked. You can also keep adding
-              documents.
+              The app built the project from your uploads. The Correction Pipeline
+              tab is unlocked. Add more documents any time to rebuild it.
             </p>
           ) : (
             <ul className="small" style={{ margin: '4px 0 0' }}>
