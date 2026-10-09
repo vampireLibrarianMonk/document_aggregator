@@ -1,18 +1,27 @@
-"""The app starts EMPTY and the bundled sample cases are TEMPLATES.
+"""The app starts EMPTY and the REAL user flow is upload -> correct.
 
-These assert the empty-start model: the live project list is empty until the
-user creates something, the templates catalog surfaces the bundled cases, and
-instantiating a template copies it into the store as a new persisted project
-(leaving the repo fixture untouched) that then loads + reconciles.
+The in-app samples feature was removed: there is no templates catalog and no
+one-click instantiation. A user creates an empty project and UPLOADS the project
+scenario folder's files; the ingestion->correction bridge persists them into the
+correction-data store so the Correction Pipeline reconciles genuine uploads.
+
+These tests assert that real flow end to end (offline, by feeding the committed
+sample_docs/project/1 fixture bytes through the bridge exactly as an upload
+would), plus the empty-start model and the project-delete safety guarantees.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
+from app import correction_bridge
 from app import project as sc
 from app.config import settings
+from app.models import Project
 from app.store import Store
+
+# The committed scenario folder the TGX-9 guide points users at.
+_CASE_1 = settings.BUNDLED_PROJECT_ROOT / "1"
 
 
 @pytest.fixture
@@ -23,115 +32,108 @@ def clean_store(tmp_path, monkeypatch) -> Store:
     return Store()
 
 
+def _upload_case_1(store: Store) -> str:
+    """Create an empty project and upload every TGX-9 scenario file through the
+    bridge, exactly as the real upload endpoint does (kind + filename + bytes).
+    Returns the new project id."""
+    proj = store.create_project(Project(id="proj_uploadtest", name="TGX-9 upload"))
+    pid = proj.id
+
+    def up(rel: str, kind: str) -> None:
+        p = _CASE_1 / rel
+        correction_bridge.bridge_upload(pid, kind, p.name, p.read_bytes())
+
+    up("project.json", "corpus")  # the manifest (any area; routed by filename)
+    up("corpus/field_report_2026-03-02.txt", "corpus")
+    up("corpus/root_cause_notes_2026-03-15.md", "corpus")
+    up("corpus/graphics.json", "corpus")
+    up("template/incident_report_template.json", "template")
+    up("first_attempt/incident_report_draft.json", "first_draft")
+    up("corrections/comments.json", "corrections")
+    return pid
+
+
 def test_app_starts_empty(clean_store):
     assert clean_store.list_projects() == []
 
 
-def test_templates_catalog_lists_bundled_cases(clean_store):
-    # The bundle is readable as a template catalog even on an empty store.
-    cases = sc.list_templates()
-    ids = [c["id"] for c in cases]
-    assert set(ids) == {"1", "2", "3", "4", "5", "6"}
-    for c in cases:
-        assert c["title"]
+def test_upload_populates_the_correction_store(clean_store):
+    """Uploading the scenario files makes the correction store genuinely ready
+    (the honest readiness check the UI gates on)."""
+    pid = _upload_case_1(clean_store)
+    state = correction_bridge.correction_store_ready(pid)
+    assert state["ready"], state["problems"]
+    assert state["has_manifest"]
+    assert state["has_corpus"]
+    assert state["has_template"]
+    assert state["has_first_draft"]
+    assert state["has_corrections"]
 
 
-def test_templates_have_no_duplicates_after_instantiation(clean_store):
-    # Instantiating a sample must NOT make it appear twice in the catalog: the
-    # template list is bundle-only, the instantiated copy lives in the store.
-    before = sc.list_templates()
-    clean_store.instantiate_from_template("1")
-    after = sc.list_templates()
-    assert after == before
-    ids = [c["id"] for c in after]
-    assert len(ids) == len(set(ids)), f"duplicate template ids: {ids}"
+def test_uploaded_project_shows_first_attempt_component(clean_store):
+    """component_overview must see the bridged first_attempt (what the
+    Correction Pipeline tab checks before it renders)."""
+    pid = _upload_case_1(clean_store)
+    comps = {c["id"]: c for c in sc.component_overview(pid)}
+    assert len(comps["first_attempt"]["items"]) > 0
+    assert len(comps["corpus"]["items"]) > 0
 
 
-def test_instantiate_creates_a_persisted_project(clean_store):
-    proj = clean_store.instantiate_from_template("1")
-    assert proj.id.startswith("proj_")
-    assert proj.name  # carried from the case manifest title
-    # It is now a real, listed project.
-    listed = {p.id for p in clean_store.list_projects()}
-    assert proj.id in listed
-    # Its correction data resolves to the STORE copy, not the bundle.
-    data_dir = settings.project_data_dir(proj.id)
-    assert (data_dir / "project.json").exists()
-    assert (data_dir / "first_attempt").is_dir()
+def test_uploaded_project_reconciles_to_the_guide_numbers(clean_store):
+    """The whole point: a project built purely by upload reconciles to the exact
+    values the TGX-9 guide promises (draft 17 = 3/4/8/1/1; template 16 =
+    0/11/3/1/1), with the severity conflict preserved."""
+    pid = _upload_case_1(clean_store)
 
+    def counts(summary: dict) -> tuple[int, int, int, int, int]:
+        # A status key is omitted from the summary when its count is 0.
+        return (
+            summary.get("unchanged", 0), summary.get("filled", 0),
+            summary.get("corrected", 0), summary.get("needs_review", 0),
+            summary.get("conflict", 0),
+        )
 
-def test_instantiated_project_reconciles(clean_store):
-    proj = clean_store.instantiate_from_template("1")
-    report = sc.run_reconciliation("draft", proj.id, "json")
-    assert report["summary"]["total_units"] > 0
+    draft = sc.run_reconciliation("draft", pid, "json")["summary"]
+    assert draft["total_units"] == 17
+    assert counts(draft) == (3, 4, 8, 1, 1)
 
-
-def test_instantiate_is_a_copy_not_a_move(clean_store):
-    # The repo fixture must be untouched after instantiation.
-    src = settings.template_dir("1")
-    before = sorted(p.name for p in src.iterdir())
-    clean_store.instantiate_from_template("1")
-    after = sorted(p.name for p in src.iterdir())
-    assert before == after
-    assert (src / "project.json").exists()
-
-
-def test_instantiate_unknown_case_raises(clean_store):
-    with pytest.raises(FileNotFoundError):
-        clean_store.instantiate_from_template("does-not-exist")
-
-
-def test_samples_api_gated_by_flag(clean_store, monkeypatch):
-    # The sample endpoints are opt-in: 404 when SAMPLES_ENABLED is off, work
-    # when on. /config advertises the flag either way.
-    from app.main import app
-    from starlette.testclient import TestClient
-
-    client = TestClient(app)
-
-    monkeypatch.setattr(settings, "SAMPLES_ENABLED", False, raising=False)
-    assert client.get("/config").json()["samples_enabled"] is False
-    assert client.get("/templates").status_code == 404
-    assert client.post("/projects/from-template/1").status_code == 404
-
-    monkeypatch.setattr(settings, "SAMPLES_ENABLED", True, raising=False)
-    assert client.get("/config").json()["samples_enabled"] is True
-    r = client.get("/templates")
-    assert r.status_code == 200
-    assert len(r.json()) == 6
-    created = client.post("/projects/from-template/1")
-    assert created.status_code == 200
-    # Clean up the created project so the test leaves no residue.
-    clean_store.delete_project(created.json()["id"])
+    template = sc.run_reconciliation("template", pid, "json")["summary"]
+    assert template["total_units"] == 16
+    assert counts(template) == (0, 11, 3, 1, 1)
 
 
 def test_delete_project_removes_it(clean_store):
-    proj = clean_store.instantiate_from_template("1")
-    assert proj.id in {p.id for p in clean_store.list_projects()}
-    assert clean_store.delete_project(proj.id) is True
-    assert proj.id not in {p.id for p in clean_store.list_projects()}
+    pid = _upload_case_1(clean_store)
+    assert pid in {p.id for p in clean_store.list_projects()}
+    assert clean_store.delete_project(pid) is True
+    assert pid not in {p.id for p in clean_store.list_projects()}
     # Deleting again is a no-op (already gone).
-    assert clean_store.delete_project(proj.id) is False
+    assert clean_store.delete_project(pid) is False
 
 
 def test_delete_unknown_project_is_false(clean_store):
     assert clean_store.delete_project("proj_doesnotexist") is False
 
 
-def test_delete_does_not_touch_the_bundle(clean_store):
-    # A bundled sample case id must NOT be deletable via the store (the store
-    # only ever removes directories under its own projects root).
-    src = settings.template_dir("1")
-    assert (src / "project.json").exists()
+def test_delete_never_touches_the_committed_scenario_folders(clean_store):
+    """A bundled scenario-folder id must NOT be deletable via the store (the
+    store only ever removes directories under its own projects root)."""
+    assert (_CASE_1 / "project.json").exists()
     assert clean_store.delete_project("1") is False
-    assert (src / "project.json").exists()  # bundle untouched
+    assert (_CASE_1 / "project.json").exists()  # scenario folder untouched
 
 
-def test_each_instantiation_is_independent(clean_store):
-    a = clean_store.instantiate_from_template("1")
-    b = clean_store.instantiate_from_template("1")
+def test_upload_leaves_the_scenario_folder_untouched(clean_store):
+    """Uploading reads the committed fixtures; it must never modify them."""
+    before = sorted(p.name for p in _CASE_1.iterdir())
+    _upload_case_1(clean_store)
+    after = sorted(p.name for p in _CASE_1.iterdir())
+    assert before == after
+    assert (_CASE_1 / "project.json").exists()
+
+
+def test_each_project_is_independent(clean_store):
+    a = clean_store.create_project(Project(id="proj_a", name="A"))
+    b = clean_store.create_project(Project(id="proj_b", name="B"))
     assert a.id != b.id
-    ids = {p.id for p in clean_store.list_projects()}
-    assert {a.id, b.id}.issubset(ids)
-    # Writing into one must not affect the other (separate data dirs).
     assert Path(settings.project_data_dir(a.id)) != Path(settings.project_data_dir(b.id))

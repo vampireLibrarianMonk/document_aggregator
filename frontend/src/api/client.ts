@@ -17,7 +17,6 @@ import type {
   RawDoc,
   Report,
   ProjectComponent,
-  ProjectInfo,
   ProjectModels,
   SearchResponse,
   Supplemental,
@@ -35,9 +34,9 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  getClientConfig(): Promise<{ samples_enabled: boolean; diagnostics_enabled: boolean }> {
+  getClientConfig(): Promise<{ diagnostics_enabled: boolean }> {
     return fetch(`${BASE}/config`).then((r) =>
-      json<{ samples_enabled: boolean; diagnostics_enabled: boolean }>(r),
+      json<{ diagnostics_enabled: boolean }>(r),
     )
   },
 
@@ -174,22 +173,6 @@ export const api = {
 
   exportUrl(projectId: string, format: ExportFormat): string {
     return `${BASE}/projects/${projectId}/export?format=${format}`
-  },
-
-  // ---- Sample-case templates ----
-  // The app starts empty. These bundled cases are templates the user can
-  // instantiate into a real, persisted project on demand.
-
-  listTemplates(): Promise<ProjectInfo[]> {
-    return fetch(`${BASE}/templates`).then((r) => json<ProjectInfo[]>(r))
-  },
-
-  instantiateTemplate(caseId: string, name?: string): Promise<Project> {
-    return fetch(`${BASE}/projects/from-template/${caseId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(name ? { name } : {}),
-    }).then((r) => json<Project>(r))
   },
 
   // ---- Correction project (four-component pipeline) ----

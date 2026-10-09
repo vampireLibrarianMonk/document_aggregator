@@ -8,10 +8,9 @@ import { NewProjectForm } from './components/NewProjectForm'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
 import { SupplementalsPanel } from './components/SupplementalsPanel'
-import { TemplatePicker } from './components/TemplatePicker'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'new' | 'pipeline' | 'correction' | 'supplementals' | 'search' | 'report' | 'samples'
+type Tab = 'new' | 'pipeline' | 'correction' | 'supplementals' | 'search' | 'report'
 
 interface TabDef { id: Tab; label: string }
 
@@ -25,12 +24,8 @@ const BASE_TABS: TabDef[] = [
   { id: 'report', label: 'Report & Export' },
 ]
 
-// The Samples tab is appended only when the backend flag enables it. Kept at
-// the end so it reads as a secondary, opt-in area.
-const SAMPLES_TAB: TabDef = { id: 'samples', label: 'Samples' }
-
 // Diagnostics is a separate page (/diagnostics), handled before this app shell.
-const ALL_TAB_IDS = new Set<Tab>([...BASE_TABS.map((t) => t.id), SAMPLES_TAB.id])
+const ALL_TAB_IDS = new Set<Tab>(BASE_TABS.map((t) => t.id))
 
 /** Map a URL path to a tab. New Project is the root ('/'); every other tab is
  *  '/<id>' (e.g. '/pipeline'). Unknown paths fall back to New Project so a
@@ -128,11 +123,9 @@ function AppShell() {
     refreshProjects,
     refresh,
     deleteProject,
-    samplesEnabled,
     diagnosticsEnabled,
   } = useProject()
-  // The visible tab set: Samples is appended only when the backend flag is on.
-  const TABS: TabDef[] = samplesEnabled ? [...BASE_TABS, SAMPLES_TAB] : BASE_TABS
+  const TABS: TabDef[] = BASE_TABS
   // Tab state is URL-aware so views deep-link (e.g. /diagnostics opens the
   // Diagnostics tab) and browser back/forward work.
   const [tab, setTabState] = useState<Tab>(() => tabFromPath(window.location.pathname))
@@ -194,12 +187,6 @@ function AppShell() {
     return ''
   }
 
-  // If the Samples tab is reached via URL but the feature is disabled, send the
-  // user to New Project (the samples area does not exist when the flag is off).
-  useEffect(() => {
-    if (tab === 'samples' && !samplesEnabled) setTab('new')
-  }, [tab, samplesEnabled, setTab])
-
   // If the current tab becomes disabled (e.g. its prerequisite is no longer
   // met), fall back to a safe tab so the user is never stuck on a dead view.
   useEffect(() => {
@@ -209,9 +196,9 @@ function AppShell() {
   }, [tab, tabDisabled, hasProject, setTab])
 
   // On a fresh/empty app, land on the New Project page so there is always a
-  // clear next step. Leave the user alone on Samples (its own opt-in area).
+  // clear next step.
   useEffect(() => {
-    if (isEmpty && tab !== 'new' && tab !== 'samples') {
+    if (isEmpty && tab !== 'new') {
       setTab('new')
     }
   }, [isEmpty, tab, setTab])
@@ -341,24 +328,6 @@ function AppShell() {
               setTab('pipeline')   // next step: Ingestion
             }}
           />
-          {samplesEnabled && (
-            <p className="small muted" style={{ marginTop: 10 }}>
-              Looking for the bundled sample cases? They live on the{' '}
-              <b>Samples</b> tab.
-            </p>
-          )}
-        </div>
-      )}
-
-      {tab === 'samples' && samplesEnabled && (
-        <div id="panel-samples" role="tabpanel" aria-labelledby="tab-samples">
-          <TemplatePicker
-            onInstantiated={() => {
-              // instantiateTemplate already refreshed the list + selected the
-              // new project; move the user to the Correction Pipeline.
-              setTab('correction')
-            }}
-          />
         </div>
       )}
 
@@ -417,7 +386,7 @@ function AppShell() {
           )}
         </>
       ) : (
-        tab !== 'new' && tab !== 'correction' && tab !== 'samples' && !error && (
+        tab !== 'new' && tab !== 'correction' && !error && (
           <div className="panel" role="status">
             <strong>{isEmpty ? 'No projects yet' : 'No project selected'}</strong>
             <p className="small muted">

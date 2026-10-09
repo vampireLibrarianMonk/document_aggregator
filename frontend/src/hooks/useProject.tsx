@@ -32,9 +32,7 @@ interface ProjectCtx {
   setActiveId: (id: string) => void
   refreshProjects: () => Promise<void>
   refresh: (projectId: string) => Promise<void>
-  instantiateTemplate: (caseId: string) => Promise<string | null>
   deleteProject: (projectId: string) => Promise<void>
-  samplesEnabled: boolean
   diagnosticsEnabled: boolean
 }
 
@@ -48,7 +46,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [readiness, setReadiness] = useState<Readiness | null>(null)
   const [hasCorrectionData, setHasCorrectionData] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [samplesEnabled, setSamplesEnabled] = useState(false)
   const [diagnosticsEnabled, setDiagnosticsEnabled] = useState(false)
 
   const refresh = useCallback(async (projectId: string) => {
@@ -106,37 +103,20 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Instantiate a bundled sample case into a new persisted project, then
-  // refresh the list and jump the selector to it.
-  const instantiateTemplate = useCallback(async (caseId: string) => {
-    try {
-      const proj = await api.instantiateTemplate(caseId)
-      const list = await api.listProjects()
-      setProjects(list)
-      setActiveId(proj.id)
-      return proj.id
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-      return null
-    }
-  }, [])
-
   // Load the project list once on mount.
   useEffect(() => {
     void refreshProjects()
   }, [refreshProjects])
 
-  // Read client feature flags once on mount (whether the in-app Samples page
-  // is available). Defaults to off if the call fails.
+  // Read client feature flags once on mount (whether the Diagnostics page is
+  // available). Defaults to off if the call fails.
   useEffect(() => {
     api
       .getClientConfig()
       .then((c) => {
-        setSamplesEnabled(!!c.samples_enabled)
         setDiagnosticsEnabled(!!c.diagnostics_enabled)
       })
       .catch(() => {
-        setSamplesEnabled(false)
         setDiagnosticsEnabled(false)
       })
   }, [])
@@ -181,9 +161,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setActiveId,
     refreshProjects,
     refresh,
-    instantiateTemplate,
     deleteProject,
-    samplesEnabled,
     diagnosticsEnabled,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

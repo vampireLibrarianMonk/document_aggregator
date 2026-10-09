@@ -21,7 +21,6 @@ import json
 import os
 import shutil
 import threading
-import uuid
 from pathlib import Path
 
 from .config import settings
@@ -62,30 +61,6 @@ class Store:
                 (pdir / sub).mkdir(parents=True, exist_ok=True)
             _write_json(pdir / "project.json", project.model_dump())
         return project
-
-    def instantiate_from_template(self, case_id: str, name: str | None = None) -> Project:
-        """Copy a bundled sample case into the store as a NEW persisted project.
-
-        The sample lives read-only in the repo (sample_docs/project/<case_id>/);
-        this copies its correction data (project.json manifest + corpus/
-        first_attempt/corrections) into DATA_DIR/projects/<new_id>/data/ so the
-        project.py loaders resolve to the store copy, and registers a Project
-        record. The source fixture is never modified. A fresh id is minted each
-        time, so the same sample can be instantiated repeatedly."""
-        src = settings.template_dir(case_id)
-        if not (src / "project.json").exists():
-            raise FileNotFoundError(case_id)
-        with _lock:
-            manifest = _read_json(src / "project.json") or {}
-            title = name or manifest.get("title") or f"Sample {case_id}"
-            new_id = "proj_" + uuid.uuid4().hex[:10]
-            # Create the store project (source/documents/supplementals/index dirs).
-            proj = self.create_project(Project(id=new_id, name=title))
-            # Copy the correction fixtures into the project's data/ subdir so
-            # resolve_project_data_dir returns the store copy, not the bundle.
-            data_dst = settings.project_data_dir(new_id)
-            shutil.copytree(src, data_dst, dirs_exist_ok=True)
-        return proj
 
     def get_project(self, project_id: str) -> Project | None:
         data = _read_json(settings.project_dir(project_id) / "project.json")
