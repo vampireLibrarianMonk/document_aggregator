@@ -10,6 +10,7 @@ File-type routing is by MIME/extension; a real build would sniff content.
 from __future__ import annotations
 
 import io
+import re
 import uuid
 from dataclasses import dataclass, field
 
@@ -25,6 +26,10 @@ class ParseResult:
     parser_version: str = ""
     method: str = "native"
     notes: str = ""
+    # Extracted embedded image bytes, keyed by a logical filename (docx/pptx).
+    # Each Artifact(type=image) carries metadata["image_name"] into this map so
+    # a draft/template's own figures can be served + anchored to their text.
+    images: dict[str, bytes] = field(default_factory=dict)
 
 
 def _bid() -> str:
@@ -81,23 +86,93 @@ def parse_docx(data: bytes, doc_id: str) -> ParseResult:
     document = docx.Document(io.BytesIO(data))
     prov = _prov("python-docx", getattr(docx, "__version__", "?"), "native", doc_id)
     blocks: list[Block] = []
+    artifacts: list[Artifact] = []
+    images: dict[str, bytes] = {}
     order = 0
     section_path: list[str] = []
+
+    # Map relationship-id -> image bytes for the main document part, so an inline
+    # image's r:embed can be resolved to its actual bytes.
+    rels = getattr(document.part, "rels", {})
+
+    def _image_from_rid(rid: str):
+        try:
+            part = rels[rid].target_part
+            return getattr(part, "blob", None), getattr(part, "partname", "")
+        except Exception:
+            return None, ""
+
+    def _para_image_rids(para) -> list[tuple[str, str, str]]:
+        """Return (rid, docpr_name, docpr_descr) for each inline/anchored image
+        in a paragraph, in document order."""
+        from docx.oxml.ns import qn
+        out: list[tuple[str, str, str]] = []
+        p = para._p
+        for drawing in p.iter(qn("w:drawing")):
+            # docPr carries a human name/description (often the figure name).
+            name = descr = ""
+            for docpr in drawing.iter(qn("wp:docPr")):
+                name = docpr.get("name", "") or ""
+                descr = docpr.get("descr", "") or ""
+                break
+            for blip in drawing.iter(qn("a:blip")):
+                rid = blip.get(qn("r:embed")) or blip.get(qn("r:link"))
+                if rid:
+                    out.append((rid, name, descr))
+        return out
+
+    img_seq = 0
+    last_block_id: str | None = None
     for para in document.paragraphs:
         txt = para.text.strip()
-        if not txt:
-            continue
-        style = (para.style.name or "").lower() if para.style else ""
-        if "heading" in style or "title" in style:
-            btype = "heading"
-            section_path = [txt]
-        elif "list" in style:
-            btype = "list_item"
-        else:
-            btype = "paragraph"
-        blocks.append(Block(id=_bid(), type=btype, text=txt, reading_order=order,
-                            section_path=list(section_path), provenance=prov))
-        order += 1
+        img_rids = _para_image_rids(para)
+
+        # Emit a text block for the paragraph (if it has text). A paragraph may
+        # hold BOTH text (a caption) and an image; keep the text as a block and
+        # anchor the image to it.
+        this_block_id: str | None = None
+        if txt:
+            style = (para.style.name or "").lower() if para.style else ""
+            if "heading" in style or "title" in style:
+                btype = "heading"
+                section_path = [txt]
+            elif "list" in style:
+                btype = "list_item"
+            elif img_rids:
+                btype = "caption"  # text riding with an image reads as a caption
+            else:
+                btype = "paragraph"
+            bid = _bid()
+            blocks.append(Block(id=bid, type=btype, text=txt, reading_order=order,
+                                section_path=list(section_path), provenance=prov))
+            this_block_id = bid
+            last_block_id = bid
+            order += 1
+
+        # Emit an image artifact per embedded image, anchored to the paragraph it
+        # sits in (or the preceding text block if the image paragraph is empty).
+        for rid, docpr_name, docpr_descr in img_rids:
+            blob, partname = _image_from_rid(rid)
+            img_seq += 1
+            ext = str(partname).rsplit(".", 1)[-1].lower() if "." in str(partname) else "png"
+            if ext not in ("png", "jpg", "jpeg", "gif", "bmp", "tiff"):
+                ext = "png"
+            # A stable logical name: prefer the docPr name, else figure_N.
+            base = (docpr_name or docpr_descr or f"figure_{img_seq}").strip()
+            base = re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("_") or f"figure_{img_seq}"
+            if not base.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+                base = f"{base}.{ext}"
+            if blob:
+                images[base] = blob
+            anchor = this_block_id or last_block_id
+            artifacts.append(Artifact(
+                id=_aid(), type="image", classification="inline_image",
+                description=(docpr_descr or docpr_name or None),
+                anchor_block_id=anchor,
+                nearby_block_ids=[b for b in [last_block_id] if b and b != anchor],
+                metadata={"image_name": base, "section_path": list(section_path),
+                          "reading_order": order},
+            ))
 
     for table in document.tables:
         rows = [[cell.text.strip() for cell in row.cells] for row in table.rows]
@@ -106,8 +181,8 @@ def parse_docx(data: bytes, doc_id: str) -> ParseResult:
                             section_path=list(section_path), provenance=prov, table=rows))
         order += 1
 
-    return ParseResult(blocks=blocks, parser="python-docx",
-                       parser_version=getattr(docx, "__version__", "?"))
+    return ParseResult(blocks=blocks, artifacts=artifacts, images=images,
+                       parser="python-docx", parser_version=getattr(docx, "__version__", "?"))
 
 
 # --------------------------------------------------------------------------
@@ -124,20 +199,40 @@ def parse_pptx(data: bytes, doc_id: str) -> ParseResult:
     prov = _prov("python-pptx", "1", "native", doc_id)
     blocks: list[Block] = []
     artifacts: list[Artifact] = []
+    images: dict[str, bytes] = {}
     order = 0
+    img_seq = 0
     for sidx, slide in enumerate(prs.slides, start=1):
         section_path = [f"Slide {sidx}"]
+        slide_last_block: str | None = None
         for shape in slide.shapes:
             if shape.has_text_frame and shape.text_frame.text.strip():
                 txt = shape.text_frame.text.strip()
                 is_title = bool(getattr(shape, "is_placeholder", False)) and order == 0
-                blocks.append(Block(id=_bid(), type="slide_title" if is_title else "paragraph",
+                bid = _bid()
+                blocks.append(Block(id=bid, type="slide_title" if is_title else "paragraph",
                                     text=txt, slide=sidx, reading_order=order,
                                     section_path=list(section_path), provenance=prov))
+                slide_last_block = bid
                 order += 1
             if shape.shape_type == 13:  # PICTURE
-                artifacts.append(Artifact(id=_aid(), type="image", slide=sidx,
-                                          classification="slide_image"))
+                img_seq += 1
+                name = f"slide{sidx}_figure_{img_seq}.png"
+                try:
+                    img = shape.image
+                    blob = img.blob
+                    ext = (img.ext or "png").lower()
+                    name = f"slide{sidx}_figure_{img_seq}.{ext}"
+                    images[name] = blob
+                except Exception:
+                    pass
+                # Anchor the image to the most recent text block on this slide
+                # (its title/caption), so it travels with the right text.
+                artifacts.append(Artifact(
+                    id=_aid(), type="image", slide=sidx, classification="slide_image",
+                    anchor_block_id=slide_last_block,
+                    metadata={"image_name": name, "section_path": list(section_path),
+                              "reading_order": order}))
         # speaker notes
         if slide.has_notes_slide:
             note = slide.notes_slide.notes_text_frame.text.strip()
@@ -146,7 +241,8 @@ def parse_pptx(data: bytes, doc_id: str) -> ParseResult:
                                     reading_order=order, section_path=list(section_path),
                                     provenance=prov))
                 order += 1
-    return ParseResult(blocks=blocks, artifacts=artifacts, parser="python-pptx", parser_version="1")
+    return ParseResult(blocks=blocks, artifacts=artifacts, images=images,
+                       parser="python-pptx", parser_version="1")
 
 
 # --------------------------------------------------------------------------

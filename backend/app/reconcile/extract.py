@@ -106,9 +106,32 @@ class RetrievalExtractor:
         for h in hits:
             value = _extract_value(h.text, extract, query, hint)
             if value is not None:
+                # A label-anchored line extraction can be truncated by sentence
+                # segmentation (e.g. "Author: J. Okafor" splits at "J."). When a
+                # 'Label:' hint is in play, re-extract from the FULL source line
+                # so a multi-word value is captured whole.
+                if extract == "line" and hint and hint.endswith(":"):
+                    full = self._full_line_value(h.source_doc, hint)
+                    if full and len(full) > len(value):
+                        value = full
                 return Fact(value=value, source_doc=h.source_doc,
                             chunk_id=h.chunk_id, score=round(h.score, 3),
                             method=f"retrieval+{extract}" + ("+hint" if hint else ""))
+        return None
+
+    def _full_line_value(self, source_doc: str, hint: str) -> str | None:
+        """Pull the whole 'Label: value' line verbatim from the full document
+        text (not a retrieved sentence fragment), so multi-word identifier values
+        are never truncated by sentence segmentation."""
+        import re as _re
+        text = self.retriever.document_text(source_doc)
+        if not text:
+            return None
+        label = hint.rstrip(":")
+        for line in text.splitlines():
+            m = _re.match(rf"\s*{_re.escape(label)}\s*:\s*(.+?)\s*$", line, _re.IGNORECASE)
+            if m and m.group(1).strip():
+                return m.group(1).strip()
         return None
 
     def body(self, query: str, block_anchor: str | None = None,

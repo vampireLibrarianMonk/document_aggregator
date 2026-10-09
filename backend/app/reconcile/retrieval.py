@@ -64,12 +64,18 @@ class CorpusRetriever:
     paragraph index (context) and a sentence index (pinpoint facts)."""
 
     def __init__(self, corpus: dict[str, str]) -> None:
+        self._corpus = dict(corpus)  # raw doc text, for verbatim line lookups
         self.chunks = chunk_corpus(corpus, "paragraph")
         texts = [c.text for c in self.chunks]
         self._vecs = embedder.embed_batch(texts) if texts else []
         self.sent_chunks = chunk_corpus(corpus, "sentence")
         sent_texts = [c.text for c in self.sent_chunks]
         self._sent_vecs = embedder.embed_batch(sent_texts) if sent_texts else []
+
+    def document_text(self, source_doc: str) -> str | None:
+        """The full raw text of a corpus document by name (for verbatim line
+        extraction that must not be truncated by sentence segmentation)."""
+        return self._corpus.get(source_doc)
 
     def top(self, query: str, k: int = 1, granularity: str = "paragraph") -> list[RetrievedChunk]:
         chunks = self.sent_chunks if granularity == "sentence" else self.chunks

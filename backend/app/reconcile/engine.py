@@ -247,9 +247,19 @@ def reconcile(
             sec.tables.append(_reconcile_table(draft, extractor, template, by_target, table_manifest))
 
         # --- graphics required by this section (from the template) ---
-        if spec.get("requires_graphic"):
+        # A section may require MANY graphics (page-by-page figure association);
+        # requires_graphics is the ordered list, with requires_graphic kept as a
+        # backward-compatible single value. Render each known graphic once.
+        req_gids = list(spec.get("requires_graphics") or [])
+        if not req_gids and spec.get("requires_graphic"):
+            req_gids = [spec["requires_graphic"]]
+        seen_gids: set[str] = set()
+        for gid in req_gids:
+            if gid in seen_gids or gid not in gfx_by_id:
+                continue
+            seen_gids.add(gid)
             sec.graphics.append(
-                _reconcile_graphic(skey, spec["requires_graphic"], first_attempt, gfx_by_id, by_target)
+                _reconcile_graphic(skey, gid, first_attempt, gfx_by_id, by_target)
             )
 
         report_sections.append(sec)
