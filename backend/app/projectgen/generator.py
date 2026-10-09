@@ -19,7 +19,8 @@ class ProjectBrief:
 
     def __init__(self, domain: str = "", doc_type: str = "incident report",
                  title: str = "", freeform: str = "", seed: int = 0,
-                 corpus: list | None = None) -> None:
+                 corpus: list | None = None,
+                 figure_hints: list | None = None) -> None:
         self.domain = domain
         self.doc_type = doc_type
         self.title = title
@@ -29,6 +30,11 @@ class ProjectBrief:
         # (name, text)). When present, the project is built FROM this real
         # source material deterministically, instead of a model inventing it.
         self.corpus = corpus
+        # Optional figures extracted from an uploaded deliverable (docx/pptx):
+        # [{name, caption, source_doc, anchor_text}]. These augment figures found
+        # in the corpus '## Figures' blocks so a draft's embedded images are
+        # placed next to the text they were anchored to.
+        self.figure_hints = figure_hints or []
 
 
 class ProjectGenerator(Protocol):

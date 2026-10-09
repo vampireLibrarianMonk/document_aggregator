@@ -41,6 +41,8 @@ def _manifest_json(spec: ProjectSpec, project_id: str) -> dict:
             fd["hint"] = f.hint
         if f.query:
             fd["query"] = f.query
+        if f.source_doc:
+            fd["source_doc"] = f.source_doc
         fields.append(fd)
 
     section_bodies = {}
@@ -87,6 +89,8 @@ def _template_json(spec: ProjectSpec) -> dict:
         entry: dict[str, Any] = {"key": s.key, "heading": s.heading}
         if s.requires_graphic:
             entry["requires_graphic"] = s.requires_graphic
+        if getattr(s, "requires_graphics", None):
+            entry["requires_graphics"] = s.requires_graphics
         if s.requires_table:
             entry["requires_table"] = s.requires_table
         # Informational: declared field keys for this section.
@@ -197,6 +201,7 @@ def persist_spec(spec: ProjectSpec, project_id: str | None = None,
     if staging.exists():
         shutil.rmtree(staging)
     (staging / "corpus").mkdir(parents=True)
+    (staging / "template").mkdir(parents=True)
     (staging / "first_attempt").mkdir(parents=True)
     (staging / "corrections").mkdir(parents=True)
 
@@ -204,7 +209,9 @@ def persist_spec(spec: ProjectSpec, project_id: str | None = None,
         path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
     _w(staging / "project.json", _manifest_json(spec, sid))
-    _w(staging / "first_attempt" / TEMPLATE_FILE, _template_json(spec))
+    # The template is its own top-level component (template/) — this is where
+    # project.load_template reads it. The draft lives under first_attempt/.
+    _w(staging / "template" / TEMPLATE_FILE, _template_json(spec))
     _w(staging / "first_attempt" / DRAFT_FILE, _draft_json(spec))
     _w(staging / "corpus" / "graphics.json", _graphics_json(spec))
     _w(staging / "corrections" / "comments.json", _corrections_json(spec))
@@ -257,9 +264,15 @@ def _build_assets(project_id: str) -> None:
 
         import build_sample_docs as bsd
         scn = _json.loads((sdir / "project.json").read_text(encoding="utf-8"))
-        out = sdir / "first_attempt" / "generated"
-        for kind, jname in (("draft", DRAFT_FILE), ("template", TEMPLATE_FILE)):
-            src = _json.loads((sdir / "first_attempt" / jname).read_text(encoding="utf-8"))
+        # Each artifact's JSON + generated docs live under its own component dir,
+        # matching the loaders (template/generated/template.*,
+        # first_attempt/generated/draft.*).
+        for kind, subdir, jname in (
+            ("draft", "first_attempt", DRAFT_FILE),
+            ("template", "template", TEMPLATE_FILE),
+        ):
+            src = _json.loads((sdir / subdir / jname).read_text(encoding="utf-8"))
+            out = sdir / subdir / "generated"
             bsd.build_docx(src, scn, out / f"{kind}.docx")
             bsd.build_pptx(src, scn, out / f"{kind}.pptx")
             bsd.build_pdf(src, scn, out / f"{kind}.pdf")

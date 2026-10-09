@@ -36,6 +36,21 @@ def corpus_from_upload(filename: str, data: bytes) -> list[CorpusDoc]:
     from ..parsers import route_and_parse
     from ..pipeline import guess_mime
 
+    lower = filename.lower()
+    # Already-text formats ARE the corpus format the generator expects. Pass
+    # them through verbatim rather than parse-and-re-render (which would
+    # double-mark markdown headings, e.g. '# ## Scope').
+    if lower.endswith(".md") or lower.endswith(".txt"):
+        try:
+            text = data.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            text = data.decode("utf-8", errors="replace").strip()
+        if not text or len(text) < 10:
+            raise ValueError("the uploaded text document is empty or too short")
+        stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+        ext = ".md" if lower.endswith(".md") else ".txt"
+        return [CorpusDoc(name=f"{stem}{ext}", text=text)]
+
     mime = guess_mime(filename)
     result = route_and_parse(filename, mime, data, doc_id="upload")
     text = _blocks_to_markdown(result.blocks)

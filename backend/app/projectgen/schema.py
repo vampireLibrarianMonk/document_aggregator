@@ -75,6 +75,7 @@ class FieldSpec(BaseModel):
     extract: str = "line"
     hint: str | None = None
     query: str | None = None
+    source_doc: str | None = None   # scope retrieval to the doc the value lives in
 
     @field_validator("extract")
     @classmethod
@@ -116,7 +117,8 @@ class SectionSpec(BaseModel):
 
     key: str
     heading: str                    # e.g. "1. Identifiers"
-    requires_graphic: str | None = None   # a graphic_id
+    requires_graphic: str | None = None   # a graphic_id (the first/primary one)
+    requires_graphics: list[str] = Field(default_factory=list)  # all graphic_ids in order
     requires_table: str | None = None     # a table key
 
     @field_validator("requires_graphic", "requires_table", mode="before")
