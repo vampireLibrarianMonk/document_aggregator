@@ -1,26 +1,26 @@
 # TGX-9 Telemetry Gateway Incident — walkthrough
 
-A complete, step-by-step walkthrough of running the **TGX-9** sample (sample
-project **#1**) through the app, from an empty start to a corrected report you
-can read and verify. The source material lives in the repo under
-`sample_docs/project/1/` — compare your on-screen results against it and against
-the expected values quoted here.
+A complete, step-by-step walkthrough of the **TGX-9** sample (sample project
+**#1**) through the app, from an empty start to a corrected report you can read,
+verify, and export. The source documents live in the repo under
+`sample_docs/project/1/` — you upload those, and the app builds the rest.
 
-This is a **correction** project: it ships with a source corpus, a
-completed-but-flawed first-draft report, and reviewer comments, so the
-**Correction Pipeline** tab does the work. Each step says exactly what to do and
-what you should see. All values below are the real engine output.
+This is a **correction** project. You upload the real source documents; the app
+derives everything the **Correction Pipeline** needs from them (the structure,
+the fields, a flawed first-attempt draft, and grounded corrections) and
+reconciles it into one corrected, source-grounded report. Nothing is
+hand-authored and nothing is invented — every value is pulled from your
+documents. All numbers below are the real engine output.
 
 ---
 
 ## The scenario
 
 A TGX-9 telemetry gateway at the North Ridge relay station dropped inbound
-sensor packets under thermal stress. The first-attempt report carries **16
-seeded defects** across four classes — value errors, figure problems, table
-problems, and page-element (furniture) problems — plus one genuine reviewer
-**conflict**. The pipeline fixes what the sources support, flags what they
-don't, and refuses to invent anything.
+sensor packets under thermal stress. You upload the field report, the root-cause
+notes, and the three figures. The app reads those documents, builds the project,
+and the pipeline fills what the sources support, flags what they don't, and
+refuses to invent anything.
 
 ---
 
@@ -35,71 +35,41 @@ project:
   TGX-9 Telemetry Gateway Incident
   ```
 
-- **Description** (optional):
-
-  ```
-  Four-component correction of the TGX-9 telemetry gateway incident report:
-  original corpus + template + flawed first-draft + reviewer comments reconciled
-  into one corrected, source-grounded intermediate JSON. Demonstrates literal
-  source-grounded fills, preserved conflicts, and template formatting checks.
-  ```
-
-Click **Create project**.
-
-**What you should see:** the project is created, selected in the top selector,
-and the app moves you to the **Ingestion** tab (Step 2). It has no documents
-yet — you add them next. The scenario files you will upload live in the repo
-under `sample_docs/project/1/`.
+Click **Create project**. The app selects it in the top selector and moves you
+to the **Ingestion** tab. It has no documents yet — you add them next.
 
 ---
 
-## Step 2 — Ingestion: upload the project files
+## Step 2 — Ingestion: upload the real documents
 
-The **Ingestion** tab is where you add the project's files. Uploading them is
-what populates the Correction Pipeline — there is no other setup. Open the
-**Ingestion** tab; you will see four upload areas, each tagging what you drop
-into it:
+The **Ingestion** tab is where you add the project's source documents. Uploading
+them is what builds the project and populates the Correction Pipeline — there is
+no JSON to assemble. Drop these files from `sample_docs/project/1/` into the
+**Original corpus** area:
 
-1. **Original corpus** — the ground-truth source documents. **Required.**
-2. **Template** — the required output structure/rubric. *(template pathway)*
-3. **Corrections** — reviewer comments / emails. **Required.**
-4. **First draft** — the completed-but-flawed attempt. *(first-draft pathway)*
+| Upload | Role |
+|---|---|
+| `corpus/field_report_2026-03-02.txt` | source document (the field report) |
+| `corpus/root_cause_notes_2026-03-15.md` | source document (the root-cause notes) |
+| `corpus/figures/packet_loss_vs_temp.png` | figure |
+| `corpus/figures/site_network_topology.png` | figure |
+| `corpus/figures/cabinet_thermal_layout.png` | figure |
 
-The rule the readiness banner enforces: **the project manifest and corpus are
-required, corrections are required, and you need at least one of {template,
-first draft}** — those are the two valid pathways. A template-only project fills
-a blank template; a first-draft project repairs an existing attempt; providing
-both lets you do either (TGX-9 ships both so you can compare the two modes).
-
-Upload the TGX-9 files from `sample_docs/project/1/` into their areas. Drop the
-project manifest (`project.json`) and the figure manifest (`corpus/graphics.json`)
-into the **Original corpus** area along with the two source documents — the app
-routes each file to its role by name:
-
-| Area | Upload | Role |
-|---|---|---|
-| Original corpus | `project.json` | the project manifest (fields / sections / rules) |
-| Original corpus | `corpus/field_report_2026-03-02.txt`, `corpus/root_cause_notes_2026-03-15.md` | source documents (required) |
-| Original corpus | `corpus/graphics.json` | named-figure manifest |
-| Template | `template/incident_report_template.json` | **template pathway** |
-| First draft | `first_attempt/incident_report_draft.json` | **first-draft pathway** |
-| Corrections | `corrections/comments.json` | reviewer feedback (required) |
-
-> You can also drop the raw reviewer emails (`corrections/emails/email_*.txt`)
-> into the **Corrections** area; they are optional alongside `comments.json`.
+> Optional: you can also drop the raw reviewer emails
+> (`corrections/emails/email_*.txt`) into the **Corrections** area. They are not
+> required — the app derives the corrections from the corpus itself.
 
 **What you should see:** each file appears as a row and advances through
 **ingest → parse → chunk → embed → index** to **completed** (embeddings run
-locally with all-MiniLM-L6-v2). The readiness banner at the top starts as
-**"Inputs incomplete"** listing what's missing, and flips to **"Inputs ready"**
-once the manifest + corpus + corrections + at least one of template/first-draft
-are present. When it is ready, the **Correction Pipeline** and **Report &
+locally with all-MiniLM-L6-v2). The readiness banner starts as **"Add your
+documents"** and flips to **"Project ready"** once the app has built the project
+from your corpus. When it is ready, the **Correction Pipeline** and **Report &
 Export** tabs unlock.
 
-> The two pathways, concretely: the **template** file is the blank structure the
-> output must conform to; the **first-draft** file is the flawed attempt to be
-> corrected. TGX-9 ships both so you can compare Draft mode (repair the draft)
-> against Template mode (fill the blank) in Steps 3–4.
+> How the app builds it: your `.md`/`.txt` notes define the document's structure
+> (its headings become the report's sections); labelled lines like `Date:` and
+> `Site:` become fields; the `Figures` section and the figure images become the
+> placed figures; and the `Corrective Action Assignments` block becomes a table.
 
 ---
 
@@ -109,8 +79,8 @@ Open the **Correction Pipeline** tab. You should see four stage boxes —
 **Original corpus**, **First attempt**, **Comments / emails**, **Corrected
 intermediate JSON** — each with a count. At the top, set:
 
-- **Draft vs Template:** start with **Draft** (fix the completed-but-flawed
-  report). You'll try **Template** in Step 5.
+- **Draft vs Template:** start with **Draft** (correct the completed-but-flawed
+  attempt the app built). You'll try **Template** in Step 5.
 - **Single pass vs Rounds:** **Single pass**.
 - **Source fidelity:** **JSON** (the clean baseline).
 
@@ -121,29 +91,38 @@ row per unit, each with a status tag and a short **Source:** line.
 
 ## Step 4 — Read the corrected report (Draft mode)
 
-Draft mode produces **17 units**: 3 unchanged, 4 filled, 8 corrected, 1 needs
-review, 1 conflict. Here is what to look for and verify.
+The report is titled **"TGX-9 Root Cause Analysis Notes"** and has four sections
+derived from the notes: **Scope**, **Findings**, **Contributing Factors**,
+**Recommendation**. Draft mode produces **8 units: 3 corrected, 4 filled, 1 needs
+review.** Here is what to look for and verify.
 
 | Unit | Status | Value you should see | Why |
 |---|---|---|---|
-| `identifiers.site` | **unchanged** (grey) | North Ridge Relay Station | the draft already had it right |
-| `identifiers.incident_date` | **unchanged** (grey) | 2026-03-02 | already correct |
-| `contributing_factors.firmware` | **filled** (blue) | 4.2.1 | corrected from the reliability-lead email (draft said 4.2.0) |
-| `description.duration` | **filled** (blue) | four hour | corrected from the QA comment (draft said "two hour") |
-| `identifiers.severity` | **conflict** (red) | *blank* | two reviewers disagree (High vs Medium) — the tool refuses to pick |
-| section bodies (description, timeline, contributing_factors) | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
+| `Date` | **corrected** (green) | 2026-03-02 | pulled from the field report |
+| `Site` | **corrected** (green) | North Ridge Relay Station | pulled from the field report |
+| `Author` | **corrected** (green) | J. Okafor, Field Engineering | pulled from the field report (kept whole) |
+| `Reviewer Sign-off` | **needs review** (amber) | *blank* | required, but no source settles it — a human supplies it |
+| section bodies (Scope, Findings, Contributing Factors, Recommendation) | **filled** (blue) | source-grounded prose | built from the corpus |
 
 Things to confirm (the guardrails):
-- **No fabrication.** The firmware and duration are literal values from the
-  email/comment, each with a **Source:** line you can hover.
-- **Conflict preserved.** `severity` shows *conflict / unresolved — choose a
-  candidate below* and lists both **High** (regional director) and **Medium**
-  (QA reviewer). The tool fills in nothing; you choose.
-- **Formatting/placement findings.** Below the content, the discipline findings
-  list the figure, table, and furniture defects (missing caption, missing table
-  title, wrong table font/column order, empty footer / missing page numbers +
-  classification). These come from comparing the draft against the template's
-  own rules.
+- **No fabrication.** Every corrected/filled value has a **Source:** line you can
+  hover; the value comes verbatim from your documents.
+- **Gaps surface, not guesses.** `Reviewer Sign-off` is **needs review** — the
+  app leaves it for you rather than inventing a signatory.
+- **Figures are placed next to the text that references them.** The report shows
+  all **three** figures: `packet_loss_vs_temp.png` and `site_network_topology.png`
+  in **Scope**, and `cabinet_thermal_layout.png` in **Recommendation**. The real
+  images render inline (not a placeholder box).
+- **The corrective-actions table** appears in **Recommendation**, filled from the
+  notes' "Corrective Action Assignments" block.
+
+### Set and Undo
+
+For any **needs review** unit, use the inline control to **Set** a value (type
+it and confirm). The unit becomes **filled** with your value and a **Source:**
+line crediting your resolution. Made a mistake? Click **Undo** on that unit to
+revert it to the engine's result so you can set it again. Setting one unit never
+disturbs another — each decision sticks.
 
 ---
 
@@ -152,33 +131,44 @@ Things to confirm (the guardrails):
 Switch **Draft → Template**. Template mode fills the *blank* report template from
 the sources instead of correcting a draft.
 
-**What you should see:** **16 units**, now **11 filled, 3 corrected, 1 needs
-review, 1 conflict**. The same values appear (`firmware` 4.2.1, `duration` four
-hour, `site` North Ridge Relay Station), but as **filled** rather than
-**corrected** — because there was no prior wrong value to replace, only an empty
-field to populate. `severity` is still a **conflict**: a disagreement doesn't go
-away just because the starting point was blank.
+**What you should see:** **8 units — 7 filled, 1 needs review.** The same values
+appear (`Date`, `Site`, `Author`, the section bodies), but as **filled** rather
+than **corrected** — because there was no prior wrong value to replace, only an
+empty field to populate. `Reviewer Sign-off` is still **needs review**: a missing
+authority doesn't resolve itself just because the starting point was blank.
 
-This contrast is the lesson: *draft* judges and repairs an existing attempt;
-*template* builds from the sources. Same engine, same provenance, same
-no-fabrication rule.
+This contrast is the lesson: *draft* repairs an existing attempt; *template*
+builds from the sources. Same engine, same provenance, same no-fabrication rule.
 
 ---
 
-## Step 6 — Export (optional)
+## Step 6 — Export
 
-Open **Report & Export** and export the corrected report (JSON / Markdown / DOCX
-/ PPTX / PDF). The export is the assembled corrected content — nothing is added
-beyond what you saw on screen.
+Open **Report & Export**. It shows the **corrected report** (the Correction
+Pipeline's output), with a **Draft/Template** toggle and a **Rebuild** button
+that re-runs the correction (reflecting any values you Set). Export in any
+offered format:
+
+- **JSON** / **Markdown** / **PDF** — always available.
+- **DOCX** / **PPTX** — offered based on what you uploaded.
+- The **real figures are embedded** in the DOCX/PDF/PPTX. The **Markdown** export
+  downloads as a **ZIP** containing the `.md` plus a `figures/` folder, so the
+  images render like a GitHub README when unpacked.
+- Filenames carry the project name and a UTC timestamp, e.g.
+  `tgx-9-telemetry-gateway-incident_20260312T143015Z.docx`.
+
+The export is exactly the corrected content you saw on screen — nothing added.
 
 ---
 
 ## What this project proves
 
-- **Values are literal fills from source spans**, never computed or invented.
-- **Disagreements become a `conflict`** with all candidates preserved; the tool
-  never auto-resolves one.
-- **Required-but-unsupported fields** (here, the challenged severity) surface for
-  a human instead of a guess.
-- **Formatting/placement rules** are learned from the template and checked, so
-  figure/table/furniture defects are reported, not silently passed.
+- **You upload real documents; the app builds the project.** No hand-authored
+  JSON.
+- **Values are literal fills from source spans**, never computed or invented,
+  each with a hoverable **Source:** line.
+- **Required-but-unsupported fields** (here, the reviewer sign-off) surface as
+  **needs review** for a human instead of a guess — and you can **Set** then
+  **Undo** them.
+- **Figures travel with their text** — placed in the section that references
+  them, rendered inline, and embedded in the exports.

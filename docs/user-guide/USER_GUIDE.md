@@ -52,16 +52,20 @@ appears in the Project selector at the top of the screen.
 ### Then: add your documents (Ingestion)
 
 Once the project exists, the **Ingestion** tab is where you upload your source
-material. Ingestion is organized into four areas (original corpus, template,
-corrections, first draft); see "Ingestion" below for the details and the rules
-about which must be filled in.
+documents. Drop your real documents into the **Original corpus** area — the
+notes/report (`.md`, `.txt`, `.docx`, `.pdf`), and any figure images (`.png`).
+**The app builds the project from them automatically:** it derives the
+structure, the fields, a flawed first-attempt draft, and the grounded
+corrections. There is no JSON to assemble.
 
 > For a complete, worked example, see the project walkthroughs under
 > `docs/user-guide/projects/` (e.g. the TGX-9 guide).
 
 What to expect: each uploaded file appears as a row that advances to
-**completed**. Scanned PDFs and images are run through OCR so their text becomes
-searchable (see Diagnostics to confirm OCR is active).
+**completed**, and the readiness banner flips from **"Add your documents"** to
+**"Project ready"** once the app has built the project. The Correction Pipeline
+and Report & Export tabs then unlock. Scanned PDFs and images are run through OCR
+so their text becomes searchable (see Diagnostics to confirm OCR is active).
 
 ---
 
@@ -73,29 +77,31 @@ interface control document). Each case's files live under
 `sample_docs/project/<id>/` in the repository.
 
 You run a case the same way you run any real project: **create a project, then
-upload that case's files on the Ingestion tab.** Uploading the files is what
-populates the Correction Pipeline — there is no separate "load sample" button.
-Each case has a step-by-step walkthrough under `docs/user-guide/projects/` with
-the exact files to upload and the exact values to expect on screen:
+upload that case's source documents on the Ingestion tab.** Uploading the
+documents is what builds the project and populates the Correction Pipeline —
+there is no separate "load sample" button and no JSON to assemble. Each case has
+a step-by-step walkthrough under `docs/user-guide/projects/` with the exact files
+to upload and the exact values to expect on screen:
 
-| # | Case | Files | Walkthrough |
-|---|------|-------|-------------|
-| 1 | TGX-9 Telemetry Gateway Incident | `sample_docs/project/1/` | [tgx-9](projects/tgx-9/README.md) |
-| 2 | Customer Portal Credential-Stuffing Incident | `sample_docs/project/2/` | [credential-stuffing](projects/credential-stuffing/README.md) |
-| 3 | Clinical Lab Reagent Spill Safety Event | `sample_docs/project/3/` | [reagent-spill](projects/reagent-spill/README.md) |
-| 4 | Injection Molding Line Defect Event | `sample_docs/project/4/` | [injection-molding](projects/injection-molding/README.md) |
-| 5 | Aircraft Hydraulic Decay Maintenance Event | `sample_docs/project/5/` | [hydraulic-decay](projects/hydraulic-decay/README.md) |
-| 6 | Nav Bus Interface Control Document | `sample_docs/project/6/` | [nav-bus-icd](projects/nav-bus-icd/README.md) |
+| # | Case | Documents | Walkthrough |
+|---|------|-----------|-------------|
+| 1 | TGX-9 Telemetry Gateway Incident | `sample_docs/project/1/corpus/` | [tgx-9](projects/tgx-9/README.md) |
+| 2 | Customer Portal Credential-Stuffing Incident | `sample_docs/project/2/corpus/` | [credential-stuffing](projects/credential-stuffing/README.md) |
+| 3 | Clinical Lab Reagent Spill Safety Event | `sample_docs/project/3/corpus/` | [reagent-spill](projects/reagent-spill/README.md) |
+| 4 | Injection Molding Line Defect Event | `sample_docs/project/4/corpus/` | [injection-molding](projects/injection-molding/README.md) |
+| 5 | Aircraft Hydraulic Decay Maintenance Event | `sample_docs/project/5/corpus/` | [hydraulic-decay](projects/hydraulic-decay/README.md) |
+| 6 | Nav Bus Interface Control Document | `sample_docs/project/6/corpus/` | [nav-bus-icd](projects/nav-bus-icd/README.md) |
 
 A seventh walkthrough covers the mass **JSON→golden** batch capability (which
 uses committed fixtures rather than a `sample_docs` case):
 [json-batch](projects/json-batch/README.md).
 
-Each case folder contains the project manifest (`project.json`), the source
-corpus, the blank template and the flawed first-draft, and the reviewer
-comments. Upload them into the Ingestion areas as each walkthrough describes; the
-app routes each file to its role by name. The repo fixtures are read-only — you
-upload copies, so you can run a case as many times as you like.
+Each case folder's `corpus/` holds the real source documents you upload: the
+notes/report (`.txt`, `.md`) and the figure images (`figures/*.png`). Upload
+those into the **Original corpus** area as each walkthrough describes; the app
+derives the project (structure, fields, a flawed first-attempt draft, and the
+corrections) from them. The repo fixtures are read-only — you upload copies, so
+you can run a case as many times as you like.
 
 ---
 
@@ -104,15 +110,16 @@ upload copies, so you can run a case as many times as you like.
 This matters for what each tab shows. The kind is decided by what you upload to the
 project.
 
-- **A correction project** is one where you uploaded the four correction
-  components (a project manifest, source corpus, a template and/or a flawed
-  first-draft, and reviewer corrections). The **Correction Pipeline** tab then
-  reconciles them into a corrected report. The six worked cases are this kind.
-- **An aggregation project** is one where you uploaded only source documents to
-  ingest, search, and assemble. Its **Ingestion, Supplementals, Search, and
-  Report & Export** tabs fill as you add documents; the Correction Pipeline tab
-  will say it has no correction data because no first-draft/template was
-  uploaded.
+- **A correction project** is one where you uploaded source documents (notes,
+  report, figures) and the app built a project from them — deriving the
+  structure, fields, a flawed first-attempt draft, and the corrections. The
+  **Correction Pipeline** tab then reconciles that into a corrected report. The
+  six worked cases are this kind.
+- **An aggregation project** is one where you uploaded only loose documents to
+  ingest, search, and assemble, and the app did not build a correction project
+  from them. Its **Ingestion, Supplementals, Search, and Report & Export** tabs
+  fill as you add documents; the Correction Pipeline tab will say it has no
+  correction data.
 
 If a tab looks empty, it is almost always because the selected project does not
 have the files that tab needs. This is expected, not a fault.
@@ -126,11 +133,10 @@ have the files that tab needs. This is expected, not a fault.
 Turns a flawed or blank first attempt into a corrected report, grounded entirely
 in the source material.
 
-What to do: select a correction project (one you built by uploading a manifest,
-corpus, a template/first-draft, and corrections). You will see four stages left
-to right — **Original corpus**, **First attempt**, **Comments / emails**, and
-**Corrected intermediate JSON** — each with a count. Below them is the corrected
-report.
+What to do: select a correction project (one the app built from source documents
+you uploaded on the Ingestion tab). You will see four stages left to right —
+**Original corpus**, **First attempt**, **Comments / emails**, and **Corrected
+intermediate JSON** — each with a count. Below them is the corrected report.
 
 Controls:
 - **Draft vs Template** — Draft fixes a completed-but-flawed report; Template
@@ -182,13 +188,25 @@ embedding model on the Diagnostics page (footer link).
 
 ### Report & Export
 
-Assemble the aggregated report and export it.
+Review and export the finished report.
 
-What to do: select an aggregation project with completed documents. Use the
-export buttons for JSON, Markdown, DOCX, PPTX, or PDF.
+What to do: select a project. For a **correction project** this shows the
+**corrected report** (the Correction Pipeline's output) with a **Draft/Template**
+toggle and a **Rebuild** button that re-runs the correction (reflecting any
+values you Set). Use the export buttons for JSON, Markdown, DOCX, PPTX, or PDF.
+For an **aggregation project** it shows the aggregated report instead (one
+section per document, ordered by date/time).
 
-What to expect: one section per completed document, ordered by effective
-date/time, with supplementals attached. Exports download as files.
+What to expect:
+- The **real figures are embedded** in the DOCX / PDF / PPTX exports, placed with
+  the text that references them.
+- The **Markdown** export downloads as a **ZIP** containing the `.md` plus a
+  `figures/` folder, so the images render like a GitHub README when unpacked.
+- Only the formats that fit your source are offered (JSON / Markdown / PDF are
+  always available; DOCX / PPTX depend on what you uploaded).
+- Filenames carry the project name and a UTC timestamp, e.g.
+  `tgx-9-telemetry-gateway-incident_20260312T143015Z.docx`.
+- The export is exactly the content you see on screen — nothing added.
 
 ### Diagnostics
 
@@ -265,10 +283,11 @@ Create a project there, then upload its documents on the Ingestion tab. To run a
 worked example case, see "Running the worked example cases" above.
 
 **I selected a project and a tab is empty.**
-Each project is one of two kinds. A correction project (manifest + corpus +
-template/first-draft + corrections uploaded) fills the Correction Pipeline tab;
-an aggregation project (documents uploaded) fills Ingestion, Supplementals,
-Search, and Report & Export. See "A project is one of two kinds" above.
+Each project is one of two kinds. A correction project (the app built it from
+source documents you uploaded to the Original corpus area) fills the Correction
+Pipeline tab; an aggregation project (loose documents uploaded) fills Ingestion,
+Supplementals, Search, and Report & Export. See "A project is one of two kinds"
+above.
 
 **Do the worked example cases change the repo files?**
 No. You upload copies of the files from `sample_docs/project/<id>/`; the repo

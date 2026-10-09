@@ -1,21 +1,21 @@
 # Clinical Lab Reagent Spill Safety Event — walkthrough
 
 A step-by-step walkthrough of sample project **#3**, a clinical-laboratory
-safety event. The source material lives in the repo under
-`sample_docs/project/3/`; compare your results against it and the expected
-values quoted here.
+safety event. You upload the real source documents from `sample_docs/project/3/`;
+the app builds the project and reconciles it. Compare your results against the
+values quoted here — they are the real engine output.
 
-This is a **correction** project (source corpus + flawed first-draft report +
-reviewer comments). All values below are the real engine output.
+This is a **correction** project. Nothing is hand-authored: you upload the
+documents, the app derives the structure, fields, a flawed first attempt, and
+grounded corrections, and the **Correction Pipeline** does the work.
 
 ---
 
 ## The scenario
 
-A reagent spill on the Bay 2 automated chemistry analyzer. The first-attempt
-report carries seeded value, figure, table, and furniture defects plus a genuine
-reviewer **conflict** on severity. The pipeline fixes what the sources support,
-flags what they don't, and invents nothing.
+A reagent spill occurred on the Bay 2 chemistry analyzer. You upload the lab
+event report, the safety review, and three figures. The pipeline fills what the
+sources support, flags what they don't, and invents nothing.
 
 ---
 
@@ -23,37 +23,28 @@ flags what they don't, and invents nothing.
 
 Open the app (it starts empty on **New Project**) and create a project named
 `Clinical Lab Reagent Spill Safety Event`. Click **Create project** — you are
-moved to the **Ingestion** tab to add its files. The scenario files live in the
-repo under `sample_docs/project/3/`.
+moved to the **Ingestion** tab to add its files.
 
 ---
 
-## Step 2 — Ingestion: upload the project files
+## Step 2 — Ingestion: upload the real documents
 
-Open the **Ingestion** tab. Uploading the project's files is what populates the
-Correction Pipeline. The readiness banner requires **the manifest + corpus +
-corrections** and at least one of {**template**, **first draft**}. Drop the
-manifest (`project.json`) and figure manifest (`corpus/graphics.json`) into
-**Original corpus** alongside the source docs; the app routes each file by name.
+Open the **Ingestion** tab and drop these files from `sample_docs/project/3/`
+into the **Original corpus** area. Uploading them is what builds the project —
+there is no JSON to assemble.
 
-Upload the files from `sample_docs/project/3/`:
-
-| Area | Upload | Role |
-|---|---|---|
-| Original corpus | `project.json` | project manifest |
-| Original corpus | `corpus/lab_event_2026-07-03.txt`, `corpus/safety_review_2026-07-14.md` | source documents (required) |
-| Original corpus | `corpus/graphics.json` | named-figure manifest |
-| Template | `template/incident_report_template.json` | **template pathway** |
-| First draft | `first_attempt/incident_report_draft.json` | **first-draft pathway** |
-| Corrections | `corrections/comments.json` | reviewer feedback (required) |
+| Upload | Role |
+|---|---|
+| `corpus/lab_event_2026-07-03.txt` | source document (lab event report) |
+| `corpus/safety_review_2026-07-14.md` | source document (safety review) |
+| `corpus/figures/spill_containment_zone.png` | figure |
+| `corpus/figures/sample_tray_layout.png` | figure |
+| `corpus/figures/reagent_seal_cross_section.png` | figure |
 
 **What you should see:** each file advances **ingest → parse → chunk → embed →
-index** to **completed**, and the readiness banner flips from **"Inputs
-incomplete"** to **"Inputs ready"** once the manifest + corpus + corrections +
-one of template/first-draft are present. The Correction Pipeline and Report &
-Export tabs then unlock. (The **template** file is the blank structure; the
-**first-draft** file is the flawed attempt — both ship so you can compare Draft
-and Template modes.)
+index** to **completed**, and the readiness banner flips from **"Add your
+documents"** to **"Project ready"**. The Correction Pipeline and Report & Export
+tabs then unlock.
 
 ---
 
@@ -66,39 +57,53 @@ Open the **Correction Pipeline** tab, then set **Draft**, **Single pass**,
 
 ## Step 4 — Read the corrected report (Draft mode)
 
-Draft mode produces **17 units**: 2 unchanged, 4 filled, 9 corrected, 1 needs
-review, 1 conflict.
+The report is titled **"CLINICAL LABORATORY SAFETY EVENT REPORT"**, with sections
+derived from the safety review (Scope, Findings, Contributing Factors,
+Recommendation). Draft mode produces **8 units: 3 corrected, 4 filled, 1 needs
+review.**
 
 | Unit | Status | Value you should see | Why |
 |---|---|---|---|
-| `identifiers.site` | **corrected** (green) | Automated Chemistry Analyzer Bay 2 | draft had the wrong site label |
-| `identifiers.incident_date` | **unchanged** (grey) | 2026-07-03 | already correct |
-| `contributing_factors.software_version` | **filled** (blue) | 7.1.2 | affected analyzer software (draft said 7.2.0) |
-| `description.duration` | **filled** (blue) | three hour | corrected (draft said "one hour") |
-| `identifiers.severity` | **conflict** (red) | *blank* | the draft's "Minor" was challenged; the two candidates shown are **Major** and **Moderate** |
-| section bodies | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
+| `Date` | **corrected** (green) | 2026-07-03 | pulled from the sources |
+| `System` | **corrected** (green) | Automated Chemistry Analyzer Bay 2 | pulled from the sources |
+| `Author` | **corrected** (green) | R. Delgado, Laboratory Safety Officer | pulled from the sources |
+| `Reviewer Sign-off` | **needs review** (amber) | *blank* | required, no source settles it |
+| section bodies | **filled** (blue) | source-grounded prose | built from the corpus |
 
-Confirm the guardrails: every corrected value has a **Source:** line; `severity`
-stays an unresolved **conflict**; the discipline findings list the
-figure/table/furniture defects.
+Confirm the guardrails: every corrected/filled value carries a **Source:** line;
+`Reviewer Sign-off` is left **needs review** for a human. Figures are placed next
+to the text that references them — `spill_containment_zone.png` in **Scope**, and
+`sample_tray_layout.png` + `reagent_seal_cross_section.png` together in
+**Contributing Factors** — with the real images rendered inline. The
+corrective-actions table appears in **Recommendation**, filled from the review's
+"Corrective Action Assignments" block.
+
+**Set and Undo:** **Set** a value for `Reviewer Sign-off` (it becomes filled);
+**Undo** reverts it so you can set it again. Resolving one unit never disturbs
+another.
 
 ---
 
 ## Step 5 — Compare Template mode
 
-Switch to **Template**: **16 units — 11 filled, 3 corrected, 1 needs review, 1
-conflict**. The same values appear as **filled** rather than **corrected**;
-`severity` stays a **conflict**.
+Switch to **Template**: **8 units — 7 filled, 1 needs review.** The same values
+appear as **filled** rather than **corrected**; `Reviewer Sign-off` stays **needs
+review**.
 
 ---
 
-## Step 6 — Export (optional)
+## Step 6 — Export
 
-**Report & Export** → export the corrected report.
+**Report & Export** shows the corrected report with a Draft/Template toggle and a
+**Rebuild** button. Export as JSON / Markdown / PDF (always) or DOCX/PPTX
+(offered based on what you uploaded). Real figures embedded; Markdown is a ZIP
+with a `figures/` folder; filenames carry the project name + a UTC timestamp.
 
 ---
 
 ## What this project proves
 
-Literal source-grounded fills, no fabrication, disagreements preserved as a
-`conflict`, unsupported fields sent to review, template formatting rules checked.
+Same guardrails as every correction case: you upload real documents and the app
+builds the project; literal source-grounded fills with provenance; no
+fabrication; unsupported fields sent to **needs review** (Set/Undo); figures
+placed with the text that references them; and a table derived from the source.

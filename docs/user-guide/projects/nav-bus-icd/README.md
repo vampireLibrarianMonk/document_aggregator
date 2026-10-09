@@ -1,25 +1,24 @@
 # Nav Bus Interface Control Document — walkthrough
 
 A step-by-step walkthrough of sample project **#6**, a systems-engineering
-interface control document (ICD). The source material lives in the repo under
-`sample_docs/project/6/`; compare your results against it and the expected
-values quoted here.
+interface control document (ICD). You upload the real source documents from
+`sample_docs/project/6/`; the app builds the project and reconciles it. Compare
+your results against the values quoted here — they are the real engine output.
 
 This is a **correction** project, but note it is **not an incident report** — it
-is an ICD, with a different field schema (scope + interface overview rather than
-identifiers + timeline). That makes it the best case for seeing that the engine
-is **generic**: the same reconciliation handles a different document type with
-no special-casing.
+is an ICD, with a different structure (interface overview, signal definitions,
+data formats). That makes it the best case for seeing that the app is
+**generic**: it derives the structure from whatever documents you upload and the
+same reconciliation handles a different document type with no special-casing.
 
 ---
 
 ## The scenario
 
 An ICD defines the electrical and data-format interface for a Navigation Data
-Bus. The first-attempt document carries seeded value, table, and furniture
-defects, a challenged **approval status**, and more unresolved items than the
-incident cases. The pipeline fixes what the sources support, flags what they
-don't, and invents nothing.
+Bus. You upload the interface spec, the review-board notes, and three figures.
+The pipeline fills what the sources support, flags what they don't, and invents
+nothing.
 
 ---
 
@@ -27,37 +26,28 @@ don't, and invents nothing.
 
 Open the app (it starts empty on **New Project**) and create a project named
 `Nav Bus Interface Control Document`. Click **Create project** — you are moved to
-the **Ingestion** tab to add its files. The scenario files live in the repo under
-`sample_docs/project/6/`.
+the **Ingestion** tab to add its files.
 
 ---
 
-## Step 2 — Ingestion: upload the project files
+## Step 2 — Ingestion: upload the real documents
 
-Open the **Ingestion** tab. Uploading the project's files is what populates the
-Correction Pipeline. The readiness banner requires **the manifest + corpus +
-corrections** and at least one of {**template**, **first draft**}. Drop the
-manifest (`project.json`) and figure manifest (`corpus/graphics.json`) into
-**Original corpus** alongside the source docs; the app routes each file by name.
+Open the **Ingestion** tab and drop these files from `sample_docs/project/6/`
+into the **Original corpus** area. Uploading them is what builds the project —
+there is no JSON to assemble.
 
-Upload the files from `sample_docs/project/6/`:
-
-| Area | Upload | Role |
-|---|---|---|
-| Original corpus | `project.json` | project manifest |
-| Original corpus | `corpus/interface_spec_2026-04-10.txt`, `corpus/review_board_notes_2026-04-22.md` | source documents (required) |
-| Original corpus | `corpus/graphics.json` | named-figure manifest |
-| Template | `template/incident_report_template.json` | **template pathway** (blank ICD structure) |
-| First draft | `first_attempt/incident_report_draft.json` | **first-draft pathway** (flawed ICD) |
-| Corrections | `corrections/comments.json` | reviewer feedback (required) |
+| Upload | Role |
+|---|---|
+| `corpus/interface_spec_2026-04-10.txt` | source document (interface spec) |
+| `corpus/review_board_notes_2026-04-22.md` | source document (review-board notes) |
+| `corpus/figures/nav_bus_topology.png` | figure |
+| `corpus/figures/message_timing.png` | figure |
+| `corpus/figures/signal_timing_detail.png` | figure |
 
 **What you should see:** each file advances **ingest → parse → chunk → embed →
-index** to **completed**, and the readiness banner flips from **"Inputs
-incomplete"** to **"Inputs ready"** once the manifest + corpus + corrections +
-one of template/first-draft are present. The Correction Pipeline and Report &
-Export tabs then unlock. Here the **template** is a blank ICD structure and the
-**first-draft** is the flawed ICD — both ship so you can compare Draft and
-Template modes.
+index** to **completed**, and the readiness banner flips from **"Add your
+documents"** to **"Project ready"**. The Correction Pipeline and Report & Export
+tabs then unlock.
 
 ---
 
@@ -70,48 +60,55 @@ Open the **Correction Pipeline** tab, then set **Draft**, **Single pass**,
 
 ## Step 4 — Read the corrected report (Draft mode)
 
-Draft mode produces **17 units**: 2 unchanged, 3 filled, 9 corrected, **2 needs
-review**, 1 conflict. (Two needs-review items, not one — the ICD leaves more for
-a human than the incident cases.)
+The report is titled **"Nav Bus ICD Review Board Notes"**, with sections derived
+from the documents: **Interface Overview**, **Signal Definitions**, **Data
+Formats**, **Notes**. Draft mode produces **5 units: 3 corrected, 1 filled, 1
+needs review.** (Fewer units than the incident cases — the ICD's later sections
+are structural, with no labelled fields to correct.)
 
 | Unit | Status | Value you should see | Why |
 |---|---|---|---|
-| `scope.system` | **unchanged** (grey) | Navigation Data Bus (Nav Bus) | already correct |
-| `scope.spec_date` | **corrected** (green) | 2026-04-22 | updated to the review-board date |
-| `interface_overview.signaling_rate` | **corrected** (green) | The signaling rate is 100 kbps. | draft said 50 kbps |
-| `interface_overview.bus_voltage` | **corrected** (green) | differential pair physical layer | rebuilt from the spec |
-| `scope.approval_status` | **conflict** (red) | *blank* | the draft's "Draft" status was challenged; the two candidates shown are **Approved** and **Rejected** |
-| section bodies (scope, interface_overview, data_formats) | **corrected** (green) | source-grounded prose | rebuilt from the corpus |
+| `Date` | **corrected** (green) | 2026-04-10 | pulled from the spec |
+| `System` | **corrected** (green) | Navigation Data Bus (Nav Bus) | pulled from the spec |
+| `Author` | **corrected** (green) | Interface Working Group | pulled from the sources |
+| `Reviewer Sign-off` | **needs review** (amber) | *blank* | required, no source settles it |
+| Interface Overview body | **filled** (blue) | source-grounded prose | built from the corpus |
 
-Confirm the guardrails: every corrected value has a **Source:** line;
-`scope.approval_status` stays an unresolved **conflict**; the two **needs
-review** rows are items the template requires but no source settles (a human
-supplies them). The discipline findings list the table/furniture defects (empty
-Signal Definitions table rows, missing table title, footer/page-number/marking
-gaps).
+Confirm the guardrails: every corrected/filled value carries a **Source:** line;
+`Reviewer Sign-off` is left **needs review**. Figures are placed next to the text
+that references them — `nav_bus_topology.png` + `message_timing.png` together in
+**Interface Overview**, and `signal_timing_detail.png` in **Signal Definitions**
+— with the real images rendered inline. This ICD has no corrective-actions
+table (the source has no such section), which is correct — the app derives a
+table only when the documents contain one.
+
+**Set and Undo:** **Set** a value for `Reviewer Sign-off`; **Undo** reverts it so
+you can set it again. Resolving one unit never disturbs another.
 
 ---
 
 ## Step 5 — Compare Template mode
 
-Switch to **Template**: **16 units — 11 filled, 2 corrected, 2 needs review, 1
-conflict**. The resolved values appear as **filled** (populating a blank ICD)
-rather than **corrected**. Both **needs review** items and the
-`approval_status` **conflict** persist — a blank starting point doesn't make a
-disagreement or a missing authority resolve itself.
+Switch to **Template**: **5 units — 4 filled, 1 needs review.** The resolved
+values appear as **filled** (populating a blank ICD) rather than **corrected**;
+`Reviewer Sign-off` stays **needs review**.
 
 ---
 
-## Step 6 — Export (optional)
+## Step 6 — Export
 
-**Report & Export** → export the corrected ICD.
+**Report & Export** shows the corrected ICD with a Draft/Template toggle and a
+**Rebuild** button. Export as JSON / Markdown / PDF (always) or DOCX/PPTX
+(offered based on what you uploaded). Real figures embedded; Markdown is a ZIP
+with a `figures/` folder; filenames carry the project name + a UTC timestamp.
 
 ---
 
 ## What this project proves
 
-- The engine is **document-type-agnostic** — an ICD reconciles with the same
-  rules as an incident report, no special-casing.
-- Literal source-grounded fills, no fabrication, the challenged approval status
-  preserved as a `conflict`, and **two** required-but-unsupported fields sent to
-  review rather than guessed.
+- The app is **document-type-agnostic** — an ICD reconciles with the same rules
+  as an incident report, no special-casing; the structure comes from your
+  documents.
+- Literal source-grounded fills with provenance, no fabrication, unsupported
+  fields sent to **needs review** (Set/Undo), figures placed with the text that
+  references them, and **no table invented** when the source has none.
