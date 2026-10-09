@@ -24,69 +24,77 @@ don't, and refuses to invent anything.
 
 ---
 
-## Step 1 — Open the project
+## Step 1 — Create the project
 
-There are two ways in.
+Open the app (it starts empty on the **New Project** tab) and create the
+project:
 
-**A. Instantiate the sample (recommended).** If your administrator has enabled
-samples (`SAMPLES_ENABLED=true`), open the **Samples** tab, find *TGX-9
-Telemetry Gateway Incident*, and click **Use this sample**. The platform copies
-it into a new project of your own and drops you on the **Correction Pipeline**
-tab with all four components populated.
+- **Project name:**
 
-**B. Create + inspect from the repo.** Otherwise, create a project on **New
-Project** (name it `TGX-9 Telemetry Gateway Incident`) and inspect the shipped
-material under `sample_docs/project/1/`:
-- **corpus** — `field_report_2026-03-02.txt`, `root_cause_notes_2026-03-15.md`,
-  plus named figures under `corpus/figures/`.
-- **first attempt** — `first_attempt/incident_report_draft.json` (the flawed
-  draft) and `template/incident_report_template.json` (the blank template).
-- **corrections** — `corrections/comments.json` and the email exports.
+  ```
+  TGX-9 Telemetry Gateway Incident
+  ```
 
-**What you should see:** the project is active in the top selector. If you
-instantiated the sample (A), its four components are already populated and you
-land on the Correction Pipeline tab — you can skip to Step 3. If you created an
-empty project (B), do Step 2 next.
+- **Description** (optional):
+
+  ```
+  Four-component correction of the TGX-9 telemetry gateway incident report:
+  original corpus + template + flawed first-draft + reviewer comments reconciled
+  into one corrected, source-grounded intermediate JSON. Demonstrates literal
+  source-grounded fills, preserved conflicts, and template formatting checks.
+  ```
+
+Click **Create project**.
+
+**What you should see:** the project is created, selected in the top selector,
+and the app moves you to the **Ingestion** tab (Step 2). It has no documents
+yet — you add them next. The scenario files you will upload live in the repo
+under `sample_docs/project/1/`.
 
 ---
 
-## Step 2 — Ingestion: upload the document pathways
+## Step 2 — Ingestion: upload the project files
 
-This step shows the four **Ingestion** areas and the two upload *pathways* that
-unlock the Correction Pipeline. (If you used **Use this sample** in Step 1, the
-sample is already loaded; read this to understand what it provided, then go to
-Step 3.)
-
-Open the **Ingestion** tab. You will see four upload areas, each tagging what you
-drop into it:
+The **Ingestion** tab is where you add the project's files. Uploading them is
+what populates the Correction Pipeline — there is no other setup. Open the
+**Ingestion** tab; you will see four upload areas, each tagging what you drop
+into it:
 
 1. **Original corpus** — the ground-truth source documents. **Required.**
 2. **Template** — the required output structure/rubric. *(template pathway)*
 3. **Corrections** — reviewer comments / emails. **Required.**
 4. **First draft** — the completed-but-flawed attempt. *(first-draft pathway)*
 
-The rule the readiness banner enforces: **corpus is required, corrections are
-required, and you need at least one of {template, first draft}** — those are the
-two valid pathways. A template-only project fills a blank template; a
-first-draft project repairs an existing attempt; providing both lets you do
-either (this is what the TGX-9 sample does).
+The rule the readiness banner enforces: **the project manifest and corpus are
+required, corrections are required, and you need at least one of {template,
+first draft}** — those are the two valid pathways. A template-only project fills
+a blank template; a first-draft project repairs an existing attempt; providing
+both lets you do either (TGX-9 ships both so you can compare the two modes).
 
-Upload the TGX-9 files from `sample_docs/project/1/` into their areas:
+Upload the TGX-9 files from `sample_docs/project/1/` into their areas. Drop the
+project manifest (`project.json`) and the figure manifest (`corpus/graphics.json`)
+into the **Original corpus** area along with the two source documents — the app
+routes each file to its role by name:
 
-| Area | Upload | Pathway |
+| Area | Upload | Role |
 |---|---|---|
-| Original corpus | `corpus/field_report_2026-03-02.txt`, `corpus/root_cause_notes_2026-03-15.md` | — (required) |
+| Original corpus | `project.json` | the project manifest (fields / sections / rules) |
+| Original corpus | `corpus/field_report_2026-03-02.txt`, `corpus/root_cause_notes_2026-03-15.md` | source documents (required) |
+| Original corpus | `corpus/graphics.json` | named-figure manifest |
 | Template | `template/incident_report_template.json` | **template pathway** |
 | First draft | `first_attempt/incident_report_draft.json` | **first-draft pathway** |
-| Corrections | `corrections/comments.json` | — (required) |
+| Corrections | `corrections/comments.json` | reviewer feedback (required) |
+
+> You can also drop the raw reviewer emails (`corrections/emails/email_*.txt`)
+> into the **Corrections** area; they are optional alongside `comments.json`.
 
 **What you should see:** each file appears as a row and advances through
 **ingest → parse → chunk → embed → index** to **completed** (embeddings run
 locally with all-MiniLM-L6-v2). The readiness banner at the top starts as
 **"Inputs incomplete"** listing what's missing, and flips to **"Inputs ready"**
-once corpus + corrections + at least one of template/first-draft are present —
-the counts read `corpus: 2, template: 1, corrections: 1, first_draft: 1`. When
-it is ready, the **Correction Pipeline** and **Report & Export** tabs unlock.
+once the manifest + corpus + corrections + at least one of template/first-draft
+are present. When it is ready, the **Correction Pipeline** and **Report &
+Export** tabs unlock.
 
 > The two pathways, concretely: the **template** file is the blank structure the
 > output must conform to; the **first-draft** file is the flawed attempt to be

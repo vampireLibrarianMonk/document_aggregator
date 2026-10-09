@@ -23,42 +23,39 @@ don't, and invents nothing.
 
 ---
 
-## Step 1 — Open the project
+## Step 1 — Create the project
 
-- **Samples tab (recommended, if enabled):** **Samples** → *Nav Bus Interface
-  Control Document* → **Use this sample** → lands on the Correction Pipeline tab,
-  populated.
-- **From the repo:** create a project named `Nav Bus Interface Control Document`
-  and inspect `sample_docs/project/6/` (corpus:
-  `interface_spec_2026-04-10.txt`, `review_board_notes_2026-04-22.md`; flawed
-  draft + blank template; reviewer `corrections/`).
-
-**What you should see:** four stage boxes, each with a count.
+Open the app (it starts empty on **New Project**) and create a project named
+`Nav Bus Interface Control Document`. Click **Create project** — you are moved to
+the **Ingestion** tab to add its files. The scenario files live in the repo under
+`sample_docs/project/6/`.
 
 ---
 
-## Step 2 — Ingestion: upload the document pathways
+## Step 2 — Ingestion: upload the project files
 
-Open the **Ingestion** tab. There are four upload areas, and the readiness
-banner requires **corpus** + **corrections** + at least one of
-{**template**, **first draft**} — the two valid pathways. (If you used **Use
-this sample** in Step 1, these are already loaded; read this to see what the
-sample provided, then go to Step 3.)
+Open the **Ingestion** tab. Uploading the project's files is what populates the
+Correction Pipeline. The readiness banner requires **the manifest + corpus +
+corrections** and at least one of {**template**, **first draft**}. Drop the
+manifest (`project.json`) and figure manifest (`corpus/graphics.json`) into
+**Original corpus** alongside the source docs; the app routes each file by name.
 
 Upload the files from `sample_docs/project/6/`:
 
-| Area | Upload | Pathway |
+| Area | Upload | Role |
 |---|---|---|
-| Original corpus | `corpus/interface_spec_2026-04-10.txt`, `corpus/review_board_notes_2026-04-22.md` | — (required) |
-| Template | `template/` ICD template JSON | **template pathway** |
-| First draft | `first_attempt/` draft ICD JSON | **first-draft pathway** |
-| Corrections | `corrections/comments.json` | — (required) |
+| Original corpus | `project.json` | project manifest |
+| Original corpus | `corpus/interface_spec_2026-04-10.txt`, `corpus/review_board_notes_2026-04-22.md` | source documents (required) |
+| Original corpus | `corpus/graphics.json` | named-figure manifest |
+| Template | `template/incident_report_template.json` | **template pathway** (blank ICD structure) |
+| First draft | `first_attempt/incident_report_draft.json` | **first-draft pathway** (flawed ICD) |
+| Corrections | `corrections/comments.json` | reviewer feedback (required) |
 
 **What you should see:** each file advances **ingest → parse → chunk → embed →
 index** to **completed**, and the readiness banner flips from **"Inputs
-incomplete"** to **"Inputs ready"** once corpus + corrections + one of
-template/first-draft are present. The Correction Pipeline and Report & Export
-tabs then unlock. Here the **template** is a blank ICD structure and the
+incomplete"** to **"Inputs ready"** once the manifest + corpus + corrections +
+one of template/first-draft are present. The Correction Pipeline and Report &
+Export tabs then unlock. Here the **template** is a blank ICD structure and the
 **first-draft** is the flawed ICD — both ship so you can compare Draft and
 Template modes.
 

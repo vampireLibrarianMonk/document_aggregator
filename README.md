@@ -306,10 +306,11 @@ python -m venv .venv
 ```
 
 The API listens on `http://localhost:8000`. Try `GET /health` and
-`GET /projects` (empty on a fresh install) and `GET /templates` (the bundled
-sample cases). The app starts with no projects; create one by instantiating a
-sample (`POST /projects/from-template/{id}`), generating, or uploading
-documents. There is no preloaded data.
+`GET /projects` (empty on a fresh install). The app starts with no projects;
+create one with `POST /projects`, then upload its documents (or generate one).
+There is no preloaded data. The six worked example cases under
+`sample_docs/project/<id>/` are run by uploading their files, not by a built-in
+"load sample" feature.
 
 ### 2. Frontend
 

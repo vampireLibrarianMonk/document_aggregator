@@ -19,44 +19,40 @@ what the sources support, flags what they don't, and invents nothing.
 
 ---
 
-## Step 1 — Open the project
+## Step 1 — Create the project
 
-- **Samples tab (recommended, if enabled):** open **Samples**, find *Customer
-  Portal Credential-Stuffing Incident*, click **Use this sample** → you land on
-  the **Correction Pipeline** tab, fully populated.
-- **From the repo:** create a project on **New Project** named `Customer Portal
-  Credential-Stuffing Incident` and inspect `sample_docs/project/2/`
-  (corpus: `soc_alert_2026-05-11.txt`, `incident_review_2026-05-20.md`; the
-  flawed draft and the blank template under `first_attempt/` and `template/`;
-  reviewer `corrections/`).
-
-**What you should see:** four stage boxes — Original corpus, First attempt,
-Comments / emails, Corrected intermediate JSON — each with a count.
+Open the app (it starts empty on **New Project**) and create a project named
+`Customer Portal Credential-Stuffing Incident`. Click **Create project** — you
+are moved to the **Ingestion** tab to add its files. The scenario files live in
+the repo under `sample_docs/project/2/`.
 
 ---
 
-## Step 2 — Ingestion: upload the document pathways
+## Step 2 — Ingestion: upload the project files
 
-Open the **Ingestion** tab. There are four upload areas, and the readiness
-banner requires **corpus** + **corrections** + at least one of
-{**template**, **first draft**} — the two valid pathways. (If you used **Use
-this sample** in Step 1, these are already loaded; read this to see what the
-sample provided, then go to Step 3.)
+Open the **Ingestion** tab. Uploading the project's files is what populates the
+Correction Pipeline. There are four upload areas; the readiness banner requires
+**the manifest + corpus + corrections** and at least one of {**template**,
+**first draft**} — the two valid pathways. Drop the manifest (`project.json`) and
+the figure manifest (`corpus/graphics.json`) into **Original corpus** alongside
+the source docs; the app routes each file to its role by name.
 
 Upload the files from `sample_docs/project/2/`:
 
-| Area | Upload | Pathway |
+| Area | Upload | Role |
 |---|---|---|
-| Original corpus | `corpus/soc_alert_2026-05-11.txt`, `corpus/incident_review_2026-05-20.md` | — (required) |
-| Template | `template/` incident template JSON | **template pathway** |
-| First draft | `first_attempt/` draft JSON | **first-draft pathway** |
-| Corrections | `corrections/comments.json` | — (required) |
+| Original corpus | `project.json` | project manifest |
+| Original corpus | `corpus/soc_alert_2026-05-11.txt`, `corpus/incident_review_2026-05-20.md` | source documents (required) |
+| Original corpus | `corpus/graphics.json` | named-figure manifest |
+| Template | `template/incident_report_template.json` | **template pathway** |
+| First draft | `first_attempt/incident_report_draft.json` | **first-draft pathway** |
+| Corrections | `corrections/comments.json` | reviewer feedback (required) |
 
 **What you should see:** each file advances **ingest → parse → chunk → embed →
 index** to **completed**, and the readiness banner flips from **"Inputs
-incomplete"** to **"Inputs ready"** once corpus + corrections + one of
-template/first-draft are present. The Correction Pipeline and Report & Export
-tabs then unlock. (The **template** file is the blank structure; the
+incomplete"** to **"Inputs ready"** once the manifest + corpus + corrections +
+one of template/first-draft are present. The Correction Pipeline and Report &
+Export tabs then unlock. (The **template** file is the blank structure; the
 **first-draft** file is the flawed attempt — both ship so you can compare Draft
 and Template modes.)
 

@@ -8,9 +8,35 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Post-0.3.0 vetting: an end-to-end UI test suite, an expanded accessibility
 audit, a Diagnostics-page audit and outfit, and the UI/doc fixes that work
-surfaced.
+surfaced. **Plus a corrected real user flow: uploaded documents now feed the
+Correction Pipeline, and the in-app samples crutch was removed.**
 
 ### Added
+- **Ingestion → correction bridge** (`app/correction_bridge.py`): uploading a
+  project's files on the Ingestion tab now persists them into the correction
+  data store in the shape the reconcile engine reads (manifest, corpus,
+  template, first-draft, corrections), so the **Correction Pipeline populates
+  from genuine uploads**. Previously the engine only ran on bundled samples; an
+  upload-built project showed an empty pipeline. Verified end to end: uploading
+  the TGX-9 scenario files reconciles to the exact guide numbers (draft 17 =
+  3/4/8/1/1, template 16 = 0/11/3/1/1).
+
+### Changed
+- **Honest readiness.** `GET /projects/{id}/readiness` now reports `ready` from
+  the correction data store the engine actually reads (manifest + corpus +
+  corrections + a template or first-draft), not merely from upload tags — so
+  "Correction Pipeline unlocked" is true only when the pipeline can really run.
+
+### Removed
+- **The in-app samples feature.** Removed the Samples tab, the templates catalog
+  (`GET /templates`), one-click instantiation (`POST /projects/from-template`),
+  the `TemplatePicker` component, and the `SAMPLES_ENABLED` flag. Samples had
+  masked the broken upload→correction flow; the real path (create a project,
+  upload its files) now works, so the crutch is gone. The six worked example
+  cases still ship under `sample_docs/project/<id>/` and are run by uploading
+  their files, as every project walkthrough now describes.
+
+### Added — earlier this cycle (E2E / a11y / diagnostics)
 - End-to-end UI suite (`frontend/e2e/`, Playwright): 20 flows across five specs
   that drive the **built** app through a real browser against the **live** Docker
   stack and assert the on-screen values the project guides promise —
