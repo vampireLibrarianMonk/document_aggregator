@@ -25,7 +25,7 @@ backend/
     project.py   project loading + run_reconciliation / run_convergence
     store.py      JSON/SQLite-on-disk store (Postgres-ready interface)
     config.py     settings (DATA_DIR, embedding backend, flags)
-  tests/          pytest suite (13 modules)
+  tests/          pytest suite (516 tests across 36 modules) + research harnesses
   build_project_graphics.py  generate real PNG figures + enrich graphics.json
   build_sample_docs.py        generate template/draft DOCX/PPTX/PDF from projects
   seed.py                     opt-in dev tool: throwaway local aggregation demo (never auto-run)
@@ -152,23 +152,132 @@ Heavy work runs through a job queue (`app/jobs/`):
   `WORKER_CONCURRENCY` sets the thread count. The queue interface is
   Postgres-ready.
 
-## Testing and quality gates
+## Testing regime
+
+The project is verified at four levels, from pure-unit up to a real browser
+driving the built app against a live stack. Everything below runs **offline and
+deterministic by default** — the `backend/tests/conftest.py` autouse fixture
+pins `BEDROCK_ENABLED=false`, so no test makes a live model call unless you
+explicitly opt in with `BEDROCK_ENABLED=true`.
+
+Think of the levels as a pyramid: the backend `pytest` suite is the broad base
+(fast, always run), `verify_project.py` and the workflow e2e tests are the
+mid-tier integration gates, the Playwright suite + a11y audit are the on-demand
+UI gates, and the research harnesses under `docs/testing/` are the archived
+experiments that decided the architecture.
+
+### Level 1 — Backend unit + API suite (`pytest`)
+
+The core gate. **516 tests across 36 modules**, all offline:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest backend/tests -q      # ~244 tests
-.\.venv\Scripts\python.exe backend\verify_project.py       # 15 project assertions
-.\.venv\Scripts\ruff.exe check backend                      # lint
-
-cd frontend
-npm run build            # tsc + vite build
-npm run lint             # oxlint
-npm run audit:a11y       # axe-core + keyboard/focus audit (needs a running/seeded backend)
+.\.venv\Scripts\python.exe -m pytest backend/tests -q           # whole suite
+.\.venv\Scripts\python.exe -m pytest backend/tests/test_invariants.py -q   # one module
+.\.venv\Scripts\python.exe -m pytest backend/tests -k json_alignment -q    # by keyword
 ```
 
-The a11y toolkit lives in `frontend/a11y/` and is transferable to other
-projects; see `frontend/a11y/ACCESSIBILITY.md`.
+What the suite covers, by area:
 
-### Research & bake-offs
+| Area | Modules (examples) | What it proves |
+|---|---|---|
+| **Correction engine invariants** | `test_invariants` (78), `test_randomized_draft` (60), `test_convergence` | No fabrication, no auto-resolution of genuine conflicts, no silent defaults — fuzzed over randomized drafts. |
+| **Ingestion / convert** | `test_conversion` (48), `test_ocr`, `test_vector_layout` | DOCX/PPTX/PDF → canonical shape + evidence; OOXML style inheritance; OCR; PDF geometry. |
+| **Correction Orchestrator** | `test_command_center` (35), `test_coordinator_proveout` | The DAG + queue + convergence path is byte-identical to the inline path across all six sample projects and both modes. |
+| **JSON → golden-JSON batch** | `test_json_alignment*` (9 modules), `test_batch_api`, **`test_batch_workflow_e2e`** | Mapping cascade, relevance cutoff, drift, profile library, and the **five batch pathways end-to-end through the HTTP API** (see below). |
+| **Discipline / fact-pool / page-growth** | `test_discipline*`, `test_factpool` (25), `test_pagegrow` (18) | Formatting rubric learned from the template; figure/table placement; page-growth stress. |
+| **Jobs + diagnostics + settings** | `test_jobs`, `test_job_ops`, `test_diagnostics` (15), `test_project_settings` | Async queue lifecycle; the Diagnostics probes; per-project settings (incl. the relevance dial). |
+| **Model tier (opt-in)** | `test_model_sweep`, `test_tooluse_spiral`, `test_json_alignment_semantic` | Run offline as no-ops; `BEDROCK_ENABLED=true` turns on the live-model paths. |
+
+#### Testing a scenario *in its totality* (the pattern to copy)
+
+`backend/tests/test_batch_workflow_e2e.py` is the reference for exercising a
+whole user workflow end-to-end. It drives the **same HTTP endpoints the UI
+buttons call, in button-click order**, and asserts the human-visible result for
+each scenario — this is how we reliably test "buttonology" without a flaky
+browser layer. Each of the five JSON-batch pathways is a complete scenario
+(`novel_research` → `replay_clean` → `review` → `reject_irrelevant` →
+`drift_repair`), plus a combined mixed-batch pass and an output-is-JSON-only
+lock.
+
+Two deliberate design choices make it a true contract test:
+
+- it mirrors the frontend's `filesToDocs` (file → `{doc_id, records}`) and
+  `PATHWAY_LABELS` map as small local helpers, so if the backend pathway
+  constants ever drift from what `BatchPanel.tsx` renders, the test fails;
+- it runs the real `Worker` against the shared job queue the API enqueued to,
+  so the async job path is exercised, not stubbed.
+
+When you add a new user-facing workflow, add a sibling `*_workflow_e2e.py` that
+walks its endpoints the same way.
+
+### Level 2 — Project assertion gate
+
+```powershell
+.\.venv\Scripts\python.exe backend\verify_project.py       # 15 assertions over project 1's defect inventory
+```
+
+Proves the engine's numbers at the API level for the TGX-9 reference project
+(the figures the project guides quote). The Playwright suite then proves those
+same numbers survive the trip to the screen.
+
+### Level 3 — Lint, types, and secret scanning (pre-commit)
+
+```powershell
+.\.venv\Scripts\ruff.exe check backend          # lint (E,F,I,N,W,UP)
+.\.venv\Scripts\ruff.exe format backend          # formatter
+.\.venv\Scripts\mypy.exe backend/app             # types
+pre-commit run --all-files                        # everything below in one shot
+```
+
+`.pre-commit-config.yaml` wires the automated gates that run on every commit:
+`ruff` (+ `ruff-format`), `mypy` over `backend/app/`, **gitleaks** secret
+scanning, `oxlint` over `frontend/src/`, plus the standard hygiene hooks
+(trailing whitespace, EOF, YAML/JSON/TOML/AST checks, large-file + merge-conflict
++ private-key guards, LF line endings). These are the only gates that run
+automatically; everything else is run on demand.
+
+### Level 4 — Frontend build, lint, a11y, and browser e2e
+
+```powershell
+cd frontend
+npm run build            # tsc -b + vite build (the type + build gate)
+npm run lint             # oxlint
+npm run audit:a11y       # axe-core WCAG 2.1 A/AA + keyboard/focus across 17 UI states
+npm run e2e              # Playwright: 20 flows through a real browser (needs the stack up)
+npm run e2e:ui           # the Playwright UI runner, for debugging one flow
+```
+
+- **a11y audit** (`frontend/a11y/`): axe-core plus keyboard reachability/focus
+  checks across 17 interactive UI states; 0 violations is the bar. Transferable
+  to other projects — see `frontend/a11y/ACCESSIBILITY.md`.
+- **Playwright e2e** (`frontend/e2e/`): drives the **built** app in a real
+  browser against the **live** Docker stack and asserts the on-screen values the
+  guides promise — tab-gating, the six correction cases (draft + template), the
+  four-pathway ingestion upload, the JSON→golden batch (all five pathways), and
+  Diagnostics. The asserted numbers live in `frontend/e2e/expected.ts`. It is
+  **on-demand only** (needs Docker + a browser binary), so it is deliberately
+  *not* in pre-commit/CI. Prerequisites and the full matrix are in
+  `frontend/e2e/README.md`.
+
+The a11y audit and the e2e suite share one static-server-with-`/api`-proxy
+(`frontend/a11y/serve.mjs`), so the app is exercised identically by both.
+
+### What runs when
+
+| Gate | Command | Automatic? |
+|---|---|---|
+| Lint / format / types / secrets / oxlint | `pre-commit run --all-files` | **Yes** (every commit) |
+| Backend suite | `pytest backend/tests` | On demand (run before every push) |
+| Project assertions | `python backend/verify_project.py` | On demand |
+| Frontend build + lint | `npm run build` / `npm run lint` | On demand (run before every push) |
+| a11y audit | `npm run audit:a11y` | On demand (needs a served app) |
+| Browser e2e | `npm run e2e` | On demand (needs Docker + Chromium) |
+
+Before a push, the minimum bar is: backend suite green, `verify_project.py`
+green, `npm run build` clean, and `pre-commit run --all-files` clean. Run the
+a11y + e2e gates whenever you touch the frontend or any route the guides quote.
+
+### Research & bake-offs (archived experiments)
 
 The experiments that decided the Correction Pipeline's engine architecture are
 documented under [`docs/testing/`](testing/README.md), each with a self-contained
