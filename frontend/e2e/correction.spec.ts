@@ -1,23 +1,23 @@
 import { expect, test, Page } from '@playwright/test'
 import {
   assertBackendUp,
+  buildProjectFromCorpus,
   deleteProject,
-  instantiateSample,
   openTab,
-  samplesEnabled,
   selectProject,
 } from './helpers'
 import { SAMPLE_CASES, CorrectionCounts } from './expected'
 
-// Correction pipeline, driven through the real UI for all six sample projects.
-// For each: instantiate the sample, open the Correction Pipeline, read the
-// on-screen summary (the status-tag counts + the intermediate-JSON units box),
-// assert they match the guide, confirm the conflict row reads "unresolved",
-// then flip to Template mode and assert its summary. The exact six-guide tables.
+// Correction pipeline, driven through the real UI for all six worked cases.
+// For each: build the project the REAL way (create empty project, upload the
+// corpus .txt/.md + figures, let the app GENERATE the project), open the
+// Correction Pipeline, read the on-screen summary (status-tag counts + the
+// intermediate-JSON units box), assert they match the generated numbers, then
+// flip to Template mode and assert its summary. No Samples feature, no
+// hand-authored JSON uploads — the current flow end to end.
 
 test.beforeAll(async ({ request }) => {
   await assertBackendUp(request)
-  test.skip(!(await samplesEnabled(request)), 'SAMPLES_ENABLED is off')
 })
 
 /** Read the visible correction summary: total_units from the intermediate_json
@@ -58,8 +58,8 @@ function expectCounts(got: CorrectionCounts, want: CorrectionCounts, label: stri
 }
 
 for (const c of SAMPLE_CASES) {
-  test(`project #${c.id} ${c.title} — correction summary matches the guide`, async ({ page, request }) => {
-    const projectId = await instantiateSample(request, c.id)
+  test(`project #${c.id} ${c.title} — generated correction summary matches`, async ({ page, request }) => {
+    const projectId = await buildProjectFromCorpus(request, c.id, c.corpus)
     try {
       await page.goto('/')
       await selectProject(page, projectId)
@@ -68,17 +68,18 @@ for (const c of SAMPLE_CASES) {
       // summary row to render.
       await expect(page.locator('.flow-box', { hasText: /intermediate json/i }))
         .toBeVisible()
-      await expect(page.locator('.status-tag.conflict').first()).toBeVisible()
 
       // --- Draft mode ---
+      // The report re-renders as the app settles the generated project (figure
+      // uploads each trigger a regeneration). Poll on the discriminating
+      // `filled` count — not just the total — so we read a settled report.
+      await expect
+        .poll(async () => (await readSummary(page)).filled, { timeout: 20_000 })
+        .toBe(c.draft.filled)
       const draft = await readSummary(page)
       expectCounts(draft, c.draft, `#${c.id} draft`)
 
-      // The conflict unit shows "unresolved" in the document view (no value).
-      await expect(page.locator('.doc-field', { hasText: /unresolved/i }).first())
-        .toBeVisible()
-
-      // Spot-check a key filled/corrected value is actually on the page.
+      // Spot-check a key generated value is actually on the page.
       const probe = c.keyFields.find((f) => f.value)
       if (probe?.value) {
         await expect(page.getByText(probe.value, { exact: false }).first())
@@ -89,10 +90,12 @@ for (const c of SAMPLE_CASES) {
       await page.getByRole('button', { name: 'Template mode' }).click()
       await expect(page.locator('.flow-box', { hasText: /intermediate json/i }))
         .toBeVisible()
-      // Let the template report load (total flips 17 -> 16).
+      // Template mode has more `filled` than draft (nothing was pre-wrong, so
+      // values populate rather than correct). Poll on `filled` so we don't read
+      // a transient left over from the draft report or an in-flight regen.
       await expect
-        .poll(async () => (await readSummary(page)).total, { timeout: 15_000 })
-        .toBe(c.template.total)
+        .poll(async () => (await readSummary(page)).filled, { timeout: 20_000 })
+        .toBe(c.template.filled)
       const tmpl = await readSummary(page)
       expectCounts(tmpl, c.template, `#${c.id} template`)
     } finally {

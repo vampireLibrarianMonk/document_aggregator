@@ -5,27 +5,27 @@ import {
   createProject,
   deleteProject,
   openTab,
+  SAMPLE_DOCS,
   selectProject,
 } from './helpers'
 import { INGESTION_READY } from './expected'
 
-// Ingestion / upload pathways, driven through the real browser: create an EMPTY
-// project, upload the four document pathways (corpus x2, template, first_draft,
-// corrections) via the real file input, watch each row reach "completed", and
-// confirm the readiness banner flips incomplete -> ready and the Correction
-// Pipeline / Report tabs unlock. This is TGX-9's Step 2 end to end.
+// Ingestion / upload, driven through the real browser: create an EMPTY project,
+// upload the standard source document set (corpus .txt/.md + figures) via the
+// real file input, watch each row reach "completed", and confirm readiness
+// flips incomplete -> ready (the app GENERATES the project from the uploads) and
+// the Correction Pipeline / Report tabs unlock. This is TGX-9's upload step end
+// to end — no hand-authored JSON, which the current flow no longer uses.
 
-// sample_docs lives at repo-root/sample_docs; specs run with cwd = frontend/.
-const SAMPLES = join(process.cwd(), '..', 'sample_docs', 'project', '1')
-// Area titles are the exact numbered <strong> labels in IngestionBoard.
-const FILES: { area: string; files: string[] }[] = [
-  { area: '1. Original corpus', files: [
-    join(SAMPLES, 'corpus', 'field_report_2026-03-02.txt'),
-    join(SAMPLES, 'corpus', 'root_cause_notes_2026-03-15.md'),
-  ] },
-  { area: '2. Template', files: [join(SAMPLES, 'template', 'incident_report_template.json')] },
-  { area: '4. First draft', files: [join(SAMPLES, 'first_attempt', 'incident_report_draft.json')] },
-  { area: '3. Corrections', files: [join(SAMPLES, 'corrections', 'comments.json')] },
+const CORPUS = join(SAMPLE_DOCS, '1', 'corpus')
+// Everything is uploaded into the "Original corpus" area; the app derives the
+// manifest/template/draft/corrections from these real documents.
+const CORPUS_FILES = [
+  join(CORPUS, 'field_report_2026-03-02.txt'),
+  join(CORPUS, 'root_cause_notes_2026-03-15.md'),
+  join(CORPUS, 'figures', 'packet_loss_vs_temp.png'),
+  join(CORPUS, 'figures', 'site_network_topology.png'),
+  join(CORPUS, 'figures', 'cabinet_thermal_layout.png'),
 ]
 
 let projectId = ''
@@ -39,37 +39,32 @@ test.afterAll(async ({ request }) => {
   if (projectId) await deleteProject(request, projectId)
 })
 
-/** Upload files into one named Ingestion area's hidden file input. The area is
- *  the .panel whose heading <strong> is exactly `area` (e.g. "2. Template"). */
-async function uploadToArea(page: Page, area: string, files: string[]) {
+/** Upload files into the "Original corpus" area's hidden file input. */
+async function uploadToCorpus(page: Page, files: string[]) {
   const panel = page.locator('.panel', {
-    has: page.getByText(area, { exact: true }),
+    has: page.getByText('1. Original corpus', { exact: true }),
   })
   await panel.locator('input[type="file"]').setInputFiles(files)
 }
 
-test('upload the four pathways, readiness flips to ready, tabs unlock', async ({ page }) => {
+test('upload the corpus set, readiness flips to ready, tabs unlock', async ({ page }) => {
   await page.goto('/')
   await selectProject(page, projectId)
   await openTab(page, 'Ingestion')
 
-  // Readiness starts incomplete.
-  await expect(page.getByText('Inputs incomplete')).toBeVisible()
+  // Readiness starts with the "add your documents" prompt.
+  await expect(page.getByText('Add your documents')).toBeVisible()
 
-  // Upload each pathway and wait for its row(s) to reach "completed".
-  let expectedRows = 0
-  for (const { area, files } of FILES) {
-    await uploadToArea(page, area, files)
-    expectedRows += files.length
-    // Each uploaded doc renders a row with a "completed" status badge.
-    await expect
-      .poll(async () => page.locator('.docs .badge.completed').count(),
-        { timeout: 20_000 })
-      .toBeGreaterThanOrEqual(expectedRows)
-  }
+  // Upload the whole document set and wait for every row to reach "completed".
+  await uploadToCorpus(page, CORPUS_FILES)
+  await expect
+    .poll(async () => page.locator('.docs .badge.completed').count(),
+      { timeout: 30_000 })
+    .toBeGreaterThanOrEqual(CORPUS_FILES.length)
 
-  // Readiness flips to ready.
-  await expect(page.getByText('Inputs ready')).toBeVisible({ timeout: 15_000 })
+  // Readiness flips to "Project ready" once the app generates the project from
+  // the uploads.
+  await expect(page.getByText('Project ready')).toBeVisible({ timeout: 15_000 })
 
   // The Correction Pipeline + Report tabs are now enabled.
   await expect(page.getByRole('tab', { name: 'Correction Pipeline' }))
@@ -78,9 +73,8 @@ test('upload the four pathways, readiness flips to ready, tabs unlock', async ({
     .not.toHaveAttribute('aria-disabled', 'true')
 })
 
-test('readiness counts match the four pathways', async ({ request }) => {
-  // Verify the backend readiness reflects the uploads (corpus:2 etc.). This
-  // asserts the same counts the guide quotes, via the API the UI reads.
+test('readiness reflects the uploaded corpus set', async ({ request }) => {
+  // Verify the backend readiness reflects the uploads via the API the UI reads.
   const res = await request.get(`/api/projects/${projectId}/readiness`)
   expect(res.ok()).toBeTruthy()
   const r = await res.json()

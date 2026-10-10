@@ -23,7 +23,7 @@ test('diagnostics renders every service with a status and the footer', async ({ 
     'Embeddings (semantic search)',
     'OCR (scanned PDFs and images)',
     'Layout geometry tier (LibreOffice)',
-    'Bedrock (optional model generation)',
+    'Bedrock (optional model tier)',
   ]) {
     const heading = page.getByText(title, { exact: true })
     await expect(heading).toBeVisible()
@@ -54,11 +54,11 @@ test('disabled Bedrock reads Offline, not OK (finding D1)', async ({ page, reque
   test.skip(diag.services.bedrock.enabled === true, 'Bedrock is enabled in this deployment')
 
   await page.goto('/diagnostics')
-  const heading = page.getByText('Bedrock (optional model generation)', { exact: true })
+  const heading = page.getByText('Bedrock (optional model tier)', { exact: true })
   const row = heading.locator('xpath=ancestor::div[contains(@class,"row")][1]')
   // The indicator must be the muted "Offline" word, never "OK".
   await expect(row.locator('.status-tag')).toHaveText('Offline')
-  // The posture detail is explicit on the page.
+  // The posture detail is explicit on the page (Enabled: no (disabled by config)).
   await expect(page.getByText('disabled by config')).toBeVisible()
 })
 

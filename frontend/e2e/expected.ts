@@ -1,9 +1,16 @@
-// Single source of truth for the values the E2E specs assert — the SAME numbers
-// the project guides quote (docs/user-guide/projects/*). Keeping them here means
-// a guide and its test can never silently drift: change one, update both.
+// Single source of truth for the values the E2E specs assert.
 //
-// All values were captured from the live reconciliation API and match the
-// per-project walkthroughs.
+// These are the numbers the REAL user flow produces: create a project, upload
+// the standard set of source documents (corpus .txt/.md + figures/*.png), and
+// let the app GENERATE the project (manifest/template/draft/corrections) and
+// reconcile it. There is no longer an in-app Samples feature or hand-authored
+// JSON upload — those were removed when the upload-real-documents flow landed.
+//
+// All values below were captured from the live served flow (upload the bundled
+// sample_docs corpus for each project, then GET /reconcile) so a spec and the
+// running app can never silently drift. The reconcile summary's `total_units`
+// counts every reconciled unit (section bodies included), which is what the
+// Correction Pipeline UI shows and what these specs assert.
 
 export interface CorrectionCounts {
   total: number
@@ -17,92 +24,80 @@ export interface CorrectionCounts {
 export interface SampleCase {
   id: string
   title: string
+  // The corpus documents uploaded to build this project (relative to
+  // sample_docs/project/<id>/corpus/). Figures are discovered under figures/.
+  corpus: string[]
   draft: CorrectionCounts
   template: CorrectionCounts
-  // A few key field values to spot-check (key -> expected status + value).
-  keyFields: { key: string; status: string; value?: string }[]
+  // A few key field values to spot-check are visible on the generated report.
+  keyFields: { value: string }[]
 }
 
-// Template-mode summary is identical across the five incident projects:
-const INCIDENT_TEMPLATE: CorrectionCounts = {
-  total: 16, unchanged: 0, filled: 11, corrected: 3, needs_review: 1, conflict: 1,
+// Draft/template summaries are identical across projects 1, 3, 4, 5 (the
+// generator derives the same unit shape from their shared corpus structure).
+const COMMON_DRAFT: CorrectionCounts = {
+  total: 16, unchanged: 1, filled: 8, corrected: 5, needs_review: 2, conflict: 0,
+}
+const COMMON_TEMPLATE: CorrectionCounts = {
+  total: 16, unchanged: 0, filled: 12, corrected: 2, needs_review: 2, conflict: 0,
 }
 
 export const SAMPLE_CASES: SampleCase[] = [
   {
     id: '1',
-    title: 'TGX-9 Telemetry Gateway Incident',
-    draft: { total: 17, unchanged: 3, filled: 4, corrected: 8, needs_review: 1, conflict: 1 },
-    template: INCIDENT_TEMPLATE,
-    keyFields: [
-      { key: 'identifiers.site', status: 'unchanged', value: 'North Ridge Relay Station' },
-      { key: 'contributing_factors.firmware', status: 'filled', value: '4.2.1' },
-      { key: 'description.duration', status: 'filled', value: 'four hour' },
-      { key: 'identifiers.severity', status: 'conflict' },
-    ],
+    title: 'TGX-9 Root Cause Analysis Notes',
+    corpus: ['field_report_2026-03-02.txt', 'root_cause_notes_2026-03-15.md'],
+    draft: COMMON_DRAFT,
+    template: COMMON_TEMPLATE,
+    keyFields: [{ value: 'North Ridge Relay Station' }, { value: 'J. Okafor' }],
   },
   {
     id: '2',
-    title: 'Customer Portal Credential-Stuffing Incident',
-    draft: { total: 17, unchanged: 2, filled: 4, corrected: 9, needs_review: 1, conflict: 1 },
-    template: INCIDENT_TEMPLATE,
-    keyFields: [
-      { key: 'identifiers.site', status: 'corrected', value: 'Customer Portal (web-tier)' },
-      { key: 'contributing_factors.auth_version', status: 'filled', value: '3.4.0' },
-      { key: 'description.duration', status: 'filled', value: 'six hour' },
-      { key: 'identifiers.severity', status: 'conflict' },
-    ],
+    title: 'Customer Portal Breach Attempt — Incident Review',
+    corpus: ['incident_review_2026-05-20.md', 'soc_alert_2026-05-11.txt'],
+    draft: { total: 15, unchanged: 1, filled: 7, corrected: 5, needs_review: 2, conflict: 0 },
+    template: { total: 15, unchanged: 0, filled: 11, corrected: 2, needs_review: 2, conflict: 0 },
+    keyFields: [{ value: 'Customer Portal (web-tier)' }],
   },
   {
     id: '3',
-    title: 'Clinical Lab Reagent Spill Safety Event',
-    draft: { total: 17, unchanged: 2, filled: 4, corrected: 9, needs_review: 1, conflict: 1 },
-    template: INCIDENT_TEMPLATE,
-    keyFields: [
-      { key: 'identifiers.site', status: 'corrected', value: 'Automated Chemistry Analyzer Bay 2' },
-      { key: 'contributing_factors.software_version', status: 'filled', value: '7.1.2' },
-      { key: 'description.duration', status: 'filled', value: 'three hour' },
-      { key: 'identifiers.severity', status: 'conflict' },
-    ],
+    title: 'CLINICAL LABORATORY SAFETY EVENT REPORT',
+    corpus: ['lab_event_2026-07-03.txt', 'safety_review_2026-07-14.md'],
+    draft: COMMON_DRAFT,
+    template: COMMON_TEMPLATE,
+    keyFields: [{ value: 'Automated Chemistry Analyzer Bay 2' }],
   },
   {
     id: '4',
-    title: 'Injection Molding Line Defect Event',
-    draft: { total: 17, unchanged: 3, filled: 4, corrected: 8, needs_review: 1, conflict: 1 },
-    template: INCIDENT_TEMPLATE,
-    keyFields: [
-      { key: 'identifiers.site', status: 'unchanged', value: 'Injection Molding Line 3' },
-      { key: 'contributing_factors.firmware', status: 'filled', value: '2.0.5' },
-      { key: 'description.duration', status: 'filled', value: 'five hour' },
-      { key: 'identifiers.severity', status: 'conflict' },
-    ],
+    title: 'MANUFACTURING QUALITY DEFECT REPORT',
+    corpus: ['qc_report_2026-08-09.txt', 'rca_review_2026-08-19.md'],
+    draft: COMMON_DRAFT,
+    template: COMMON_TEMPLATE,
+    keyFields: [{ value: 'Injection Molding Line 3' }],
   },
   {
     id: '5',
-    title: 'Aircraft Hydraulic Decay Maintenance Event',
-    draft: { total: 17, unchanged: 1, filled: 4, corrected: 10, needs_review: 1, conflict: 1 },
-    template: INCIDENT_TEMPLATE,
-    keyFields: [
-      { key: 'contributing_factors.software_version', status: 'filled', value: 'B2.3' },
-      { key: 'description.duration', status: 'filled', value: 'seven hour' },
-      { key: 'identifiers.severity', status: 'conflict' },
-    ],
+    title: 'AIRCRAFT MAINTENANCE DISCREPANCY REPORT',
+    corpus: ['maintenance_log_2026-09-06.txt', 'reliability_review_2026-09-16.md'],
+    draft: COMMON_DRAFT,
+    template: COMMON_TEMPLATE,
+    keyFields: [{ value: 'Regional Jet Tail 512 Hydraulic System B' }],
   },
   {
     id: '6',
-    title: 'Nav Bus Interface Control Document',
-    draft: { total: 17, unchanged: 2, filled: 3, corrected: 9, needs_review: 2, conflict: 1 },
-    template: { total: 16, unchanged: 0, filled: 11, corrected: 2, needs_review: 2, conflict: 1 },
-    keyFields: [
-      { key: 'scope.system', status: 'unchanged', value: 'Navigation Data Bus (Nav Bus)' },
-      { key: 'scope.approval_status', status: 'conflict' },
-    ],
+    title: 'Nav Bus ICD Review Board Notes',
+    corpus: ['interface_spec_2026-04-10.txt', 'review_board_notes_2026-04-22.md'],
+    draft: { total: 12, unchanged: 1, filled: 4, corrected: 5, needs_review: 2, conflict: 0 },
+    template: { total: 12, unchanged: 0, filled: 8, corrected: 2, needs_review: 2, conflict: 0 },
+    keyFields: [{ value: 'Navigation Data Bus (Nav Bus)' }],
   },
 ]
 
-// Ingestion readiness (TGX-9 four pathways uploaded).
+// Ingestion readiness after uploading the standard document set for project 1
+// (2 text corpus docs + 3 figures, all tagged corpus; the app generates the
+// manifest/template/draft/corrections from them).
 export const INGESTION_READY = {
-  corpus: 2, template: 1, corrections: 1, first_draft: 1,
+  corpus: 5, template: 0, corrections: 0, first_draft: 0,
 }
 
 // Batch pathways the JSON->golden guide exercises.

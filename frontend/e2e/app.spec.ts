@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { assertBackendUp, openTab, samplesEnabled, wipeProjects } from './helpers'
+import { assertBackendUp, wipeProjects } from './helpers'
 
 // Smoke / navigation: the app shell, empty-start behavior, tab gating, and the
 // project selector. No sample data required beyond a clean slate.
@@ -30,12 +30,9 @@ test('downstream tabs are gated until prerequisites are met', async ({ page }) =
   }
 })
 
-test('Samples tab is present when the feature is enabled', async ({ page, request }) => {
-  test.skip(!(await samplesEnabled(request)), 'SAMPLES_ENABLED is off')
+test('there is no Samples tab (the in-app samples feature was removed)', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('tab', { name: 'Samples' })).toBeVisible()
-  // And it opens.
-  await openTab(page, 'Samples')
-  await expect(page.getByRole('tab', { name: 'Samples' })).toHaveAttribute(
-    'aria-selected', 'true')
+  // The real flow is: create a project and upload documents. The old Samples
+  // tab / one-click instantiation no longer exists.
+  await expect(page.getByRole('tab', { name: 'Samples' })).toHaveCount(0)
 })

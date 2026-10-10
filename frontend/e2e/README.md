@@ -14,32 +14,35 @@ the frontend, the project-scoped routes, or anything the guides quote.
 
 | Spec | Flows | Asserts |
 |---|---|---|
-| `app.spec.ts` | 3 | empty start lands on New Project; tab-gating enables tabs only when prerequisites are met; the project selector scopes every tab; the Samples tab appears when `SAMPLES_ENABLED` |
-| `correction.spec.ts` | 6 | every bundled sample project via **Samples → Use this sample**: draft-mode summary counts + key field values/statuses (incl. a `conflict` field showing *unresolved* with no value), then flipped to template mode with the template counts — matching the six guide tables |
-| `ingestion.spec.ts` | 2 | create an empty project → upload the four pathways through the real file input (corpus ×2, template, first draft, corrections) → every row reaches `completed` → readiness flips incomplete→ready (corpus 2 / template 1 / corrections 1 / first_draft 1) → the Correction/Report tabs unlock |
+| `app.spec.ts` | 3 | empty start lands on New Project; tab-gating enables tabs only when prerequisites are met; and there is **no** Samples tab (the in-app samples feature was removed in favor of the upload-real-documents flow) |
+| `correction.spec.ts` | 6 | every worked case built the **real** way — create an empty project, upload the corpus `.txt`/`.md` + figures, let the app **generate** the project — then read the Correction Pipeline draft-mode summary counts + a spot-checked generated value, flip to template mode, and assert the template counts. The generated reports have no `conflict` row (the corpora carry no judgement field). |
+| `ingestion.spec.ts` | 2 | create an empty project → upload the standard corpus set (corpus `.txt`/`.md` + 3 figures) through the real file input → every row reaches `completed` → the app generates the project so readiness flips incomplete→ready (all uploads tagged corpus) → the Correction/Report tabs unlock |
 | `batch.spec.ts` | 5 | the JSON→golden **Batch conversion** section: set a golden schema, tune the relevance dial, upload JSON, process — exercising all five pathways (novel research → approve → replay-clean, drift → drift-repair, unrelated → reject) |
 | `diagnostics.spec.ts` | 4 | `/diagnostics` renders every service row with a status, the footer is present, **Refresh** re-fetches, and the Bedrock row reports enabled/reachable/in-use honestly |
 
-The numbers each spec asserts live in one place: `expected.ts` (the centralized
-guide values). `helpers.ts` holds the shared actions (sample instantiation,
-project create/delete, tab navigation, backend-reachability precheck). Each spec
-creates and then deletes its own projects, so a clean run leaves **zero**
-leftover projects.
+The numbers each spec asserts live in one place: `expected.ts` — the values the
+**real generate-from-documents flow** produces (captured from the live served
+flow, not hand-authored). `helpers.ts` holds the shared actions
+(`buildProjectFromCorpus` which uploads a case's corpus + figures and lets the
+app generate the project, project create/delete, tab navigation, and the
+backend-reachability precheck). Each spec creates and then deletes its own
+projects, so a clean run leaves **zero** leftover projects.
 
 ## Prerequisites
 
-1. **The Docker stack is up** with samples (and diagnostics) enabled:
+1. **The Docker stack is up** (diagnostics enabled so `diagnostics.spec.ts` can
+   reach the page):
 
    ```powershell
    # from the repo root
-   $env:SAMPLES_ENABLED = "true"
    $env:DIAGNOSTICS_ENABLED = "true"
    docker compose up
    ```
 
    The suite talks to the `api` service on `http://localhost:8000` through the
    proxy. The global setup does a reachability precheck and fails fast with a
-   clear message if the backend is down.
+   clear message if the backend is down. No samples flag is needed — the suite
+   builds its own projects by uploading the bundled `sample_docs` corpus.
 
 2. **The app is built** (the suite serves `dist/`, not the Vite dev server):
 
@@ -81,27 +84,21 @@ a11y), so the app is exercised identically by both.
 
 ## Findings this suite caught
 
-Driving the real UI (not just the API) surfaced three genuine app bugs, each
-fixed and committed as part of standing the suite up:
+Driving the real UI (not just the API) surfaced genuine app bugs, each fixed
+and committed as part of standing the suite up:
 
-1. **Sample projects could never open the correction pipeline in the UI.** The
-   Correction/Report tabs were gated solely on `readiness.ready`, which only
-   flips once Ingestion documents are uploaded. Sample/correction projects are
-   fixtures with zero uploads, so their tabs stayed disabled forever. Fixed:
-   `useProject` now also fetches the project components and exposes
-   `hasCorrectionData`; `App.tsx` gates on `hasCorrectionData || inputsReady`.
-
-2. **The Ingestion upload picker greyed out the sample files.** The upload
-   `accept` list omitted `.json`, but the sample template / first-draft /
-   corrections are all JSON — so the picker refused to select them even though
-   the API accepted them. Fixed: added `.json` to the accepted extensions.
-
-3. **Diagnostics showed a disabled Bedrock integration as green.** The Bedrock
+1. **Diagnostics showed a disabled Bedrock integration as green.** The Bedrock
    row reported `ok` whenever the endpoint was *reachable*, even with
    `BEDROCK_ENABLED=false` (credentials are mounted on the dev box). Fixed: the
    state is `ok` only when the integration is both **enabled and available**,
    otherwise `offline`; the panel now shows explicit enabled / reachable / in-use
    rows.
+
+Two earlier findings (correction/report tabs staying locked for upload-less
+fixture projects, and the Ingestion picker rejecting `.json`) were tied to the
+old Samples + hand-authored-JSON flow, which has since been removed. They are
+preserved in the changelog's history rather than here, since the suite no longer
+exercises that path.
 
 ## Relationship to the other gates
 

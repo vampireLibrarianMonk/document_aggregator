@@ -6,20 +6,124 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Post-0.3.0 vetting: an end-to-end UI test suite, an expanded accessibility
-audit, a Diagnostics-page audit and outfit, and the UI/doc fixes that work
-surfaced. **Plus a corrected real user flow: uploaded documents now feed the
-Correction Pipeline, and the in-app samples crutch was removed.**
+Testing-regime consolidation and JSON-guide accuracy pass.
 
 ### Added
+- **Total-workflow e2e test for the JSON→golden batch scenario**
+  (`backend/tests/test_batch_workflow_e2e.py`, 9 tests): drives the same HTTP
+  endpoints the Ingestion-tab buttons call, in click order (save golden schema →
+  set relevance dial → upload → read result → approve → re-upload), exercising
+  **all five batch pathways** as complete scenarios (`novel_research`,
+  `replay_clean`, `review`, `reject_irrelevant`, `drift_repair`) plus a combined
+  mixed-batch pass and a JSON-only output lock. It mirrors the frontend's
+  `filesToDocs` and `PATHWAY_LABELS` as local helpers so a UI/backend contract
+  drift fails the test, and runs the real worker against the shared job queue so
+  the async path is exercised, not stubbed.
+
+### Changed
+- **Reconciled the Playwright e2e suite with the samples removal + upload-generate
+  flow** (`frontend/e2e/`). The suite still predated the removed in-app Samples
+  feature: `correction.spec.ts` instantiated via the deleted
+  `POST /projects/from-template` and `samplesEnabled()` keyed off a `/config`
+  flag that no longer exists, so those flows were permanently skipped/dead, and
+  `ingestion.spec.ts` uploaded hand-authored template/draft/comments JSON. Now
+  every spec drives the **real** flow: `helpers.buildProjectFromCorpus` creates
+  an empty project and uploads a case's corpus `.txt`/`.md` + figures, letting
+  the app generate the project. `expected.ts` carries the actual generated
+  reconcile `total_units` captured from the live served flow (projects 1/3/4/5
+  draft 16, project 2 draft 15, project 6 draft 12; no conflict rows), the
+  dead-code helpers (`samplesEnabled`, `instantiateSample`) are gone, the
+  Samples-tab test asserts the tab is **absent**, and the README no longer tells
+  readers to set `SAMPLES_ENABLED`. Still 20 flows across five specs.
+- **Developer Guide testing section rewritten into a four-level testing regime**
+  (`docs/DEVELOPER_GUIDE.md`): documents every gate — the backend `pytest` suite
+  (now correctly **516 tests across 36 modules**, previously stated as ~244/13),
+  `verify_project.py`, the pre-commit gates (ruff/ruff-format/mypy/gitleaks/
+  oxlint + hygiene hooks), the frontend build/lint, the a11y audit, and the
+  Playwright browser e2e suite — with a "what runs when" table and the
+  scenario-in-its-totality pattern to copy.
+
+### Docs
+- Tightened the JSON→golden walkthrough (`docs/user-guide/projects/json-batch/
+  README.md`) to match the running app: the Ingestion tab is opened (not
+  auto-navigated); the inline schema is noted as a simplified subset of the
+  committed fixture (which adds `x-pydi-taxonomy` alias tables); and the
+  approval-card mapping is described as matcher-grounded (a `needs review` row is
+  the engine refusing to guess, not an error).
+- **Corrected the per-project unit counts in all six correction walkthroughs to
+  the real on-screen numbers.** The guides quoted draft "8 units = 3 corrected /
+  4 filled / 1 needs review" and template "8 = 7 filled / 1 needs review" — a
+  partial hand count that didn't match what the Correction Pipeline actually
+  shows. The authoritative status row / "Corrected intermediate JSON" total is:
+  projects 1/3/4/5 draft **16** (5 corrected / 8 filled / 2 needs review / 1
+  unchanged), template **16** (12 filled / 2 corrected / 2 needs review);
+  project 2 draft **15** / template **15**; project 6 draft **12** / template
+  **12**. Captured from the live served generate-from-documents flow and now the
+  single source of truth shared with `frontend/e2e/expected.ts`.
+
+## [0.4.0] - 2026-10-09
+
+The real user flow lands: uploading the standard set of **real documents**
+generates the project and populates the Correction Pipeline — no hand-authored
+JSON uploads. Plus a page-by-page figure-handling overhaul, a corrected-report
+export, undo for resolved/filled units, and the in-app samples crutch removed.
+
+### Added
+- **Generate the project from uploaded real documents** (`app/ingest_generate.py`,
+  `app/projectgen/`): uploading the standard document set on the Ingestion tab
+  (corpus `.txt`/`.md` + `figures/*.png`, optional reviewer emails) now runs the
+  deterministic corpus generator to produce a reconcilable project — manifest,
+  template, first-draft, corrections, graphics — with the pipeline populated. No
+  `project.json`/`comments.json`/`template.json` uploads are required or
+  demanded. Fully offline and non-fabricating; the model tier stays optional.
+- **Page-by-page figure handling (Option B)**: `parse_docx`/`parse_pptx` now emit
+  image artifacts with paragraph anchors and extract the image bytes, and the
+  generator places each figure against the corpus paragraph that references it
+  (by filename or prose reference) — lifting the one-figure-per-section cap so a
+  section renders all its figures in paragraph order. First-attempt docx/pptx
+  uploads no longer pollute the corpus structure.
+- **Corrected-report export** (`app/exporters.py`, `GET /projects/{id}/export?
+  kind=corrected&mode=draft|template&format=…`): renders the reconciled report
+  (final field values, unresolved conflicts with candidates, filled table, placed
+  figures) rather than an aggregated dump. Filenames carry the project slug + a
+  UTC DTG to the second; images are embedded in docx/pdf/pptx; the markdown
+  export is a ZIP with GitHub-style embedded images and a `figures/` folder;
+  download formats are gated to the source kind (a docx-sourced project is not
+  offered pptx, and vice versa).
+- **Undo for resolved/filled units** (`POST /projects/{id}/unresolve`): a
+  resolved or filled unit can be reverted (removes the persisted resolution and
+  re-reconciles) so a reviewer can redo it. Surfaced as an Undo control in the
+  report UI.
+
+### Changed
+- The **Ingestion tab** now treats uploading real documents as the trigger that
+  generates the project and unlocks the pipeline; readiness reflects
+  corpus-generation readiness rather than a demand for authored JSON.
+- Rewrote the six project guides + `USER_GUIDE.md` to the upload-real-documents→
+  app-generates flow with the actual generated numbers (projects 1–5: draft 8 =
+  3 corrected / 4 filled / 1 needs_review, template 8 = 7 filled / 1 needs_review;
+  project 6 nav-bus: draft 5 = 3/1/1, template 5 = 4/1), with no invented
+  conflict rows and no JSON-upload references.
+
+### Fixed
+- Three correction-pipeline bugs the real flow surfaced: resolving one unit no
+  longer resets another; the corrected draft now shows **all** its figures (not
+  just one); and the UI renders the real image instead of a figure-box
+  placeholder.
+- The generator no longer drops a third catalogued figure, and no longer renders
+  doubled section numbers when a source heading already begins with `N.`; a
+  generic first-heading word (e.g. `Scope`) no longer becomes the project title.
+
+### Added — real-upload bridge + E2E / a11y / diagnostics (earlier this cycle)
 - **Ingestion → correction bridge** (`app/correction_bridge.py`): uploading a
   project's files on the Ingestion tab now persists them into the correction
   data store in the shape the reconcile engine reads (manifest, corpus,
   template, first-draft, corrections), so the **Correction Pipeline populates
   from genuine uploads**. Previously the engine only ran on bundled samples; an
-  upload-built project showed an empty pipeline. Verified end to end: uploading
-  the TGX-9 scenario files reconciles to the exact guide numbers (draft 17 =
-  3/4/8/1/1, template 16 = 0/11/3/1/1).
+  upload-built project showed an empty pipeline. (This bridge persisted
+  hand-authored JSON uploads; the later generate-from-documents flow above
+  supersedes it by generating the project from the raw documents, which is why
+  the guide numbers moved from the authored 17/16 to the generated 8/8.)
 
 ### Changed
 - **Honest readiness.** `GET /projects/{id}/readiness` now reports `ready` from
@@ -412,5 +516,7 @@ frontend, and an air-gapped RHEL/UBI container stack.
   Cloud pieces (e.g. a Bedrock feedback interpreter) are optional adapters behind
   the same interfaces and are disabled by default.
 
+[0.4.0]: https://example.com/releases/0.4.0
+[0.3.0]: https://example.com/releases/0.3.0
 [0.2.0]: https://example.com/releases/0.2.0
 [0.1.0]: https://example.com/releases/0.1.0

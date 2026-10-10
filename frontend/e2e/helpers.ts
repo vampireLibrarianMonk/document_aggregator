@@ -1,9 +1,14 @@
 import { expect, Page, APIRequestContext } from '@playwright/test'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 
 // The served app proxies /api -> the live backend, so tests reach the backend
 // through the same origin the browser uses. Setup/teardown hit it directly;
 // assertions go through the real UI.
 export const API = '/api'
+
+// sample_docs lives at repo-root/sample_docs; specs run with cwd = frontend/.
+export const SAMPLE_DOCS = join(process.cwd(), '..', 'sample_docs', 'project')
 
 /** Fail fast with a clear message if the backend isn't reachable. */
 export async function assertBackendUp(request: APIRequestContext): Promise<void> {
@@ -11,28 +16,48 @@ export async function assertBackendUp(request: APIRequestContext): Promise<void>
   if (!res.ok()) {
     throw new Error(
       `Backend not reachable at /api/health (status ${res.status()}). ` +
-      'Bring the stack up: docker compose up (SAMPLES_ENABLED=true).',
+      'Bring the stack up: docker compose up.',
     )
   }
 }
 
-/** Confirm the in-app Samples feature is enabled (needed for sample flows). */
-export async function samplesEnabled(request: APIRequestContext): Promise<boolean> {
-  const res = await request.get(`${API}/config`)
-  if (!res.ok()) return false
-  const cfg = await res.json()
-  return !!cfg.samples_enabled
+/** Upload one file into a project's Ingestion store under the given kind, via
+ *  the same endpoint the UI's file input calls. Uploading corpus documents
+ *  triggers the app's generate-from-documents step server-side. */
+async function uploadDocument(
+  request: APIRequestContext, projectId: string, path: string, kind: string,
+): Promise<void> {
+  const name = path.split(/[\\/]/).pop() as string
+  const res = await request.post(`${API}/projects/${projectId}/documents`, {
+    multipart: {
+      file: { name, mimeType: 'application/octet-stream', buffer: readFileSync(path) },
+      kind,
+    },
+  })
+  expect(res.ok(), `upload ${name}`).toBeTruthy()
 }
 
-/** Instantiate a sample case into a fresh project; returns its id. */
-export async function instantiateSample(
-  request: APIRequestContext, caseId: string,
+/**
+ * Build a correction project the REAL way: create an empty project, then upload
+ * the standard source document set for sample case `caseId` (corpus .txt/.md +
+ * every figure under corpus/figures/). The app generates the project
+ * (manifest/template/draft/corrections) from those uploads. Returns the id.
+ */
+export async function buildProjectFromCorpus(
+  request: APIRequestContext, caseId: string, corpus: string[],
 ): Promise<string> {
-  const res = await request.post(`${API}/projects/from-template/${caseId}`, {
-    data: {},
-  })
-  expect(res.ok(), `instantiate sample ${caseId}`).toBeTruthy()
-  return (await res.json()).id as string
+  const projectId = await createProject(request, `E2E case ${caseId}`)
+  const dir = join(SAMPLE_DOCS, caseId, 'corpus')
+  for (const name of corpus) {
+    await uploadDocument(request, projectId, join(dir, name), 'corpus')
+  }
+  const figuresDir = join(dir, 'figures')
+  if (existsSync(figuresDir)) {
+    for (const f of readdirSync(figuresDir).filter((n) => n.endsWith('.png'))) {
+      await uploadDocument(request, projectId, join(figuresDir, f), 'corpus')
+    }
+  }
+  return projectId
 }
 
 /** Create an empty project; returns its id. */
