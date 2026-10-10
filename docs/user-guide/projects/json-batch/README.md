@@ -56,8 +56,8 @@ project.
 
 Click **Create project**.
 
-**What you should see:** the project is created and selected, and the app moves
-you to the **Ingestion** tab. The Batch conversion section lives here.
+**What you should see:** the project is created and selected. Open the
+**Ingestion** tab — the **Batch conversion** panel lives at the top of it.
 
 ---
 
@@ -70,6 +70,12 @@ In **Golden target schema**, paste the game schema and click **Save golden
 schema**. (Copy it from
 `backend/tests/fixtures/json_alignment/target_schema.json`, or paste the minimal
 version below.)
+
+> The inline schema below is a simplified subset of the committed fixture. The
+> fixture additionally carries `x-pydi-taxonomy` alias tables on `platform` and
+> `ESRB` (e.g. `PC → Windows PC`, `Mature → M`) that normalize known values. The
+> walkthrough works with either; use the fixture if you want the alias
+> normalization.
 
 ```json
 {
@@ -184,10 +190,13 @@ and a summary noting records conformed to the golden schema. Specifically:
 
 ## Step 6 — Approve a learned shape
 
-Scroll to **Shapes awaiting your approval**. Each provisional shape shows its
-proposed **golden field ← source path** mapping.
+Scroll to **Shapes awaiting your approval**. Each provisional shape shows the
+**golden field ← source path** rows the matcher actually grounded (plus any rows
+it held back as *needs review*).
 
-Find the card for the `team_clean` shape. Its mapping should read:
+Find the card for the `team_clean` shape. Because its keys already match the
+golden names, the card should ground the golden fields directly from the
+identically named source paths — e.g.:
 
 ```
 name        ← name
@@ -200,7 +209,10 @@ criticScore ← criticScore
 ESRB        ← ESRB
 ```
 
-Click **Approve**.
+The exact rows depend on what the deterministic matcher grounds offline, so
+don't be alarmed if a row shows as *needs review* rather than mapped — that is
+the engine refusing to guess, not an error. Review the mapping, then click
+**Approve**.
 
 **What you should see:** the card's shape flips to approved. Do **not** approve
 the `weather` shape — leave it (an unrelated shape should never be promoted).
