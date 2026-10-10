@@ -93,8 +93,9 @@ row per unit, each with a status tag and a short **Source:** line.
 
 The report is titled **"TGX-9 Root Cause Analysis Notes"** and has four sections
 derived from the notes: **Scope**, **Findings**, **Contributing Factors**,
-**Recommendation**. Draft mode produces **8 units: 3 corrected, 4 filled, 1 needs
-review.** Here is what to look for and verify.
+**Recommendation**. The status row above the report reads **16 units — 5
+corrected, 8 filled, 2 needs review, 1 unchanged** (the **Corrected intermediate
+JSON** box shows the total, **16**). Here is what to look for and verify.
 
 | Unit | Status | Value you should see | Why |
 |---|---|---|---|
@@ -103,6 +104,11 @@ review.** Here is what to look for and verify.
 | `Author` | **corrected** (green) | J. Okafor, Field Engineering | pulled from the field report (kept whole) |
 | `Reviewer Sign-off` | **needs review** (amber) | *blank* | required, but no source settles it — a human supplies it |
 | section bodies (Scope, Findings, Contributing Factors, Recommendation) | **filled** (blue) | source-grounded prose | built from the corpus |
+
+> The status counts total every reconciled unit — the identifier fields and
+> section bodies you see as rows, plus the structural units the engine tracks
+> behind each section. The on-screen status row is the authoritative tally;
+> expect **16** total for this project.
 
 Things to confirm (the guardrails):
 - **No fabrication.** Every corrected/filled value has a **Source:** line you can
@@ -131,11 +137,12 @@ disturbs another — each decision sticks.
 Switch **Draft → Template**. Template mode fills the *blank* report template from
 the sources instead of correcting a draft.
 
-**What you should see:** **8 units — 7 filled, 1 needs review.** The same values
-appear (`Date`, `Site`, `Author`, the section bodies), but as **filled** rather
-than **corrected** — because there was no prior wrong value to replace, only an
-empty field to populate. `Reviewer Sign-off` is still **needs review**: a missing
-authority doesn't resolve itself just because the starting point was blank.
+**What you should see:** **16 units — 12 filled, 2 corrected, 2 needs review.**
+The same values appear (`Date`, `Site`, `Author`, the section bodies), but mostly
+as **filled** rather than **corrected** — because there was no prior wrong value
+to replace, only an empty field to populate. `Reviewer Sign-off` is still **needs
+review**: a missing authority doesn't resolve itself just because the starting
+point was blank.
 
 This contrast is the lesson: *draft* repairs an existing attempt; *template*
 builds from the sources. Same engine, same provenance, same no-fabrication rule.

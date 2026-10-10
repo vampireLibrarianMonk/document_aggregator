@@ -62,8 +62,10 @@ Open the **Correction Pipeline** tab, then set **Draft**, **Single pass**,
 
 The report is titled **"Nav Bus ICD Review Board Notes"**, with sections derived
 from the documents: **Interface Overview**, **Signal Definitions**, **Data
-Formats**, **Notes**. Draft mode produces **5 units: 3 corrected, 1 filled, 1
-needs review.** (Fewer units than the incident cases — the ICD's later sections
+Formats**, **Notes**. Draft mode produces **12 units: 5 corrected, 4 filled, 2
+needs review, 1 unchanged** (the on-screen status row is the authoritative tally;
+the **Corrected intermediate JSON** box shows the total, **12**). (Fewer units
+than the incident cases — the ICD's later sections
 are structural, with no labelled fields to correct.)
 
 | Unit | Status | Value you should see | Why |
@@ -89,9 +91,9 @@ you can set it again. Resolving one unit never disturbs another.
 
 ## Step 5 — Compare Template mode
 
-Switch to **Template**: **5 units — 4 filled, 1 needs review.** The resolved
-values appear as **filled** (populating a blank ICD) rather than **corrected**;
-`Reviewer Sign-off` stays **needs review**.
+Switch to **Template**: **12 units — 8 filled, 2 corrected, 2 needs review.** The
+resolved values appear mostly as **filled** (populating a blank ICD) rather than
+**corrected**; `Reviewer Sign-off` stays **needs review**.
 
 ---
 

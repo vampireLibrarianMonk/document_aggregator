@@ -59,8 +59,10 @@ Open the **Correction Pipeline** tab, then set **Draft**, **Single pass**,
 
 The report is titled **"Customer Portal Breach Attempt — Incident Review"**, with
 sections derived from the review (Scope, Findings, Contributing Factors,
-Recommendation, Remediation Assignments). Draft mode produces **8 units: 3
-corrected, 4 filled, 1 needs review.**
+Recommendation, Remediation Assignments). Draft mode produces **15 units: 5
+corrected, 7 filled, 2 needs review, 1 unchanged** (the on-screen status row is
+the authoritative tally; the **Corrected intermediate JSON** box shows the total,
+**15**).
 
 | Unit | Status | Value you should see | Why |
 |---|---|---|---|
@@ -84,9 +86,10 @@ it again. Resolving one unit never disturbs another.
 
 ## Step 5 — Compare Template mode
 
-Switch to **Template**: **8 units — 7 filled, 1 needs review.** The same values
-appear as **filled** (populating a blank template) rather than **corrected**
-(repairing a draft). `Reviewer Sign-off` stays **needs review**.
+Switch to **Template**: **15 units — 11 filled, 2 corrected, 2 needs review.**
+The same values appear mostly as **filled** (populating a blank template) rather
+than **corrected** (repairing a draft). `Reviewer Sign-off` stays **needs
+review**.
 
 ---
 

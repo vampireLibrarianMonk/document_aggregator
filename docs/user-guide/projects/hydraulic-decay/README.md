@@ -59,7 +59,9 @@ Open the **Correction Pipeline** tab, then set **Draft**, **Single pass**,
 
 The report is titled **"AIRCRAFT MAINTENANCE DISCREPANCY REPORT"**, with sections
 derived from the review (Scope, Findings, Contributing Factors, Recommendation).
-Draft mode produces **8 units: 3 corrected, 4 filled, 1 needs review.**
+Draft mode produces **16 units: 5 corrected, 8 filled, 2 needs review, 1
+unchanged** (the on-screen status row is the authoritative tally; the **Corrected
+intermediate JSON** box shows the total, **16**).
 
 | Unit | Status | Value you should see | Why |
 |---|---|---|---|
@@ -84,9 +86,9 @@ you can set it again. Resolving one unit never disturbs another.
 
 ## Step 5 — Compare Template mode
 
-Switch to **Template**: **8 units — 7 filled, 1 needs review.** The same values
-appear as **filled** rather than **corrected**; `Reviewer Sign-off` stays **needs
-review**.
+Switch to **Template**: **16 units — 12 filled, 2 corrected, 2 needs review.**
+The same values appear mostly as **filled** rather than **corrected**;
+`Reviewer Sign-off` stays **needs review**.
 
 ---
 
