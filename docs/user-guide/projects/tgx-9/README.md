@@ -35,6 +35,16 @@ project:
   TGX-9 Telemetry Gateway Incident
   ```
 
+- **Description:**
+
+  ```
+  Correction of the TGX-9 telemetry gateway incident. Upload the field report,
+  root-cause notes, and figures; the app builds the project and reconciles a
+  corrected, source-grounded report. Demonstrates literal source-grounded fills,
+  figures placed with their text, and required-but-unsupported fields surfaced
+  as needs-review instead of guessed.
+  ```
+
 Click **Create project**. The app selects it in the top selector and moves you
 to the **Ingestion** tab. It has no documents yet — you add them next.
 
@@ -152,9 +162,10 @@ builds from the sources. Same engine, same provenance, same no-fabrication rule.
 ## Step 6 — Export
 
 Open **Report & Export**. It shows the **corrected report** (the Correction
-Pipeline's output), with a **Draft/Template** toggle and a **Rebuild** button
-that re-runs the correction (reflecting any values you Set). Export in any
-offered format:
+Pipeline's output), with a **Draft/Template** toggle and a **Refresh** button
+that re-runs the correction to pick up new uploads or values you Set (it confirms
+with a "re-ran" note; the report also reloads whenever you open the tab). Export
+in any offered format:
 
 - **JSON** / **Markdown** / **PDF** — always available.
 - **DOCX** / **PPTX** — offered based on what you uploaded.

@@ -1,0 +1,22 @@
+[
+  {
+    "name": "The Witcher 3: Wild Hunt",
+    "releaseYear": "2015",
+    "developer": "CD Projekt Red",
+    "publisher": "CD Projekt",
+    "platform": ["Windows PC", "PlayStation", "Xbox"],
+    "genres": "Action, RPG, Open World",
+    "criticScore": 93,
+    "ESRB": "M"
+  },
+  {
+    "name": "Cyberpunk 2077",
+    "releaseYear": "2020",
+    "developer": "CD Projekt Red",
+    "publisher": "CD Projekt",
+    "platform": ["Windows PC", "PlayStation", "Xbox"],
+    "genres": "Action, RPG",
+    "criticScore": 86,
+    "ESRB": "M"
+  }
+]

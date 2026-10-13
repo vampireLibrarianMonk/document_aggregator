@@ -21,9 +21,26 @@ sources support, flags what they don't, and invents nothing.
 
 ## Step 1 — Create the project
 
-Open the app (it starts empty on **New Project**) and create a project named
-`Injection Molding Line Defect Event`. Click **Create project** — you are moved
-to the **Ingestion** tab to add its files.
+Open the app (it starts empty on **New Project**) and create the project:
+
+- **Project name:**
+
+  ```
+  Injection Molding Line Defect Event
+  ```
+
+- **Description:**
+
+  ```
+  Correction of the injection-molding line defect event. Upload the QC report,
+  root-cause review, and figures; the app builds the project and reconciles a
+  corrected, source-grounded report. Demonstrates literal source-grounded fills,
+  figures placed with their text, and required-but-unsupported fields surfaced
+  as needs-review instead of guessed.
+  ```
+
+Click **Create project** — you are moved to the **Ingestion** tab to add its
+files.
 
 ---
 
@@ -95,9 +112,11 @@ The same values appear mostly as **filled** rather than **corrected**;
 ## Step 6 — Export
 
 **Report & Export** shows the corrected report with a Draft/Template toggle and a
-**Rebuild** button. Export as JSON / Markdown / PDF (always) or DOCX/PPTX
-(offered based on what you uploaded). Real figures embedded; Markdown is a ZIP
-with a `figures/` folder; filenames carry the project name + a UTC timestamp.
+**Refresh** button (re-runs the correction to pick up new uploads or resolutions;
+the report also reloads when you open the tab). Export as JSON / Markdown / PDF
+(always) or DOCX/PPTX (offered based on what you uploaded). Real figures embedded;
+Markdown is a ZIP with a `figures/` folder; filenames carry the project name + a
+UTC timestamp.
 
 ---
 

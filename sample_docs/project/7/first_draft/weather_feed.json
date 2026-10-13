@@ -1,0 +1,4 @@
+[
+  { "station_id": "KSEA", "temperature_c": 11, "humidity": 82, "wind_kph": 14 },
+  { "station_id": "KJFK", "temperature_c": 7, "humidity": 60, "wind_kph": 22 }
+]

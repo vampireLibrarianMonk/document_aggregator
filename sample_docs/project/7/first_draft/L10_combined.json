@@ -1,0 +1,28 @@
+[
+  {
+    "_meta": { "row": 1, "scraped": "2026-03-01" },
+    "movieData": {
+      "gameTitle": "Red Dead Redemption 2",
+      "releaseInfo": { "yr": 2018 }
+    },
+    "production": { "madeBy": "Rockstar Games", "distributedBy": "Rockstar Games" },
+    "hw": "PS",
+    "genreCsv": "Action;Adventure;Open World",
+    "ratings": { "critic": "97" },
+    "ageRating": "Mature",
+    "legacy_id": "RDR2-001"
+  },
+  {
+    "_meta": { "row": 2, "scraped": "2026-03-01" },
+    "movieData": {
+      "gameTitle": "God of War",
+      "releaseInfo": { "yr": 2018 }
+    },
+    "production": { "madeBy": "Santa Monica Studio", "distributedBy": "Sony Interactive" },
+    "hw": "PS",
+    "genreCsv": "Action;Adventure",
+    "ratings": { "critic": "94" },
+    "ageRating": "Mature",
+    "legacy_id": "GOW-002"
+  }
+]

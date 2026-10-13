@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Elden Ring",
+    "title": "Elden Ring: Shadow of the Erdtree Edition",
+    "releaseYear": "2022",
+    "developer": "FromSoftware",
+    "publisher": "Bandai Namco",
+    "platform": "Windows PC",
+    "genres": ["Action", "RPG"],
+    "criticScore": 96,
+    "metascore": 94,
+    "ESRB": "M"
+  },
+  {
+    "name": "Sekiro",
+    "title": "Sekiro: Shadows Die Twice",
+    "releaseYear": "2019",
+    "developer": "FromSoftware",
+    "publisher": "Activision",
+    "platform": "Windows PC",
+    "genres": ["Action"],
+    "criticScore": 90,
+    "metascore": 88,
+    "ESRB": "M"
+  }
+]

@@ -16,14 +16,21 @@ http://localhost:8080
 
 **The app starts empty.** There are no projects until you create one. That is by
 design: everything you see is something you made. The top of the screen has one
-**Project** selector that scopes all tabs, and these tabs:
+**Project** selector that scopes all tabs.
 
-1. **New Project**
-2. **Ingestion**
-3. **Correction Pipeline**
-4. **Supplementals**
-5. **Search**
-6. **Report & Export**
+**The tabs depend on what kind of project you create.** On the New Project
+screen you choose one of two kinds, and each has its own focused tab flow:
+
+- **Correct documents** → **New Project · Ingestion · Correction Pipeline ·
+  Supplementals · Search · Report & Export.** Upload real source documents and
+  the app builds and reconciles a corrected report.
+- **Convert JSON to a golden schema** → **New Project · Golden Schema · Batch
+  Convert · Report & Export.** Define one golden JSON Schema and conform many
+  messy source JSON files to it. See the JSON→golden walkthrough under
+  `docs/user-guide/projects/json-batch/`.
+
+Most of this guide covers the **correction** flow; the two JSON-only tabs are
+covered in the JSON→golden walkthrough.
 
 And, below the tabs, a footer link:
 
@@ -39,15 +46,21 @@ next to the Project selector.
 ## Step 1: create a project (the New Project tab)
 
 The **New Project** tab creates a new, empty project. There is nothing to
-generate and no documents to pick yet — you just name it.
+generate and no documents to pick yet — you choose a kind and name it.
 
-1. Enter a **Project name**.
-2. Enter a **Description** (what the project is for).
-3. Click **Create project**.
+1. Choose the **project kind** — there is no default; you drive this:
+   - **Correct documents** (this guide's main flow), or
+   - **Convert JSON to a golden schema** (see the JSON→golden walkthrough).
+2. Enter a **Project name**.
+3. Enter a **Description** (what the project is for).
+4. Click **Create project**. (Create stays disabled until you pick a kind and
+   enter a name.)
 
-What to expect: the project is created and selected, and you are moved to the
-**Ingestion** tab, which is where you add your documents (Step 2). The project
-appears in the Project selector at the top of the screen.
+What to expect for a **correction** project: it is created and selected, and you
+are moved to the **Ingestion** tab, which is where you add your documents (Step
+2). (A **JSON-alignment** project instead lands on the **Golden Schema** tab —
+follow the JSON→golden walkthrough from there.) The project appears in the
+Project selector at the top of the screen.
 
 ### Then: add your documents (Ingestion)
 
@@ -192,10 +205,17 @@ Review and export the finished report.
 
 What to do: select a project. For a **correction project** this shows the
 **corrected report** (the Correction Pipeline's output) with a **Draft/Template**
-toggle and a **Rebuild** button that re-runs the correction (reflecting any
-values you Set). Use the export buttons for JSON, Markdown, DOCX, PPTX, or PDF.
+toggle and a **Refresh** button that re-runs the correction to pick up documents
+you uploaded or values you Set on the Correction Pipeline tab (it confirms with a
+"re-ran" note). The report already reloads when you navigate to the tab; Refresh
+is for re-pulling without leaving. Use the export buttons for JSON, Markdown,
+DOCX, PPTX, or PDF.
 For an **aggregation project** it shows the aggregated report instead (one
-section per document, ordered by date/time).
+section per document, ordered by date/time). For a **JSON-alignment project**
+(the "Convert JSON to a golden schema" kind) it shows the conformed golden JSON
+as a **per-file download**: each source file that produced records is listed and
+downloads as `<original><postfix>_<UTC-timestamp>.json`, where the postfix
+defaults to `_conformed` and is editable in the panel.
 
 What to expect:
 - The **real figures are embedded** in the DOCX / PDF / PPTX exports, placed with

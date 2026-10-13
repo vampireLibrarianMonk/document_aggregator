@@ -1,0 +1,20 @@
+[
+  {
+    "releaseYear": "2019",
+    "developer": "Respawn Entertainment",
+    "publisher": "Electronic Arts",
+    "platform": "Windows PC",
+    "genres": ["Shooter"],
+    "criticScore": 88,
+    "ESRB": "T"
+  },
+  {
+    "releaseYear": "2016",
+    "developer": "id Software",
+    "publisher": "Bethesda Softworks",
+    "platform": "Windows PC",
+    "genres": ["Shooter"],
+    "criticScore": 85,
+    "ESRB": "M"
+  }
+]

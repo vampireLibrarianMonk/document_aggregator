@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Stardew Valley",
+    "releaseYear": "2016",
+    "developer": "ConcernedApe",
+    "publisher": "ConcernedApe",
+    "platform": "Windows PC",
+    "genres": ["Simulation", "RPG"],
+    "criticScore": "not available",
+    "ESRB": "E10+"
+  },
+  {
+    "name": "Undertale",
+    "releaseYear": "2015",
+    "developer": "Toby Fox",
+    "publisher": "Toby Fox",
+    "platform": "Windows PC",
+    "genres": ["RPG"],
+    "criticScore": "n/a",
+    "ESRB": "E10+"
+  }
+]

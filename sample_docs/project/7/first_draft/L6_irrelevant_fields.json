@@ -1,0 +1,34 @@
+[
+  {
+    "_row": 1,
+    "ingested_at": "2026-02-01T09:00:00Z",
+    "source_system": "legacy-catalog-v2",
+    "checksum": "a1b2c3d4",
+    "name": "Stardew Valley",
+    "releaseYear": "2016",
+    "developer": "ConcernedApe",
+    "publisher": "ConcernedApe",
+    "platform": "Windows PC",
+    "genres": ["Simulation", "RPG"],
+    "criticScore": 89,
+    "ESRB": "E10+",
+    "internal_notes": "do not edit",
+    "legacy_price_cents": 1499
+  },
+  {
+    "_row": 2,
+    "ingested_at": "2026-02-01T09:00:01Z",
+    "source_system": "legacy-catalog-v2",
+    "checksum": "e5f6a7b8",
+    "name": "Terraria",
+    "releaseYear": "2011",
+    "developer": "Re-Logic",
+    "publisher": "Re-Logic",
+    "platform": "Windows PC",
+    "genres": ["Sandbox", "Adventure"],
+    "criticScore": 83,
+    "ESRB": "T",
+    "internal_notes": "verified",
+    "legacy_price_cents": 999
+  }
+]

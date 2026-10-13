@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Celeste",
+    "releaseYear": "2018",
+    "developer": "Maddy Makes Games",
+    "publisher": "Maddy Makes Games",
+    "platform": "Windows PC",
+    "genres": ["Platformer"],
+    "criticScore": 92,
+    "ESRB": "E10+"
+  },
+  {
+    "name": "Hollow Knight",
+    "releaseYear": "2017",
+    "developer": "Team Cherry",
+    "publisher": "Team Cherry",
+    "platform": "Windows PC",
+    "genres": ["Metroidvania"],
+    "criticScore": 90,
+    "ESRB": "E10+"
+  }
+]

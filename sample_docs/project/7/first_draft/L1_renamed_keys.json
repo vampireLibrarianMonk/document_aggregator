@@ -1,0 +1,22 @@
+[
+  {
+    "game_name": "Hollow Knight",
+    "release_year": "2017",
+    "developer_studio": "Team Cherry",
+    "publisher_name": "Team Cherry",
+    "platform_system": "Windows PC",
+    "genre_list": ["Metroidvania"],
+    "critic_score_value": 90,
+    "esrb_rating": "E10+"
+  },
+  {
+    "game_name": "Ori and the Blind Forest",
+    "release_year": "2015",
+    "developer_studio": "Moon Studios",
+    "publisher_name": "Microsoft Studios",
+    "platform_system": "Windows PC",
+    "genre_list": ["Platformer", "Metroidvania"],
+    "critic_score_value": 88,
+    "esrb_rating": "E10+"
+  }
+]

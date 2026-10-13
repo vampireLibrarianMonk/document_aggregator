@@ -1,0 +1,22 @@
+[
+  {
+    "game_name": "Hades",
+    "release_year": 2020,
+    "developer_studio": "Supergiant Games",
+    "publisher_name": "Supergiant Games",
+    "platform_system": "Windows PC",
+    "genre_list": "Roguelike;Action",
+    "critic_score_value": "93",
+    "esrb_rating": "T"
+  },
+  {
+    "game_name": "Dead Cells",
+    "release_year": 2018,
+    "developer_studio": "Motion Twin",
+    "publisher_name": "Motion Twin",
+    "platform_system": "Windows PC",
+    "genre_list": "Roguelike;Metroidvania",
+    "critic_score_value": "89",
+    "esrb_rating": "T"
+  }
+]

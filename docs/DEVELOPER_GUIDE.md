@@ -53,11 +53,14 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --app-dir backend
 ```
 
-The app starts empty. To get data, instantiate a sample case from the UI
-("Start from a sample") or via `POST /projects/from-template/{id}`, or upload
-your own documents on the Ingestion tab. Optionally, `python backend/seed.py`
-populates one throwaway local aggregation project for manual testing (opt-in,
-never auto-run).
+The app starts empty. To get data, create a project on the **New Project** tab —
+choosing its kind (**Correct documents** or **Convert JSON to a golden schema**)
+— then, for a correction project, upload your documents on the Ingestion tab (the
+six worked example cases under `sample_docs/project/<n>/` are run by uploading
+their files), or for a JSON-alignment project, define a golden schema and upload
+source JSON on the Golden Schema / Batch Convert tabs (sample inputs under
+`sample_docs/project/7/`). Optionally, `python backend/seed.py` populates one
+throwaway local aggregation project for manual testing (opt-in, never auto-run).
 
 Frontend:
 

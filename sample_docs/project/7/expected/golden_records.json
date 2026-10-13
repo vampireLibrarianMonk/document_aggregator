@@ -1,0 +1,260 @@
+{
+  "note": "Reference conformed golden records per source file, captured from the deterministic offline engine. Files that map zero fields (L9_opaque, weather_feed) or go to review (L5/L7/L10) are omitted or shown empty; compare your per-file download against the entry for the same file. criticScore stays a string when the source value is non-numeric (it is not coerced-by-force).",
+  "clean_catalog.json": [
+    {
+      "name": "Celeste",
+      "releaseYear": "2018",
+      "developer": "Maddy Makes Games",
+      "publisher": "Maddy Makes Games",
+      "platform": "Windows PC",
+      "genres": [
+        "Platformer"
+      ],
+      "criticScore": 92,
+      "ESRB": "E10+"
+    },
+    {
+      "name": "Hollow Knight",
+      "releaseYear": "2017",
+      "developer": "Team Cherry",
+      "publisher": "Team Cherry",
+      "platform": "Windows PC",
+      "genres": [
+        "Metroidvania"
+      ],
+      "criticScore": 90,
+      "ESRB": "E10+"
+    }
+  ],
+  "clean_catalog_drifted.json": [
+    {
+      "name": "Stardew Valley",
+      "releaseYear": "2016",
+      "developer": "ConcernedApe",
+      "publisher": "ConcernedApe",
+      "platform": "Windows PC",
+      "genres": [
+        "Simulation",
+        "RPG"
+      ],
+      "ESRB": "E10+"
+    },
+    {
+      "name": "Undertale",
+      "releaseYear": "2015",
+      "developer": "Toby Fox",
+      "publisher": "Toby Fox",
+      "platform": "Windows PC",
+      "genres": [
+        "RPG"
+      ],
+      "ESRB": "E10+"
+    }
+  ],
+  "L10_combined.json": [
+    {
+      "name": "Red Dead Redemption 2",
+      "criticScore": 97,
+      "ESRB": "M"
+    },
+    {
+      "name": "God of War",
+      "criticScore": 94,
+      "ESRB": "M"
+    }
+  ],
+  "L1_renamed_keys.json": [
+    {
+      "name": "Hollow Knight",
+      "releaseYear": "2017",
+      "developer": "Team Cherry",
+      "publisher": "Team Cherry",
+      "platform": "Windows PC",
+      "criticScore": 90,
+      "ESRB": "E10+"
+    },
+    {
+      "name": "Ori and the Blind Forest",
+      "releaseYear": "2015",
+      "developer": "Moon Studios",
+      "publisher": "Microsoft Studios",
+      "platform": "Windows PC",
+      "criticScore": 88,
+      "ESRB": "E10+"
+    }
+  ],
+  "L2_renamed_typed.json": [
+    {
+      "name": "Hades",
+      "releaseYear": "2020",
+      "developer": "Supergiant Games",
+      "publisher": "Supergiant Games",
+      "platform": "Windows PC",
+      "criticScore": 93,
+      "ESRB": "T"
+    },
+    {
+      "name": "Dead Cells",
+      "releaseYear": "2018",
+      "developer": "Motion Twin",
+      "publisher": "Motion Twin",
+      "platform": "Windows PC",
+      "criticScore": 89,
+      "ESRB": "T"
+    }
+  ],
+  "L3_nested.json": [
+    {
+      "name": "Celeste",
+      "releaseYear": "2018",
+      "developer": "Maddy Makes Games",
+      "publisher": "Maddy Makes Games",
+      "platform": "Windows PC",
+      "genres": [
+        "Platformer"
+      ],
+      "criticScore": 92,
+      "ESRB": "E10+"
+    },
+    {
+      "name": "Undertale",
+      "releaseYear": "2015",
+      "developer": "Toby Fox",
+      "publisher": "Toby Fox",
+      "platform": "Windows PC",
+      "genres": [
+        "RPG"
+      ],
+      "criticScore": 92,
+      "ESRB": "E10+"
+    }
+  ],
+  "L4_arrays_flatten.json": [
+    {
+      "name": "The Witcher 3: Wild Hunt",
+      "releaseYear": "2015",
+      "developer": "CD Projekt Red",
+      "publisher": "CD Projekt",
+      "genres": [
+        "Action",
+        "RPG",
+        "Open World"
+      ],
+      "criticScore": 93,
+      "ESRB": "M"
+    },
+    {
+      "name": "Cyberpunk 2077",
+      "releaseYear": "2020",
+      "developer": "CD Projekt Red",
+      "publisher": "CD Projekt",
+      "genres": [
+        "Action",
+        "RPG"
+      ],
+      "criticScore": 86,
+      "ESRB": "M"
+    }
+  ],
+  "L5_split_merged.json": [
+    {
+      "releaseYear": "2011",
+      "platform": "Windows PC",
+      "genres": [
+        "Puzzle",
+        "Platformer"
+      ],
+      "criticScore": 95,
+      "ESRB": "E10+"
+    },
+    {
+      "releaseYear": "2020",
+      "platform": "Windows PC",
+      "genres": [
+        "Shooter",
+        "VR"
+      ],
+      "criticScore": 93,
+      "ESRB": "M"
+    }
+  ],
+  "L6_irrelevant_fields.json": [
+    {
+      "name": "Stardew Valley",
+      "releaseYear": "2016",
+      "developer": "ConcernedApe",
+      "publisher": "ConcernedApe",
+      "platform": "Windows PC",
+      "genres": [
+        "Simulation",
+        "RPG"
+      ],
+      "criticScore": 89,
+      "ESRB": "E10+"
+    },
+    {
+      "name": "Terraria",
+      "releaseYear": "2011",
+      "developer": "Re-Logic",
+      "publisher": "Re-Logic",
+      "platform": "Windows PC",
+      "genres": [
+        "Sandbox",
+        "Adventure"
+      ],
+      "criticScore": 83,
+      "ESRB": "T"
+    }
+  ],
+  "L7_missing_required.json": [
+    {
+      "releaseYear": "2019",
+      "developer": "Respawn Entertainment",
+      "publisher": "Electronic Arts",
+      "platform": "Windows PC",
+      "genres": [
+        "Shooter"
+      ],
+      "criticScore": 88,
+      "ESRB": "T"
+    },
+    {
+      "releaseYear": "2016",
+      "developer": "id Software",
+      "publisher": "Bethesda Softworks",
+      "platform": "Windows PC",
+      "genres": [
+        "Shooter"
+      ],
+      "criticScore": 85,
+      "ESRB": "M"
+    }
+  ],
+  "L8_conflicting_candidates.json": [
+    {
+      "name": "Elden Ring",
+      "releaseYear": "2022",
+      "developer": "FromSoftware",
+      "publisher": "Bandai Namco",
+      "platform": "Windows PC",
+      "genres": [
+        "Action",
+        "RPG"
+      ],
+      "criticScore": 96,
+      "ESRB": "M"
+    },
+    {
+      "name": "Sekiro",
+      "releaseYear": "2019",
+      "developer": "FromSoftware",
+      "publisher": "Activision",
+      "platform": "Windows PC",
+      "genres": [
+        "Action"
+      ],
+      "criticScore": 90,
+      "ESRB": "M"
+    }
+  ]
+}

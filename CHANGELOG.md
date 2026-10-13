@@ -6,12 +6,77 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Testing-regime consolidation and JSON-guide accuracy pass.
+### Fixed
+- **Strict golden-schema conformance for JSON-alignment output.** The batch
+  validator previously treated a record that *abstained* on a required golden
+  field as "conformed" (a deferral is not a fabrication *error*, so
+  `ValidationReport.ok` stayed true) — but per the JSON Schema `required` rule a
+  record missing a required property is invalid, so such records should never be
+  exported as conformed. Added `is_conformant()` (validator) and
+  `AlignmentResult.conformant_flags()`/`conformant_count` (pipeline): a record is
+  conformant only when it has zero validation issues **and** every required
+  golden field is actually present. The batch outcome now counts and keeps only
+  strictly-conformant records — the rest are `needs_review` — so the per-file
+  `_conformed` download contains **only** records that fully satisfy the golden
+  schema, and the "conformed" count no longer includes partial/empty records.
+  Also stopped registering a provisional profile (and surfacing an approval
+  card) for a shape whose mapping grounds zero golden fields, and derive the
+  per-pathway doc counts from the executed outcomes rather than the plan.
+  Regression tests added in `test_json_alignment_batch_agent.py`.
+- **Approval cards show the source files a shape was learned from.** Each learned
+  profile records its origin files (`meta.source_docs` + `source_doc_count`),
+  surfaced by `GET …/alignment/library` and shown on the card ("Learned from:
+  …"), so an opaque shape id is no longer the only identifier.
+- **Project kind radio keeps its selection across tab navigation** (the New
+  Project draft state is owned by the shell, not the unmounting form), and every
+  tab panel is gated on membership in the active project's kind-specific tab set
+  so a JSON project can never render a correction panel (or vice versa).
+
+## [0.5.0] - 2026-10-13
+
+JSON→golden becomes its own first-class capability. The mass JSON-alignment
+feature is lifted out of the correction flow — where it had been bolted on as a
+"Batch mode" toggle on the Ingestion tab — into a dedicated **project kind** with
+its own focused tabs, a per-file conformed-JSON export, and a committed sample
+scenario (difficulty ladder + a storm generator). Plus the testing-regime
+consolidation and the JSON/correction guide-accuracy pass from the same cycle.
 
 ### Added
+- **Project kind, chosen at creation and immutable** (`ProjectKind` in
+  `app/models.py`: `correction` | `json_alignment`). A project now declares what
+  it IS up front, which drives its entire tab flow. Defaults to `correction` so
+  every existing project and stored `project.json` deserializes unchanged (no
+  migration). `POST /projects` accepts an optional `kind`; the New Project screen
+  **requires an explicit choice** (no default — Create stays disabled until a
+  kind and name are set).
+- **Dedicated JSON-alignment tab flow.** A `json_alignment` project exposes
+  **New Project → Golden Schema → Batch Convert → Report & Export**, with none of
+  the correction tabs. The old monolithic `BatchPanel` (and its "Batch mode"
+  toggle) is gone, split into a `GoldenSchemaPanel` (golden schema + relevance
+  dial) and a `BatchConvertPanel` (upload/convert + per-cluster approval); the
+  correction Ingestion tab no longer carries any JSON/batch UI. `App.tsx` renders
+  the tab set from `project.kind`.
+- **Per-file conformed-JSON export** for JSON-alignment projects. The batch
+  engine now carries source-file provenance through clustering
+  (`Cluster.record_doc_ids` → `ClusterOutcome` → `BatchResult.conformed_by_doc()`),
+  so a cluster's pooled output partitions back to the original file it came from.
+  `op_batch_align` persists per-file conformed records under `alignment/outputs/`;
+  new endpoints `GET …/alignment/outputs` and
+  `GET …/alignment/outputs/{stem}/download?postfix=_conformed` serve each file as
+  `<original><postfix>_<UTC-DTG>.json` (postfix editable, default `_conformed`).
+  A new `JsonReportPanel` renders the per-file download list.
+- **Committed JSON-alignment sample scenario** (`sample_docs/project/7/`): a
+  golden schema, a `first_draft/` difficulty ladder (L1 renamed → L10
+  everything-at-once, plus clean/drift/unrelated), a per-file field-level
+  `expected/golden_records.json` reference, a README, and `generate_storm.py` — a
+  deterministic, offline storm generator (one named mutation per difficulty
+  level, `--copies N` to scale to thousands) that is the seam for a future
+  learned (micromodel) mutation proposer. Not auto-loaded (no `project.json`), so
+  it ships as inert upload material and never registers as a correction case.
 - **Total-workflow e2e test for the JSON→golden batch scenario**
   (`backend/tests/test_batch_workflow_e2e.py`, 9 tests): drives the same HTTP
-  endpoints the Ingestion-tab buttons call, in click order (save golden schema →
+  endpoints the Golden Schema / Batch Convert tab buttons call, in click order
+  (save golden schema →
   set relevance dial → upload → read result → approve → re-upload), exercising
   **all five batch pathways** as complete scenarios (`novel_research`,
   `replay_clean`, `review`, `reject_irrelevant`, `drift_repair`) plus a combined
@@ -21,6 +86,16 @@ Testing-regime consolidation and JSON-guide accuracy pass.
   the async path is exercised, not stubbed.
 
 ### Changed
+- **Renamed the Report & Export "Rebuild" button to "Refresh" and made it
+  honest** (`frontend/src/components/ReportPanel.tsx`). The button always re-ran
+  reconciliation, but because the result is deterministic/idempotent it produced
+  identical output with no feedback, so it read as doing nothing. It now shows a
+  "Refreshing…" in-flight state, confirms with a "· re-ran just now" note
+  (`aria-live` status), and the copy explains its one real job: re-pull without
+  leaving the tab to pick up documents you uploaded or resolutions you made on
+  the Correction Pipeline tab (navigating to the tab already reloads the report).
+  Applied to both the corrected-report and aggregated-report views; the six
+  project guides + USER_GUIDE updated to match.
 - **Reconciled the Playwright e2e suite with the samples removal + upload-generate
   flow** (`frontend/e2e/`). The suite still predated the removed in-app Samples
   feature: `correction.spec.ts` instantiated via the deleted
@@ -60,6 +135,15 @@ Testing-regime consolidation and JSON-guide accuracy pass.
   project 2 draft **15** / template **15**; project 6 draft **12** / template
   **12**. Captured from the live served generate-from-documents flow and now the
   single source of truth shared with `frontend/e2e/expected.ts`.
+- **Rewrote the user-facing docs for the JSON-alignment flow.** The JSON→golden
+  walkthrough (`docs/user-guide/projects/json-batch/README.md`) now follows the
+  project-kind flow (choose "Convert JSON to a golden schema" → Golden Schema tab
+  → Batch Convert tab → per-file `_conformed` download) instead of the retired
+  "tick Batch mode on Ingestion" steps, and points at `sample_docs/project/7/`.
+  `USER_GUIDE.md` describes the two kind-specific tab sets and the kind choice on
+  New Project; `DEVELOPER_GUIDE.md` drops the stale "Start from a sample" /
+  `POST /projects/from-template` line. The `batch.spec.ts` e2e was updated to the
+  new tab flow (json_alignment project, Golden Schema + Batch Convert tabs).
 
 ## [0.4.0] - 2026-10-09
 
@@ -516,6 +600,7 @@ frontend, and an air-gapped RHEL/UBI container stack.
   Cloud pieces (e.g. a Bedrock feedback interpreter) are optional adapters behind
   the same interfaces and are disabled by default.
 
+[0.5.0]: https://example.com/releases/0.5.0
 [0.4.0]: https://example.com/releases/0.4.0
 [0.3.0]: https://example.com/releases/0.3.0
 [0.2.0]: https://example.com/releases/0.2.0

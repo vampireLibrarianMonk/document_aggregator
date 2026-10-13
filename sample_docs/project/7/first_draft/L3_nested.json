@@ -1,0 +1,22 @@
+[
+  {
+    "gameData": {
+      "name": "Celeste",
+      "releaseInfo": { "year": "2018" },
+      "studio": { "developer": "Maddy Makes Games", "publisher": "Maddy Makes Games" }
+    },
+    "classification": { "platform": "Windows PC", "ESRB": "E10+" },
+    "ratings": { "critic": 92 },
+    "genres": ["Platformer"]
+  },
+  {
+    "gameData": {
+      "name": "Undertale",
+      "releaseInfo": { "year": "2015" },
+      "studio": { "developer": "Toby Fox", "publisher": "Toby Fox" }
+    },
+    "classification": { "platform": "Windows PC", "ESRB": "E10+" },
+    "ratings": { "critic": 92 },
+    "genres": ["RPG"]
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "titlePart": "Portal",
+    "subtitlePart": "2",
+    "releaseYear": "2011",
+    "studioCredit": "Valve / Valve",
+    "platform": "Windows PC",
+    "genres": ["Puzzle", "Platformer"],
+    "criticScore": 95,
+    "ESRB": "E10+"
+  },
+  {
+    "titlePart": "Half-Life",
+    "subtitlePart": "Alyx",
+    "releaseYear": "2020",
+    "studioCredit": "Valve / Valve",
+    "platform": "Windows PC",
+    "genres": ["Shooter", "VR"],
+    "criticScore": 93,
+    "ESRB": "M"
+  }
+]
