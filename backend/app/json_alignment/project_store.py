@@ -75,10 +75,99 @@ def save_project_library(project_id: str, library: ProfileLibrary) -> Path:
         return save_library(library, library_path(project_id))
 
 
+# -- conformed batch output (per source file) --------------------------------
+#
+# A batch run's conformed golden records, partitioned back to the SOURCE file
+# they came from, are persisted under alignment/outputs/ so the Report & Export
+# tab can offer a per-file "<name>_conformed_<DTG>.json" download after the
+# async job finishes. Only producing pathways (replay/novel/drift) write output;
+# review/reject docs produce nothing and are recorded in the manifest as such.
+
+def outputs_dir(project_id: str) -> Path:
+    return _alignment_dir(project_id) / "outputs"
+
+
+def _safe_stem(doc_id: str) -> str:
+    """A filesystem-safe stem derived from a source doc id/filename (its own
+    extension dropped; path separators and oddities neutralized)."""
+    base = os.path.basename(doc_id or "doc")
+    if base.lower().endswith(".json"):
+        base = base[:-5]
+    safe = "".join(c if (c.isalnum() or c in "-_. ") else "_" for c in base).strip()
+    return safe or "doc"
+
+
+def save_batch_outputs(project_id: str, conformed_by_doc: dict[str, list[dict[str, Any]]],
+                       *, pathways_by_doc: dict[str, str] | None = None) -> dict[str, Any]:
+    """Persist each source file's conformed records as its own JSON file and
+    write a manifest. Replaces any prior batch output for the project (the latest
+    batch is what the Report tab shows). Returns the manifest dict."""
+    pathways_by_doc = pathways_by_doc or {}
+    with _lock:
+        d = outputs_dir(project_id)
+        # Clear prior output so the Report tab reflects only the latest batch.
+        if d.exists():
+            for old in d.glob("*.json"):
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+        d.mkdir(parents=True, exist_ok=True)
+        entries: list[dict[str, Any]] = []
+        used: set[str] = set()
+        for doc_id, records in conformed_by_doc.items():
+            stem = _safe_stem(doc_id)
+            # de-dupe stems from distinct doc_ids that normalize the same
+            candidate, n = stem, 1
+            while candidate in used:
+                n += 1
+                candidate = f"{stem}_{n}"
+            used.add(candidate)
+            fname = f"{candidate}.records.json"
+            (d / fname).write_text(
+                json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8")
+            entries.append({
+                "doc_id": doc_id,
+                "stem": candidate,
+                "stored_file": fname,
+                "record_count": len(records),
+                "pathway": pathways_by_doc.get(doc_id, ""),
+            })
+        manifest = {"outputs": entries, "doc_count": len(entries)}
+        (d / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+        return manifest
+
+
+def load_batch_manifest(project_id: str) -> dict[str, Any] | None:
+    p = outputs_dir(project_id) / "manifest.json"
+    if not p.exists():
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def load_batch_output_records(project_id: str, stem: str) -> list[dict[str, Any]] | None:
+    """Read one source file's conformed records by its manifest stem."""
+    manifest = load_batch_manifest(project_id)
+    if not manifest:
+        return None
+    entry = next((e for e in manifest.get("outputs", []) if e.get("stem") == stem), None)
+    if entry is None:
+        return None
+    p = outputs_dir(project_id) / entry["stored_file"]
+    if not p.exists():
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
 __all__ = [
     "library_path",
+    "load_batch_manifest",
+    "load_batch_output_records",
     "load_project_library",
     "load_target_schema",
+    "outputs_dir",
+    "save_batch_outputs",
     "save_project_library",
     "save_target_schema",
     "target_schema_path",

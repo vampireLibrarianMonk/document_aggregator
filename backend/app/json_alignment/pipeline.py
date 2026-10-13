@@ -17,7 +17,7 @@ from .profile_store import ConversionProfile
 from .provenance import ValueProvenance
 from .source_profile import SourceProfile, profile_source
 from .target_profile import TargetSchema, extract_target
-from .validator import ValidationReport, validate_record
+from .validator import ValidationReport, is_conformant, validate_record
 
 
 @dataclass
@@ -33,6 +33,17 @@ class AlignmentResult:
     def all_valid(self) -> bool:
         return all(v.ok for v in self.validation)
 
+    def conformant_flags(self) -> list[bool]:
+        """Per-record STRICT conformance (all required present + valid). This —
+        not `validation.ok` — gates export and the 'conformed' count: a record
+        that abstained on a required field is valid-but-not-conformant."""
+        return [is_conformant(rec, self.validation[i], self.target)
+                for i, rec in enumerate(self.records)]
+
+    @property
+    def conformant_count(self) -> int:
+        return sum(1 for ok in self.conformant_flags() if ok)
+
     def summary(self) -> dict[str, Any]:
         return {
             "records": len(self.records),
@@ -41,6 +52,7 @@ class AlignmentResult:
             "conflicts": self.mapping.conflicts(),
             "all_valid": self.all_valid,
             "invalid_records": sum(0 if v.ok else 1 for v in self.validation),
+            "conformant_records": self.conformant_count,
         }
 
 

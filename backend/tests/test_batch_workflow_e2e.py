@@ -319,15 +319,17 @@ def test_full_mixed_batch_routes_each_file_to_its_pathway(client):
     )
     labels = _pathway_label_counts(result)
 
-    # clean -> learned for approval; renamed -> review; weather -> research
-    # (Learn new shapes lets the research path try it; the user rejects it at
-    # approval). This matches Step 5 of the walkthrough.
-    assert labels.get("New shape — needs approval", 0) >= 1
-    assert labels.get("Needs human review", 0) == 1
-    # weather with research on is sent to research rather than quarantined
-    # outright; it must NOT be converted into a golden record.
+    # clean -> learned for approval (grounds all its fields). renamed (no shared
+    # tokens) AND weather (grounds nothing) both land in review: a shape whose
+    # inferred mapping grounds ZERO golden fields is NOT registered as a
+    # provisional profile (it would only ever replay into empty records), so it
+    # is downgraded to review rather than offered as an all-"needs review"
+    # approval card.
+    assert labels.get("New shape — needs approval", 0) == 1
+    assert labels.get("Needs human review", 0) == 2
+    # Only the clean shape produced real conformed records (no empty-record
+    # inflation from weather).
     assert result["summary"]["conformed_records"] >= 1
-    # exactly the clean shape conformed; renamed produced nothing.
     produced_docs = sum(labels.values())
     assert produced_docs == 3, labels
 

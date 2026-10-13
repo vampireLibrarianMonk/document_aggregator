@@ -44,6 +44,22 @@ class DocKind(str, Enum):
     first_draft = "first_draft"  # the completed-but-flawed attempt
 
 
+class ProjectKind(str, Enum):
+    """What a project IS, chosen once at creation and immutable afterward. It
+    drives which workflow (and therefore which tabs) the project exposes:
+
+      correction      the document-driven correction flow: upload real source
+                      documents, the app builds the project and reconciles a
+                      corrected report.
+      json_alignment  the JSON->golden-schema flow: define one golden JSON
+                      Schema and conform many messy source JSON files to it.
+
+    Defaults to `correction` so existing projects and any stored project.json
+    that predates this field deserialize unchanged (no migration)."""
+    correction = "correction"
+    json_alignment = "json_alignment"
+
+
 class Stage(BaseModel):
     name: str
     status: StageStatus = StageStatus.pending
@@ -183,6 +199,10 @@ class Project(BaseModel):
     name: str
     description: str = ""
     created_at: str = Field(default_factory=utcnow)
+    # What this project IS (immutable after creation). Drives which workflow and
+    # tab set it exposes. Defaults to `correction` so projects created before
+    # this field (and all bundled sample cases) deserialize unchanged.
+    kind: ProjectKind = ProjectKind.correction
     # Per-project relevance dial for batch JSON->golden conversion: a source
     # document is rejected as unrelated when the share of REQUIRED golden fields
     # it can confidently map falls below this (0..1). Zero mappable required

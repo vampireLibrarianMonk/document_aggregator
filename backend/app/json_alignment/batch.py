@@ -77,6 +77,11 @@ class Cluster:
     doc_ids: list[str]
     records: list[dict[str, Any]]             # all records across the cluster's docs
     descriptions: dict[str, str] = field(default_factory=dict)
+    # Parallel to `records`: which source doc each pooled record came from, so a
+    # cluster's conformed output can be partitioned back per original file (the
+    # UI offers a per-file "<name>_conformed" download). Index-aligned with
+    # `records`; `records[i]` originated from doc `record_doc_ids[i]`.
+    record_doc_ids: list[str] = field(default_factory=list)
 
     @property
     def doc_count(self) -> int:
@@ -100,10 +105,12 @@ def cluster_documents(docs: list[SourceDoc]) -> list[Cluster]:
             groups[sig.hash] = Cluster(
                 key=sig.hash, signature=sig, doc_ids=[doc.doc_id],
                 records=list(doc.records), descriptions=dict(doc.descriptions),
+                record_doc_ids=[doc.doc_id] * len(doc.records),
             )
         else:
             c.doc_ids.append(doc.doc_id)
             c.records.extend(doc.records)
+            c.record_doc_ids.extend([doc.doc_id] * len(doc.records))
             # merge descriptions (same shape -> same keys; last-writer is fine)
             c.descriptions.update(doc.descriptions)
     return list(groups.values())

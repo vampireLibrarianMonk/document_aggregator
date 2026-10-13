@@ -70,7 +70,11 @@ def validate_record(record: dict[str, Any], provenance: list[ValueProvenance],
     deferred = {p.target for p in provenance
                 if p.status in ("needs_review", "conflict")}
 
-    # structural: required fields must be present OR legitimately deferred
+    # structural: a required field that is NEITHER produced nor legitimately
+    # deferred is a hard error (something went wrong). A required field that is
+    # DEFERRED (needs_review/conflict) is not an *error* — it is an honest
+    # abstention — so it does not appear here; but it DOES make the record
+    # non-conformant (see `is_conformant`), which is what gates export + counts.
     for tgt in target.fields:
         if tgt.required and tgt.name not in record and tgt.name not in deferred:
             issues.append(ValidationIssue(
@@ -121,4 +125,24 @@ def validate_record(record: dict[str, Any], provenance: list[ValueProvenance],
     return ValidationReport(ok=not issues, issues=issues)
 
 
-__all__ = ["ValidationIssue", "ValidationReport", "validate_record"]
+def is_conformant(record: dict[str, Any], report: ValidationReport,
+                  target: TargetSchema) -> bool:
+    """STRICT conformance: does this record actually satisfy the golden schema?
+
+    Distinct from `ValidationReport.ok`. `ok` means "no validation ERROR"
+    (nothing fabricated / mistyped) and is True even when a required field was
+    honestly DEFERRED (needs_review) — a deferral is not an error. But a record
+    that abstained on a required field is NOT a valid golden record: per JSON
+    Schema, an object missing a `required` property is invalid. So a record is
+    conformant only when it has zero validation issues AND every required golden
+    field is actually PRESENT (not merely deferred).
+
+    This is the gate for what may be downloaded and what counts as "conformed":
+    only strictly-conformant records are exported; the rest are needs_review.
+    """
+    if not report.ok:
+        return False
+    return all(tf.name in record for tf in target.fields if tf.required)
+
+
+__all__ = ["ValidationIssue", "ValidationReport", "is_conformant", "validate_record"]

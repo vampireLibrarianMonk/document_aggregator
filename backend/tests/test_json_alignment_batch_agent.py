@@ -167,3 +167,55 @@ def test_summary_rolls_up_counts():
     assert s["doc_counts_by_pathway"]["replay_clean"] == 4
     assert s["conformed_records"] == 4
     assert s["quarantined_docs"] == 1
+
+
+# -- STRICT conformance: a record missing a REQUIRED golden field is not
+#    conformant, is NOT counted as conformed, and is NOT exported ------------
+
+def test_record_missing_required_field_is_not_conformant_predicate():
+    from app.json_alignment.pipeline import run_alignment
+
+    schema = _schema()  # required: name, releaseYear
+    # A shape that grounds releaseYear + others but has NO 'name' candidate.
+    recs = [{"releaseYear": "2019", "developer": "Respawn", "genres": ["Shooter"]},
+            {"releaseYear": "2016", "developer": "id", "genres": ["Shooter"]}]
+    res = run_alignment(recs, schema)
+    flags = res.conformant_flags()
+    # validation.ok may be True (abstaining on a required field is not an ERROR),
+    # but the record is NOT conformant: 'name' (required) is absent.
+    assert all(not f for f in flags)
+    for i, rec in enumerate(res.records):
+        assert "name" not in rec
+        assert res.validation[i].ok is True   # honest deferral, not a fab error
+
+
+def test_approved_shape_with_missing_required_record_is_withheld_from_export():
+    """When a learnable shape produces records missing a required field, those
+    records count as needs_review (not conformed) and never reach the per-file
+    export (`conformed_by_doc`)."""
+    schema = _schema()
+    # Build + approve a profile for a shape that maps everything EXCEPT name
+    # (no name-like source key), so replayed records are valid-but-not-conformant.
+    shape_recs = [{"releaseYear": "2019", "developer": "Respawn", "genres": ["Shooter"]}]
+    src = profile_source(shape_recs, None)
+    tgt = extract_target(schema)
+    m = infer_mapping(src, tgt)
+    _, prov = execute_mapping(shape_recs, m, tgt)
+    prof = build_profile("noname_v1", src, tgt, m,
+                         meta={"fill_baseline": FillBaseline.from_provenance(prov).to_dict()})
+    lib = ProfileLibrary(target_title=tgt.title)
+    lib.register("noname_v1", signature_of(shape_recs), prof)
+    lib.approve("noname_v1")
+
+    docs = [SourceDoc("teamA.json", shape_recs), SourceDoc("teamB.json", shape_recs)]
+    res = run_batch(docs, schema, lib, reject_below=0.5)
+    o = res.outcomes[0]
+    assert o.pathway == "replay_clean"
+    # Records were produced but NONE conform (missing required 'name').
+    assert o.conformed == 0
+    assert o.needs_review == 2
+    assert o.records == []                      # nothing conformant to keep
+    # And nothing reaches the per-file export.
+    assert res.conformed_by_doc() == {}
+    assert res.summary()["conformed_records"] == 0
+    assert res.summary()["needs_review_records"] == 2

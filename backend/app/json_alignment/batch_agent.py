@@ -63,6 +63,9 @@ class ClusterOutcome:
     pathway: str
     doc_ids: tuple[str, ...]
     records: list[dict[str, Any]] = field(default_factory=list)
+    # Parallel to `records`: the source doc each conformed record came from, so
+    # output can be written back per original file. Empty for review/reject.
+    record_doc_ids: tuple[str, ...] = ()
     conformed: int = 0                       # records that validated clean
     needs_review: int = 0                    # records with any validation issue
     quarantined: bool = False
@@ -89,10 +92,17 @@ def _profile_id_for(cluster: Cluster, target_title: str) -> str:
 
 
 def _learn_profile(cluster: Cluster, target_schema: dict[str, Any],
-                   library: ProfileLibrary, *, pid: str) -> AlignmentResult:
-    """Infer a mapping for a cluster, register it as a PROVISIONAL profile (with
-    a fill-rate baseline), and return the alignment result. The human approves it
-    later; until then it does not participate in approved-only routing.
+                   library: ProfileLibrary, *, pid: str) -> tuple[AlignmentResult, bool]:
+    """Infer a mapping for a cluster and, IF it grounds at least one golden
+    field, register it as a PROVISIONAL profile (with a fill-rate baseline). The
+    human approves it later; until then it does not participate in approved-only
+    routing. Returns (result, registered).
+
+    A mapping that grounds ZERO golden fields is worthless to approve (it would
+    only ever replay into empty records) and would surface as an all-"needs
+    review" approval card — so we do NOT register it. The cluster then yields no
+    output and learns nothing: an unrelated/opaque shape is not made learnable
+    just because research was allowed to try it.
 
     Research pathways enable the optional LLM semantic tier (use_semantic): it
     upgrades deterministic abstentions with re-verified model picks when Bedrock
@@ -100,26 +110,69 @@ def _learn_profile(cluster: Cluster, target_schema: dict[str, Any],
     result = run_alignment(cluster.records, target_schema,
                            source_descriptions=cluster.descriptions or None,
                            use_semantic=True)
+    if not result.mapping.mapped():
+        return result, False
     src = profile_source(cluster.records, cluster.descriptions or None)
     target = extract_target(target_schema)
     baseline = FillBaseline.from_provenance(result.provenance)
+    # Record the SOURCE FILES that fed this shape in the batch that learned it,
+    # so the approval card can show the user WHICH uploaded files this mapping
+    # was inferred from (the shape id is an opaque hash on its own). Capped so a
+    # thousand-file cluster doesn't bloat the profile; the count is kept.
+    doc_ids = list(dict.fromkeys(cluster.doc_ids))  # de-dup, preserve order
     profile = build_profile(pid, src, target, result.mapping,
-                            meta={"fill_baseline": baseline.to_dict()})
+                            meta={"fill_baseline": baseline.to_dict(),
+                                  "source_docs": doc_ids[:20],
+                                  "source_doc_count": len(doc_ids)})
     library.register(pid, signature_of(cluster.records), profile,
                      state=STATE_PROVISIONAL)
+    return result, True
     return result
 
 
 def _outcome_from_result(decision: ClusterDecision, result: AlignmentResult,
                          *, provisional: str | None,
+                         record_doc_ids: tuple[str, ...] = (),
                          extra_reasons: tuple[str, ...] = ()) -> ClusterOutcome:
-    conformed = sum(1 for v in result.validation if v.ok)
+    # STRICT conformance gates both the count and what is kept for export: a
+    # record that abstained on a required golden field is NOT conformant and is
+    # NOT emitted (per the JSON Schema `required` rule). Only strictly-conformant
+    # records go into `records` (and thus the per-file download); the remainder
+    # are reported as needs_review. `record_doc_ids` is filtered in lockstep so
+    # per-file partitioning stays aligned.
+    flags = result.conformant_flags()
+    total = len(result.records)
+    aligned_doc_ids = (record_doc_ids if len(record_doc_ids) == total
+                       else tuple(record_doc_ids[:1]) * total)
+    kept_records: list[dict[str, Any]] = []
+    kept_doc_ids: list[str] = []
+    for i, rec in enumerate(result.records):
+        if flags[i]:
+            kept_records.append(rec)
+            if i < len(aligned_doc_ids):
+                kept_doc_ids.append(aligned_doc_ids[i])
+    conformed = len(kept_records)
     return ClusterOutcome(
         cluster_key=decision.cluster_key, pathway=decision.pathway,
-        doc_ids=decision.doc_ids, records=result.records,
-        conformed=conformed, needs_review=len(result.validation) - conformed,
+        doc_ids=decision.doc_ids, records=kept_records,
+        record_doc_ids=tuple(kept_doc_ids),
+        conformed=conformed, needs_review=total - conformed,
         provisional_profile=provisional,
         reasons=decision.reasons + extra_reasons,
+    )
+
+
+def _unlearnable_outcome(decision: ClusterDecision,
+                         record_doc_ids: tuple[str, ...]) -> ClusterOutcome:
+    """A research cluster whose inferred mapping grounded ZERO golden fields:
+    report it as review (not a producing pathway), with no records and no
+    provisional profile, so it never becomes a junk approval card."""
+    return ClusterOutcome(
+        cluster_key=decision.cluster_key, pathway=PATHWAY_REVIEW,
+        doc_ids=decision.doc_ids, records=[], record_doc_ids=(),
+        conformed=0, needs_review=0, quarantined=False, provisional_profile=None,
+        reasons=decision.reasons + ("no golden field could be grounded; nothing "
+                                    "to learn or approve",),
     )
 
 
@@ -130,18 +183,24 @@ def execute_cluster(decision: ClusterDecision, cluster: Cluster,
     into which novel/drift pathways register a provisional profile."""
     target_title = extract_target(target_schema).title
 
+    rec_doc_ids = tuple(cluster.record_doc_ids)
+
     if decision.pathway == PATHWAY_REPLAY:
         entry = library.get(decision.matched_profile or "")
         if entry is None:  # defensive: approved profile vanished -> treat as novel
             pid = _profile_id_for(cluster, target_title)
-            res = _learn_profile(cluster, target_schema, library, pid=pid)
+            res, registered = _learn_profile(cluster, target_schema, library, pid=pid)
+            if not registered:
+                return _unlearnable_outcome(decision, rec_doc_ids)
             return _outcome_from_result(decision, res, provisional=pid,
+                                        record_doc_ids=rec_doc_ids,
                                         extra_reasons=("replay target missing; "
                                                        "re-learned provisionally",))
         res = run_alignment(cluster.records, target_schema,
                             profile=entry.profile,
                             source_descriptions=cluster.descriptions or None)
-        return _outcome_from_result(decision, res, provisional=None)
+        return _outcome_from_result(decision, res, provisional=None,
+                                    record_doc_ids=rec_doc_ids)
 
     if decision.pathway in (PATHWAY_NOVEL, PATHWAY_DRIFT_REPAIR):
         # Both re-research the cluster; drift_repair additionally supersedes the
@@ -150,8 +209,14 @@ def execute_cluster(decision: ClusterDecision, cluster: Cluster,
             pid = decision.matched_profile
         else:
             pid = _profile_id_for(cluster, target_title)
-        res = _learn_profile(cluster, target_schema, library, pid=pid)
-        return _outcome_from_result(decision, res, provisional=pid)
+        res, registered = _learn_profile(cluster, target_schema, library, pid=pid)
+        if not registered:
+            # Nothing grounded -> no provisional profile, no output. Downgrade to
+            # review so the user isn't handed an all-"needs review" approval card
+            # for a shape that maps nothing (e.g. opaque keys / unrelated data).
+            return _unlearnable_outcome(decision, rec_doc_ids)
+        return _outcome_from_result(decision, res, provisional=pid,
+                                    record_doc_ids=rec_doc_ids)
 
     # review / reject: nothing is produced; the golden is never emitted.
     return ClusterOutcome(
@@ -175,9 +240,15 @@ class BatchResult:
         quarantined_docs = sum(len(o.doc_ids) for o in self.outcomes if o.quarantined)
         provisional = sorted({o.provisional_profile for o in self.outcomes
                               if o.provisional_profile})
+        # Count per-pathway from the EXECUTED outcomes, not the plan: a research
+        # cluster that grounded nothing is downgraded to review at execution, so
+        # the user-visible table must reflect that (the plan still says novel).
+        doc_counts: dict[str, int] = {}
+        for o in self.outcomes:
+            doc_counts[o.pathway] = doc_counts.get(o.pathway, 0) + len(o.doc_ids)
         return {
             "clusters": len(self.outcomes),
-            "doc_counts_by_pathway": self.report.doc_counts(),
+            "doc_counts_by_pathway": doc_counts,
             "produced_records": produced,
             "conformed_records": conformed,
             "needs_review_records": needs_review,
@@ -191,6 +262,23 @@ class BatchResult:
             "outcomes": [o.to_dict() for o in self.outcomes],
             "report": self.report.to_dict(),
         }
+
+    def conformed_by_doc(self) -> dict[str, list[dict[str, Any]]]:
+        """Partition every producing cluster's conformed records back to the
+        source file (doc_id) they came from, preserving input order. Only
+        producing pathways contribute; review/reject docs are absent (they
+        produced nothing). This is what the per-file "<name>_conformed" download
+        serves."""
+        by_doc: dict[str, list[dict[str, Any]]] = {}
+        for o in self.outcomes:
+            if not o.records:
+                continue
+            # record_doc_ids is index-aligned with records; fall back to the
+            # single doc when (defensively) it is missing.
+            doc_ids = o.record_doc_ids or (o.doc_ids[:1] * len(o.records))
+            for rec, did in zip(o.records, doc_ids):
+                by_doc.setdefault(did, []).append(rec)
+        return by_doc
 
 
 def run_batch(docs: list[SourceDoc], target_schema: dict[str, Any],

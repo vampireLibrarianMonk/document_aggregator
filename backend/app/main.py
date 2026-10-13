@@ -7,6 +7,7 @@ report, and export to json/markdown/docx/pptx/pdf.
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Iterator
 
@@ -19,7 +20,7 @@ from . import ingest_generate
 from .aggregate import _sentiment, build_report
 from .config import settings
 from .exporters import export_report
-from .models import Project, Supplemental, SupplementalKind
+from .models import Project, ProjectKind, Supplemental, SupplementalKind
 from .pipeline import ingest_document
 from .search import search as run_search
 from .store import store
@@ -78,12 +79,17 @@ def client_config() -> dict:
 class CreateProject(BaseModel):
     name: str
     description: str = ""
+    # What the project IS. Optional on the wire (defaults to `correction`) so
+    # existing programmatic callers keep working; the UI requires an explicit
+    # choice before enabling Create.
+    kind: ProjectKind = ProjectKind.correction
 
 
 @app.post("/projects")
 def create_project(body: CreateProject) -> Project:
     pid = "proj_" + uuid.uuid4().hex[:10]
-    return store.create_project(Project(id=pid, name=body.name, description=body.description))
+    return store.create_project(
+        Project(id=pid, name=body.name, description=body.description, kind=body.kind))
 
 
 @app.get("/projects")
@@ -738,6 +744,7 @@ def get_library(project_id: str) -> dict:
     entries = []
     for pid in sorted(lib.entries):
         e = lib.entries[pid]
+        meta = e.profile.meta or {}
         entries.append({
             "profile_id": e.profile_id,
             "state": e.state,
@@ -745,6 +752,10 @@ def get_library(project_id: str) -> dict:
             "mapped": e.profile.mapping.mapped(),
             "needs_review": e.profile.mapping.needs_review(),
             "conflicts": e.profile.mapping.conflicts(),
+            # The source files this shape was learned from (for the approval
+            # card), with the total count when more than the stored sample.
+            "source_docs": list(meta.get("source_docs", [])),
+            "source_doc_count": int(meta.get("source_doc_count", 0)),
         })
     return {
         "project_id": project_id,
@@ -777,6 +788,56 @@ def approve_profile(project_id: str, body: ApproveProfile) -> dict:
     save_project_library(project_id, lib)
     return {"project_id": project_id, "approved": body.profile_id,
             "state": "approved"}
+
+
+@app.get("/projects/{project_id}/alignment/outputs")
+def list_alignment_outputs(project_id: str) -> dict:
+    """List the latest batch's conformed output, one entry per SOURCE file, so
+    the Report & Export tab can offer a per-file download. Entries with a
+    non-producing pathway (review/quarantine) produced no records and are not
+    listed (only files that yielded golden records are downloadable)."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import load_batch_manifest
+
+    manifest = load_batch_manifest(project_id)
+    if not manifest:
+        return {"project_id": project_id, "outputs": []}
+    return {"project_id": project_id, "outputs": manifest.get("outputs", [])}
+
+
+def _dtg_now() -> str:
+    """UTC timestamp to the second, filename-safe: 20261013T181000Z."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def _safe_postfix(postfix: str) -> str:
+    """Sanitize a user-supplied filename postfix (default '_conformed')."""
+    import re as _re
+    cleaned = _re.sub(r"[^A-Za-z0-9._-]+", "_", (postfix or "").strip())
+    return cleaned or "_conformed"
+
+
+@app.get("/projects/{project_id}/alignment/outputs/{stem}/download")
+def download_alignment_output(
+    project_id: str, stem: str, postfix: str = "_conformed",
+) -> Response:
+    """Download one source file's conformed golden records as JSON, named
+    '<original-stem><postfix>_<UTC DTG>.json' (postfix editable by the user,
+    default '_conformed'). 404 if that file produced no output."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import load_batch_output_records
+
+    records = load_batch_output_records(project_id, stem)
+    if records is None:
+        raise HTTPException(404, f"no conformed output for '{stem}'")
+    body = json.dumps(records, indent=2, ensure_ascii=False).encode("utf-8")
+    download_name = f"{stem}{_safe_postfix(postfix)}_{_dtg_now()}.json"
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
 
 
 def _components(project_id: str = project.DEFAULT_PROJECT) -> list[dict]:

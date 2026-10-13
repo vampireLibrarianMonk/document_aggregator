@@ -152,6 +152,7 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
     from ..json_alignment.project_store import (
         load_project_library,
         load_target_schema,
+        save_batch_outputs,
         save_project_library,
     )
 
@@ -178,6 +179,15 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
         research_available=research)
     # Persist the grown library (new provisional profiles / version bumps).
     save_project_library(project_id, library)
+
+    # Persist the conformed output per SOURCE file so the Report & Export tab can
+    # offer per-file "<name>_conformed_<DTG>.json" downloads. Each producing
+    # outcome's records are partitioned back to the doc_id they came from.
+    pathways_by_doc = {
+        did: o.pathway for o in result.outcomes for did in o.doc_ids
+    }
+    save_batch_outputs(project_id, result.conformed_by_doc(),
+                       pathways_by_doc=pathways_by_doc)
 
     return {"ok": True, **result.to_dict()}
 
