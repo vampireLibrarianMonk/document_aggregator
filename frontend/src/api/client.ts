@@ -470,6 +470,24 @@ export const api = {
     }).then((r) => json(r))
   },
 
+  /** Record a human field-by-field correspondence on a learned shape: map a
+   *  golden field to a real source path, or null to leave it unmapped. */
+  overrideFieldMapping(
+    projectId: string, profileId: string, target: string, sourcePath: string | null,
+  ): Promise<{
+    mapped: Record<string, string>; needs_review: string[]; conflicts: string[]
+    propagation?: {
+      available: boolean; sampled: number; total: number
+      conformant: number; needs_review: number
+    }
+  }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/override`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId, target, source_path: sourcePath }),
+    }).then((r) => json(r))
+  },
+
   /** The latest batch's conformed output, one entry per source file that
    *  produced golden records. */
   listAlignmentOutputs(projectId: string): Promise<{ outputs: AlignmentOutput[] }> {

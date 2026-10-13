@@ -207,6 +207,13 @@ function ApprovalCards({ project, library, onApproved }: {
   onApproved: () => void
 }) {
   const [busy, setBusy] = useState<string | null>(null)
+  const [remapping, setRemapping] = useState<string | null>(null)
+  // Per-profile propagation report from the last override: how many of the
+  // shape's records now strictly conform after the human mapping.
+  const [propagation, setPropagation] = useState<Record<string, {
+    available: boolean; sampled: number; total: number
+    conformant: number; needs_review: number
+  }>>({})
   const provisional = library.entries.filter((e) => e.state === 'provisional')
   if (provisional.length === 0) return null
 
@@ -217,6 +224,19 @@ function ApprovalCards({ project, library, onApproved }: {
       onApproved()
     } finally {
       setBusy(null)
+    }
+  }
+
+  // Human field-by-field remap: point a golden field at a real source path, or
+  // '' to leave it unmapped. Refreshes the library so the card reflects it.
+  const remap = async (pid: string, target: string, sourcePath: string | null) => {
+    setRemapping(`${pid}:${target}`)
+    try {
+      const res = await api.overrideFieldMapping(project.id, pid, target, sourcePath)
+      if (res.propagation) setPropagation((prev) => ({ ...prev, [pid]: res.propagation! }))
+      onApproved()  // refreshes the library view
+    } finally {
+      setRemapping(null)
     }
   }
 
@@ -248,18 +268,68 @@ function ApprovalCards({ project, library, onApproved }: {
                 ` +${e.source_doc_count - e.source_docs.length} more`}
             </p>
           )}
+          {propagation[e.profile_id]?.available && (
+            <p className="small" style={{ margin: '2px 0 0', color: 'var(--ok)' }} role="status">
+              After your mapping, <b>{propagation[e.profile_id].conformant}</b> of{' '}
+              {propagation[e.profile_id].sampled} record(s) in this shape now fully
+              conform
+              {propagation[e.profile_id].needs_review > 0 &&
+                ` (${propagation[e.profile_id].needs_review} still need review)`}
+              {propagation[e.profile_id].total > propagation[e.profile_id].sampled &&
+                ` — sampled ${propagation[e.profile_id].sampled} of ${propagation[e.profile_id].total}`}
+              .
+            </p>
+          )}
           <table className="docs" style={{ marginTop: 6 }}>
             <thead><tr><th>Golden field</th><th>← Source path</th></tr></thead>
             <tbody>
               {Object.entries(e.mapped).map(([tgt, src]) => (
                 <tr key={tgt}><td>{tgt}</td><td className="mono small">{src}</td></tr>
               ))}
-              {e.needs_review.map((t) => (
-                <tr key={t}>
-                  <td>{t}</td>
-                  <td className="small" style={{ color: 'var(--warn)' }}>needs review</td>
-                </tr>
-              ))}
+              {e.needs_review.map((t) => {
+                const cands = e.candidates?.[t] ?? []
+                // Scores keyed by path, so we can tag options the matcher saw.
+                const scored = new Map(cands.map(([p, s]) => [p, s]))
+                // Options: every real source path, scored ones first (desc).
+                const paths = (e.source_paths ?? []).map((sp) => sp.path)
+                const ordered = [...paths].sort(
+                  (a, b) => (scored.get(b) ?? -1) - (scored.get(a) ?? -1))
+                const selId = `remap-${e.profile_id}-${t}`
+                const pending = remapping === `${e.profile_id}:${t}`
+                return (
+                  <tr key={t}>
+                    <td>{t} <span className="small" style={{ color: 'var(--warn)' }}>needs review</span></td>
+                    <td>
+                      <label htmlFor={selId} className="small muted" style={{ marginRight: 6 }}>
+                        map to:
+                      </label>
+                      <select
+                        id={selId}
+                        defaultValue=""
+                        disabled={pending || paths.length === 0}
+                        onChange={(ev) => void remap(e.profile_id, t, ev.target.value || null)}
+                        className="small"
+                      >
+                        <option value="">— leave unmapped (no viable source) —</option>
+                        {ordered.map((p) => {
+                          const sc = scored.get(p)
+                          return (
+                            <option key={p} value={p}>
+                              {p}{sc != null ? `  (${Math.round(sc * 100)}% match)` : ''}
+                            </option>
+                          )
+                        })}
+                      </select>
+                      {pending && <span className="muted small" style={{ marginLeft: 6 }}>saving…</span>}
+                      {paths.length === 0 && (
+                        <span className="muted small" style={{ marginLeft: 6 }}>
+                          no source fields available
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

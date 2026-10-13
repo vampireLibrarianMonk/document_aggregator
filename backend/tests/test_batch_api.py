@@ -143,3 +143,130 @@ def test_api_set_schema_submit_approve_then_replay(isolated):
     counts = s2["summary"]["doc_counts_by_pathway"]
     assert counts.get("replay_clean", 0) == 1
     assert s2["summary"]["conformed_records"] == 1
+
+
+# -- human field-by-field override (3b/3c) -----------------------------------
+
+def test_override_maps_an_unmapped_field_to_a_real_source_path(isolated):
+    from app.jobs.runtime import get_queue
+    from app.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+
+    pid = client.post("/projects", json={"name": "Ov", "kind": "json_alignment"}).json()["id"]
+    client.put(f"/projects/{pid}/alignment/target-schema", json={"target": _schema()})
+
+    # A renamed shape: keys share tokens with the golden names EXCEPT genres
+    # ('genre_list' vs 'genres' do not overlap deterministically), so genres
+    # lands in needs_review with no scored candidate.
+    rec = {"game_name": "Celeste", "release_year": "2018",
+           "developer_studio": "MMG", "publisher_name": "MMG",
+           "platform_system": "Windows PC", "genre_list": ["Platformer"],
+           "critic_score_value": 92, "esrb_rating": "E10+"}
+    r = client.post(f"/projects/{pid}/alignment/batch",
+                    json={"docs": [{"doc_id": "team.json", "records": [rec]}],
+                          "research": True})
+    Worker(get_queue(), "w1").run_once()
+    assert client.get(f"/jobs/{r.json()['job_id']}").json()["result"]["ok"] is True
+
+    lib = client.get(f"/projects/{pid}/alignment/library").json()
+    entry = lib["entries"][0]
+    pid_prof = entry["profile_id"]
+    assert "genres" in entry["needs_review"]
+    # The full source-path list is offered even though genres had no score.
+    offered = {sp["path"] for sp in entry["source_paths"]}
+    assert "genre_list[]" in offered
+
+    # Human maps genres <- genre_list[].
+    r = client.post(f"/projects/{pid}/alignment/override",
+                    json={"profile_id": pid_prof, "target": "genres",
+                          "source_path": "genre_list[]"})
+    assert r.status_code == 200
+    assert r.json()["mapped"].get("genres") == "genre_list[]"
+    assert "genres" not in r.json()["needs_review"]
+
+    # Persisted: a fresh library read still shows it mapped.
+    lib2 = client.get(f"/projects/{pid}/alignment/library").json()
+    assert lib2["entries"][0]["mapped"].get("genres") == "genre_list[]"
+
+
+def test_override_rejects_a_source_path_not_in_the_shape(isolated):
+    from app.jobs.runtime import get_queue
+    from app.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+
+    pid = client.post("/projects", json={"name": "Ov2", "kind": "json_alignment"}).json()["id"]
+    client.put(f"/projects/{pid}/alignment/target-schema", json={"target": _schema()})
+    rec = {"game_name": "Celeste", "release_year": "2018", "genre_list": ["Platformer"]}
+    r = client.post(f"/projects/{pid}/alignment/batch",
+                    json={"docs": [{"doc_id": "t.json", "records": [rec]}], "research": True})
+    Worker(get_queue(), "w1").run_once()
+    prof = client.get(f"/projects/{pid}/alignment/library").json()["entries"][0]["profile_id"]
+
+    # An invented source path is refused — no fabrication.
+    r = client.post(f"/projects/{pid}/alignment/override",
+                    json={"profile_id": prof, "target": "genres",
+                          "source_path": "totally_made_up"})
+    assert r.status_code == 400
+    assert "not in this shape" in r.json()["detail"]
+
+
+def test_override_leave_unmapped_clears_the_field(isolated):
+    from app.jobs.runtime import get_queue
+    from app.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+
+    pid = client.post("/projects", json={"name": "Ov3", "kind": "json_alignment"}).json()["id"]
+    client.put(f"/projects/{pid}/alignment/target-schema", json={"target": _schema()})
+    rec = {"game_name": "Celeste", "release_year": "2018", "genre_list": ["Platformer"]}
+    r = client.post(f"/projects/{pid}/alignment/batch",
+                    json={"docs": [{"doc_id": "t.json", "records": [rec]}], "research": True})
+    Worker(get_queue(), "w1").run_once()
+    prof = client.get(f"/projects/{pid}/alignment/library").json()["entries"][0]["profile_id"]
+
+    # Map then explicitly leave-unmapped (null): genres must not be in mapped.
+    client.post(f"/projects/{pid}/alignment/override",
+                json={"profile_id": prof, "target": "genres", "source_path": "genre_list[]"})
+    r = client.post(f"/projects/{pid}/alignment/override",
+                    json={"profile_id": prof, "target": "genres", "source_path": None})
+    assert r.status_code == 200
+    assert "genres" not in r.json()["mapped"]
+
+
+def test_override_returns_propagation_report(isolated):
+    """After a human maps a field, the override response reports how many of the
+    shape's retained records now strictly conform (the propagation payoff)."""
+    from app.jobs.runtime import get_queue
+    from app.main import app
+    from starlette.testclient import TestClient
+    client = TestClient(app)
+
+    pid = client.post("/projects", json={"name": "Prop", "kind": "json_alignment"}).json()["id"]
+    client.put(f"/projects/{pid}/alignment/target-schema", json={"target": _schema()})
+    # Two records of one renamed shape; genres is the only needs_review field.
+    recs = [
+        {"game_name": "Celeste", "release_year": "2018", "developer_studio": "MMG",
+         "publisher_name": "MMG", "platform_system": "Windows PC",
+         "genre_list": ["Platformer"], "critic_score_value": 92, "esrb_rating": "E10+"},
+        {"game_name": "Hades", "release_year": "2020", "developer_studio": "SG",
+         "publisher_name": "SG", "platform_system": "Windows PC",
+         "genre_list": ["Roguelike"], "critic_score_value": 93, "esrb_rating": "T"},
+    ]
+    r = client.post(f"/projects/{pid}/alignment/batch",
+                    json={"docs": [{"doc_id": "team.json", "records": recs}], "research": True})
+    Worker(get_queue(), "w1").run_once()
+    assert client.get(f"/jobs/{r.json()['job_id']}").json()["result"]["ok"] is True
+    prof = client.get(f"/projects/{pid}/alignment/library").json()["entries"][0]["profile_id"]
+
+    r = client.post(f"/projects/{pid}/alignment/override",
+                    json={"profile_id": prof, "target": "genres",
+                          "source_path": "genre_list[]"})
+    assert r.status_code == 200
+    prop = r.json()["propagation"]
+    assert prop["available"] is True
+    assert prop["sampled"] == 2 and prop["total"] == 2
+    # With genres now mapped, both records of the shape strictly conform.
+    assert prop["conformant"] == 2
+    assert prop["needs_review"] == 0

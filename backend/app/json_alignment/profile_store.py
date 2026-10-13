@@ -81,12 +81,22 @@ class ConversionProfile:
 def build_profile(name: str, source: SourceProfile, target: TargetSchema,
                   mapping: Mapping, *, meta: dict[str, Any] | None = None,
                   ) -> ConversionProfile:
+    merged_meta = dict(meta or {})
+    # Record the FULL set of source paths (with primary type) the shape exposes,
+    # so a human remap (3b) can offer every real source field as a choice — even
+    # the ones the matcher scored zero on (opaque/renamed keys with no lexical
+    # overlap), which is exactly where a human most needs the options. Only real
+    # paths from the data are listed; nothing is invented.
+    merged_meta.setdefault(
+        "source_paths",
+        [{"path": f.path, "type": f.primary_type} for f in source.fields],
+    )
     return ConversionProfile(
         name=name,
         target_title=target.title,
         mapping=mapping,
         source_field_count=len(source.fields),
-        meta=dict(meta or {}),
+        meta=merged_meta,
     )
 
 

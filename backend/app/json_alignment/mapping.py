@@ -75,6 +75,56 @@ class Mapping:
     def conflicts(self) -> list[str]:
         return [m.target for m in self.fields if m.status == STATUS_CONFLICT]
 
+    def with_override(self, target: str, source_path: str | None) -> Mapping:
+        """Return a NEW Mapping with a human decision applied to one target:
+
+          source_path = "<path>"  -> map the target to that source path (a human
+                                     correspondence decision; method='human',
+                                     confidence 1.0, status mapped).
+          source_path = None      -> explicitly leave the target UNMAPPED (the
+                                     human judged there is no viable source);
+                                     status needs_review with a human note so it
+                                     is not re-offered as an open question.
+
+        The chosen source_path is NOT trusted blindly downstream: execution still
+        reads + transforms it and will defer the field if the value can't be
+        produced for a given record (type mismatch etc.). This only records the
+        correspondence; grounding/validation remain authoritative."""
+        new_fields: list[FieldMapping] = []
+        for m in self.fields:
+            if m.target != target:
+                new_fields.append(m)
+                continue
+            if source_path:
+                new_fields.append(FieldMapping(
+                    target=target, source_path=source_path, method="human",
+                    confidence=1.0, status=STATUS_MAPPED,
+                    candidates=m.candidates,
+                    note="human-mapped (field-by-field override)"))
+            else:
+                new_fields.append(FieldMapping(
+                    target=target, source_path=None, method="human",
+                    confidence=0.0, status=STATUS_NEEDS_REVIEW,
+                    candidates=m.candidates,
+                    note="human left unmapped (no viable source)"))
+        return Mapping(fields=new_fields)
+
+    def candidates_for_unmapped(self) -> dict[str, list[tuple[str, float]]]:
+        """For every target field that is NOT confidently mapped (needs_review or
+        conflict), the ranked source-path candidates the matcher SAW but did not
+        confidently pick — so a human can choose among real options instead of
+        staring at a blank. Keyed by target field name; empty list means the
+        matcher saw no plausible source at all (truly nothing to offer).
+
+        These are real source paths from the data (never invented), carried on
+        each FieldMapping as `candidates`; this just surfaces them for the
+        unmapped fields the user is asked to resolve."""
+        out: dict[str, list[tuple[str, float]]] = {}
+        for m in self.fields:
+            if m.status in (STATUS_NEEDS_REVIEW, STATUS_CONFLICT):
+                out[m.target] = [(p, s) for p, s in m.candidates]
+        return out
+
     def to_dict(self) -> dict[str, Any]:
         return {"fields": [m.to_dict() for m in self.fields]}
 

@@ -6,6 +6,26 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Human field-by-field remap for JSON-alignment shapes (the "fix-it" flow).**
+  When a learned shape leaves a golden field unmapped (`needs_review`), the
+  approval card now offers a per-field **selection box** of real source paths —
+  the scored candidates first (with a match %), then every other source field
+  the shape exposes, plus "leave unmapped." The engine's lexical matcher scores
+  zero exactly on the hard cases (opaque/renamed keys with no token overlap), so
+  the dropdown deliberately offers the *full* source-path list, not just scored
+  candidates — a human can pick the right field even when the matcher saw no
+  signal. Only real source paths are accepted (no fabrication). The chosen
+  mapping persists onto the shape's profile (`POST …/alignment/override`;
+  `Mapping.with_override`, `apply_profile_override`), and the response returns a
+  **propagation report**: the override is re-applied across the shape's retained
+  source records and reports how many now strictly conform — one human decision,
+  N records fixed. Backend keeps a capped per-shape sample of raw records
+  (`save_shape_records`/`load_shape_records`) to drive that re-run. The library
+  API also now surfaces, per shape, the ranked `candidates` for each unmapped
+  field and the full `source_paths` list, plus the source files a shape was
+  learned from. Regression tests in `test_batch_api.py`.
+
 ### Fixed
 - **Strict golden-schema conformance for JSON-alignment output.** The batch
   validator previously treated a record that *abstained* on a required golden

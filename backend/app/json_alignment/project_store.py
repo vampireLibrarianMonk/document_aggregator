@@ -139,6 +139,82 @@ def save_batch_outputs(project_id: str, conformed_by_doc: dict[str, list[dict[st
         return manifest
 
 
+def _shape_records_path(project_id: str) -> Path:
+    return _alignment_dir(project_id) / "shape_records.json"
+
+
+# Cap how many source records we retain per shape so the "thousands of files"
+# case doesn't bloat the store; the retained sample is what a re-run replays and
+# reports propagation over, with the true total kept alongside.
+_SHAPE_RECORDS_CAP = 200
+
+
+def save_shape_records(project_id: str, records_by_profile: dict[str, list[dict[str, Any]]],
+                       ) -> None:
+    """Persist a capped SAMPLE of the raw source records per learned shape
+    (keyed by profile_id), so a later human field-override can be re-applied over
+    the shape's actual data and report how many records the fix now completes.
+    Replaces any prior snapshot (the latest batch is what a re-run reflects)."""
+    with _lock:
+        payload = {
+            pid: {"records": recs[:_SHAPE_RECORDS_CAP], "total": len(recs)}
+            for pid, recs in records_by_profile.items() if recs
+        }
+        p = _shape_records_path(project_id)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def load_shape_records(project_id: str, profile_id: str,
+                       ) -> tuple[list[dict[str, Any]], int]:
+    """Return (sample_records, total_count) retained for a shape, or ([], 0)."""
+    p = _shape_records_path(project_id)
+    if not p.exists():
+        return [], 0
+    data = json.loads(p.read_text(encoding="utf-8"))
+    entry = data.get(profile_id)
+    if not entry:
+        return [], 0
+    return list(entry.get("records", [])), int(entry.get("total", 0))
+
+
+def apply_profile_override(project_id: str, profile_id: str, target: str,
+                           source_path: str | None) -> dict[str, Any]:
+    """Record a human field-by-field correspondence on a learned profile and
+    persist it. `source_path` is a real source field path to map `target` to, or
+    None to explicitly leave `target` unmapped. Returns a small status dict.
+
+    Guard rails:
+      - the profile must exist;
+      - `target` must be a golden field the profile knows;
+      - a non-null `source_path` must be one the shape actually exposes
+        (meta['source_paths']) — a human points at a REAL source field, never an
+        invented one.
+    Re-approval is the caller's concern (an override typically re-opens the
+    shape for sign-off); this only updates the stored mapping."""
+    with _lock:
+        lib = load_project_library(project_id)
+        entry = lib.get(profile_id)
+        if entry is None:
+            return {"ok": False, "error": f"no such profile: {profile_id}"}
+        prof = entry.profile
+        known_targets = {m.target for m in prof.mapping.fields}
+        if target not in known_targets:
+            return {"ok": False, "error": f"unknown golden field: {target}"}
+        if source_path is not None:
+            source_paths = {sp.get("path") for sp in prof.meta.get("source_paths", [])}
+            # source_paths may be empty for legacy profiles; fall back to the
+            # mapping's own candidate paths so an override is still possible.
+            if source_paths and source_path not in source_paths:
+                return {"ok": False,
+                        "error": f"source path not in this shape: {source_path}"}
+        prof.mapping = prof.mapping.with_override(target, source_path)
+        lib.register(profile_id, entry.signature, prof, state=entry.state)
+        save_library(lib, library_path(project_id))
+        return {"ok": True, "profile_id": profile_id, "target": target,
+                "source_path": source_path}
+
+
 def load_batch_manifest(project_id: str) -> dict[str, Any] | None:
     p = outputs_dir(project_id) / "manifest.json"
     if not p.exists():

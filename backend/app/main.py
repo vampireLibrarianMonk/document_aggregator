@@ -752,6 +752,19 @@ def get_library(project_id: str) -> dict:
             "mapped": e.profile.mapping.mapped(),
             "needs_review": e.profile.mapping.needs_review(),
             "conflicts": e.profile.mapping.conflicts(),
+            # For each UNMAPPED golden field, the ranked source-path candidates
+            # the matcher saw but didn't confidently pick, so the UI can offer a
+            # field-by-field remap choice (3b) instead of a blank. Shape:
+            # {golden_field: [[source_path, score], ...]}. Empty list = no
+            # plausible source seen.
+            "candidates": {
+                tgt: [[p, round(s, 4)] for p, s in cands]
+                for tgt, cands in e.profile.mapping.candidates_for_unmapped().items()
+            },
+            # Every source field path the shape exposes (with primary type), so a
+            # human remap can choose any REAL source for an unmapped golden field
+            # — including ones the matcher scored zero on. Never invented.
+            "source_paths": list(meta.get("source_paths", [])),
             # The source files this shape was learned from (for the approval
             # card), with the total count when more than the stored sample.
             "source_docs": list(meta.get("source_docs", [])),
@@ -788,6 +801,76 @@ def approve_profile(project_id: str, body: ApproveProfile) -> dict:
     save_project_library(project_id, lib)
     return {"project_id": project_id, "approved": body.profile_id,
             "state": "approved"}
+
+
+class OverrideField(BaseModel):
+    profile_id: str
+    target: str                      # the golden field to (re)map
+    source_path: str | None = None   # a real source path, or null = leave unmapped
+
+
+@app.post("/projects/{project_id}/alignment/override")
+def override_field_mapping(project_id: str, body: OverrideField) -> dict:
+    """Record a HUMAN field-by-field correspondence on a learned shape: map a
+    golden field to a real source path the matcher didn't confidently pick, or
+    explicitly leave it unmapped. Only real source paths are accepted (no
+    fabrication). Returns the updated per-field view so the UI can refresh the
+    card. The mapping is persisted; downstream execution still grounds/validates
+    the chosen source, so an impossible choice simply defers that field."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import (
+        apply_profile_override,
+        load_project_library,
+    )
+
+    result = apply_profile_override(project_id, body.profile_id, body.target,
+                                    body.source_path)
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("error", "override failed"))
+
+    # Return the refreshed mapping view for this profile.
+    lib = load_project_library(project_id)
+    e = lib.get(body.profile_id)
+    return {
+        "project_id": project_id,
+        "profile_id": body.profile_id,
+        "mapped": e.profile.mapping.mapped(),
+        "needs_review": e.profile.mapping.needs_review(),
+        "conflicts": e.profile.mapping.conflicts(),
+        # Propagation report: re-apply the now-overridden profile over the
+        # shape's retained records and show how many now strictly conform.
+        "propagation": _propagation_report(project_id, body.profile_id),
+    }
+
+
+def _propagation_report(project_id: str, profile_id: str) -> dict:
+    """Re-run the (now-overridden) profile over the shape's retained source
+    records and report how many strictly conform now. The one human mapping
+    replays across every record of the shape — this quantifies that payoff."""
+    from .json_alignment.pipeline import run_alignment
+    from .json_alignment.project_store import (
+        load_project_library,
+        load_shape_records,
+        load_target_schema,
+    )
+
+    schema = load_target_schema(project_id)
+    sample, total = load_shape_records(project_id, profile_id)
+    lib = load_project_library(project_id)
+    entry = lib.get(profile_id)
+    if schema is None or not sample or entry is None:
+        return {"available": False, "sampled": 0, "total": 0,
+                "conformant": 0, "needs_review": 0}
+
+    res = run_alignment(sample, schema, profile=entry.profile)
+    conformant = res.conformant_count
+    return {
+        "available": True,
+        "sampled": len(sample),
+        "total": total,
+        "conformant": conformant,
+        "needs_review": len(sample) - conformant,
+    }
 
 
 @app.get("/projects/{project_id}/alignment/outputs")

@@ -110,6 +110,13 @@ export interface LibraryEntry {
   mapped: Record<string, string>
   needs_review: string[]
   conflicts: string[]
+  /** Per unmapped golden field, the ranked source-path candidates the matcher
+   *  saw but did not confidently pick: {golden_field: [[source_path, score]]}.
+   *  Empty array = no plausible source was seen. */
+  candidates: Record<string, [string, number][]>
+  /** Every source field path the shape exposes (with primary type), so a human
+   *  remap can choose any real source for an unmapped golden field. */
+  source_paths: { path: string; type: string }[]
   /** The source files this shape was learned from (a sample, capped). */
   source_docs: string[]
   /** Total number of source files that fed this shape (may exceed source_docs). */

@@ -154,6 +154,7 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
         load_target_schema,
         save_batch_outputs,
         save_project_library,
+        save_shape_records,
     )
 
     project_id = payload.get("project_id", "")
@@ -188,6 +189,19 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
     }
     save_batch_outputs(project_id, result.conformed_by_doc(),
                        pathways_by_doc=pathways_by_doc)
+
+    # Retain the RAW source records per learned shape (keyed by profile_id), so a
+    # later human field-override can be re-applied over the shape's actual data
+    # and report how many records the fix now completes (the propagation report).
+    records_by_doc = {d.doc_id: d.records for d in docs}
+    records_by_profile: dict[str, list[dict]] = {}
+    for o in result.outcomes:
+        if o.provisional_profile:
+            bucket = records_by_profile.setdefault(o.provisional_profile, [])
+            for did in o.doc_ids:
+                bucket.extend(records_by_doc.get(did, []))
+    if records_by_profile:
+        save_shape_records(project_id, records_by_profile)
 
     return {"ok": True, **result.to_dict()}
 
