@@ -2,6 +2,7 @@
 
 import type {
   AlignmentLibrary,
+  AlignmentOutput,
   Convergence,
   CorrectedReport,
   Diagnostics,
@@ -14,6 +15,7 @@ import type {
   GovernorSummary,
   JobStatus,
   Project,
+  ProjectKind,
   RawDoc,
   Report,
   ProjectComponent,
@@ -44,11 +46,11 @@ export const api = {
     return fetch(`${BASE}/projects`).then((r) => json<Project[]>(r))
   },
 
-  createProject(name: string, description = ''): Promise<Project> {
+  createProject(name: string, description = '', kind: ProjectKind = 'correction'): Promise<Project> {
     return fetch(`${BASE}/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description }),
+      body: JSON.stringify({ name, description, kind }),
     }).then((r) => json<Project>(r))
   },
 
@@ -466,6 +468,21 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile_id: profileId }),
     }).then((r) => json(r))
+  },
+
+  /** The latest batch's conformed output, one entry per source file that
+   *  produced golden records. */
+  listAlignmentOutputs(projectId: string): Promise<{ outputs: AlignmentOutput[] }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/outputs`).then((r) =>
+      json<{ outputs: AlignmentOutput[] }>(r),
+    )
+  },
+
+  /** The download URL for one source file's conformed records. The server names
+   *  the file '<stem><postfix>_<UTC DTG>.json'. */
+  alignmentOutputDownloadUrl(projectId: string, stem: string, postfix: string): string {
+    const qs = new URLSearchParams({ postfix })
+    return `${BASE}/projects/${projectId}/alignment/outputs/${encodeURIComponent(stem)}/download?${qs.toString()}`
   },
 
   getJob(jobId: string): Promise<JobStatus> {

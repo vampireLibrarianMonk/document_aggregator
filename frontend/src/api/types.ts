@@ -78,9 +78,28 @@ export interface Project {
   name: string
   description?: string
   created_at: string
+  /** What the project IS (chosen at creation, immutable). Drives its tab set. */
+  kind: ProjectKind
   /** Batch relevance dial (0..1): a source JSON is rejected as unrelated when
    *  the share of required golden fields it can map falls below this. */
   reject_below: number
+}
+
+/** A project is one of two kinds, chosen once at creation:
+ *  - correction: upload real documents, the app builds + reconciles a report.
+ *  - json_alignment: conform many source JSON files to one golden schema. */
+export type ProjectKind = 'correction' | 'json_alignment'
+
+/** One source file's conformed output from the latest JSON->golden batch. */
+export interface AlignmentOutput {
+  /** The original uploaded file name (doc_id). */
+  doc_id: string
+  /** Filesystem-safe stem used in the download endpoint + default filename. */
+  stem: string
+  /** How many golden records this file produced. */
+  record_count: number
+  /** The batch pathway this file's shape took (novel_research, replay_clean, …). */
+  pathway: string
 }
 
 /** One learned shape in a project's alignment profile library. */
@@ -91,6 +110,10 @@ export interface LibraryEntry {
   mapped: Record<string, string>
   needs_review: string[]
   conflicts: string[]
+  /** The source files this shape was learned from (a sample, capped). */
+  source_docs: string[]
+  /** Total number of source files that fed this shape (may exceed source_docs). */
+  source_doc_count: number
 }
 
 export interface AlignmentLibrary {

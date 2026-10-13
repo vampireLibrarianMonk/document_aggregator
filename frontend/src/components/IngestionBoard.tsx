@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { DocKind, DocumentRecord, Project, Readiness } from '../api/types'
-import { BatchPanel } from './BatchPanel'
 import { OverallBadge, StageTrack } from './StatusBadges'
 
 interface Props {
@@ -11,7 +10,6 @@ interface Props {
   readiness: Readiness | null
   onChange: () => void
   onInspect: (documentId: string) => void
-  onProjectChange?: (p: Project) => void
 }
 
 interface AreaDef {
@@ -252,13 +250,10 @@ function UploadArea({
  * shows when the Correction Pipeline has been built and is ready to run.
  */
 export function IngestionBoard({
-  projectId, projects, documents, readiness, onChange, onInspect, onProjectChange,
+  projectId, projects, documents, readiness, onChange, onInspect,
 }: Props) {
   const byKind = (k: DocKind) => documents.filter((d) => d.kind === k)
   const otherProjects = projects.filter((p) => p.id !== projectId)
-  const activeProject = projects.find((p) => p.id === projectId)
-  // BatchPanel needs a project-change callback; fall back to a no-op refresh.
-  const handleProjectChange = onProjectChange ?? (() => onChange())
 
   return (
     <div>
@@ -290,10 +285,6 @@ export function IngestionBoard({
             </ul>
           )}
         </div>
-      )}
-
-      {activeProject && (
-        <BatchPanel project={activeProject} onProjectChange={handleProjectChange} />
       )}
 
       {AREAS.map((area) => (

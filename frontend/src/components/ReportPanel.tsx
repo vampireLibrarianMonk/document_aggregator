@@ -21,23 +21,27 @@ export function ReportPanel({ projectId }: { projectId: string }) {
   const [formats, setFormats] = useState<ExportFormat[]>(FORMATS)
   const [err, setErr] = useState<string | null>(null)
   const [showJson, setShowJson] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshedAt, setRefreshedAt] = useState<Date | null>(null)
 
   const hasPipeline =
     !!components &&
     (components.find((c) => c.id === 'first_attempt')?.items.length ?? 0) > 0
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     setErr(null)
-    if (hasPipeline) {
-      api
-        .projectReconcile(mode, projectId, 'json')
-        .then(setCorrected)
-        .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-    } else {
-      api
-        .getReport(projectId)
-        .then(setAggregated)
-        .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+    setRefreshing(true)
+    try {
+      if (hasPipeline) {
+        setCorrected(await api.projectReconcile(mode, projectId, 'json'))
+      } else {
+        setAggregated(await api.getReport(projectId))
+      }
+      setRefreshedAt(new Date())
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRefreshing(false)
     }
   }, [projectId, hasPipeline, mode])
 
@@ -62,7 +66,16 @@ export function ReportPanel({ projectId }: { projectId: string }) {
 
   // ---- Aggregation-only project: the raw aggregated report ----
   if (components !== null && !hasPipeline) {
-    return <AggregatedReport report={aggregated} err={err} projectId={projectId} onReload={load} />
+    return (
+      <AggregatedReport
+        report={aggregated}
+        err={err}
+        projectId={projectId}
+        onReload={load}
+        refreshing={refreshing}
+        refreshedAt={refreshedAt}
+      />
+    )
   }
 
   // ---- Correction project: the corrected deliverable ----
@@ -81,18 +94,27 @@ export function ReportPanel({ projectId }: { projectId: string }) {
             </button>
           </div>
           <div className="spacer" />
-          <button className="btn secondary" onClick={load}>Rebuild</button>
+          <button
+            className="btn secondary"
+            onClick={() => void load()}
+            disabled={refreshing}
+            title="Re-run the correction to pick up documents you uploaded or resolutions you made on the Correction Pipeline tab."
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
           {formats.map((f) => (
             <a key={f} href={api.exportUrl(projectId, f, { kind: 'corrected', mode })} download>
               <button className="btn">{f === 'markdown' ? 'MARKDOWN (ZIP)' : f.toUpperCase()}</button>
             </a>
           ))}
         </div>
-        <div className="small muted" style={{ marginTop: 6 }}>
+        <div className="small muted" style={{ marginTop: 6 }} role="status" aria-live="polite">
           This is the Correction Pipeline&apos;s output: every value grounded in your
           sources, conflicts shown unresolved for you to decide, and your
-          resolutions reflected. Rebuild re-runs the correction. Export downloads
-          this corrected report.
+          resolutions reflected. <b>Refresh</b> re-runs the correction to pick up
+          new uploads or resolutions you made on the Correction Pipeline tab.
+          Export downloads this corrected report.
+          {refreshedAt && <> · re-ran {relativeTime(refreshedAt)}</>}
         </div>
         {corrected && (
           <div className="row small muted" style={{ marginTop: 8 }}>
@@ -144,10 +166,22 @@ export function ReportPanel({ projectId }: { projectId: string }) {
 /** Resolve is done on the Correction Pipeline tab; here the report is read-only. */
 const noResolve = async () => {}
 
+/** A short human "re-ran just now / 12s ago" label for the refresh confirmation. */
+function relativeTime(when: Date): string {
+  const secs = Math.max(0, Math.round((Date.now() - when.getTime()) / 1000))
+  if (secs < 5) return 'just now'
+  if (secs < 60) return `${secs}s ago`
+  const mins = Math.round(secs / 60)
+  return `${mins}m ago`
+}
+
 /** The legacy aggregated-corpus report, shown only for aggregation-only projects. */
 function AggregatedReport(
-  { report, err, projectId, onReload }:
-  { report: Report | null; err: string | null; projectId: string; onReload: () => void },
+  { report, err, projectId, onReload, refreshing, refreshedAt }:
+  {
+    report: Report | null; err: string | null; projectId: string
+    onReload: () => void; refreshing: boolean; refreshedAt: Date | null
+  },
 ) {
   return (
     <>
@@ -155,12 +189,23 @@ function AggregatedReport(
         <div className="row">
           <strong>Aggregated report (intermediate format)</strong>
           <div className="spacer" />
-          <button className="btn secondary" onClick={onReload}>Rebuild</button>
+          <button
+            className="btn secondary"
+            onClick={onReload}
+            disabled={refreshing}
+            title="Re-aggregate the report to pick up documents or supplementals you added."
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
           {FORMATS.map((f) => (
             <a key={f} href={api.exportUrl(projectId, f, { kind: 'aggregated' })} download>
               <button className="btn">{f === 'markdown' ? 'MARKDOWN (ZIP)' : f.toUpperCase()}</button>
             </a>
           ))}
+        </div>
+        <div className="small muted" style={{ marginTop: 6 }} role="status" aria-live="polite">
+          <b>Refresh</b> re-aggregates to pick up documents or supplementals you
+          added.{refreshedAt && <> · re-ran {relativeTime(refreshedAt)}</>}
         </div>
         {report && (
           <div className="row small muted" style={{ marginTop: 8 }}>

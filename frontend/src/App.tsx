@@ -2,20 +2,24 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from './api/client'
 import { DocumentViewer } from './components/CanonicalViewer'
 import { CorrectionPipeline } from './components/CorrectionPipeline'
+import { BatchConvertPanel, GoldenSchemaPanel, JsonReportPanel } from './components/JsonAlignment'
 import { DiagnosticsPanel } from './components/DiagnosticsPanel'
 import { IngestionBoard } from './components/IngestionBoard'
 import { NewProjectForm } from './components/NewProjectForm'
 import { ReportPanel } from './components/ReportPanel'
 import { SearchPanel } from './components/SearchPanel'
 import { SupplementalsPanel } from './components/SupplementalsPanel'
+import type { ProjectKind } from './api/types'
 import { ProjectProvider, useProject } from './hooks/useProject'
 
-type Tab = 'new' | 'pipeline' | 'correction' | 'supplementals' | 'search' | 'report'
+type Tab =
+  | 'new' | 'pipeline' | 'correction' | 'supplementals' | 'search' | 'report'
+  | 'golden' | 'convert'
 
 interface TabDef { id: Tab; label: string }
 
-// Workflow order: create -> ingest -> correct -> search -> export.
-const BASE_TABS: TabDef[] = [
+// Correction-project workflow: create -> ingest -> correct -> search -> export.
+const CORRECTION_TABS: TabDef[] = [
   { id: 'new', label: 'New Project' },
   { id: 'pipeline', label: 'Ingestion' },
   { id: 'correction', label: 'Correction Pipeline' },
@@ -24,8 +28,24 @@ const BASE_TABS: TabDef[] = [
   { id: 'report', label: 'Report & Export' },
 ]
 
+// JSON-alignment workflow: create -> define golden schema -> convert -> export.
+const JSON_TABS: TabDef[] = [
+  { id: 'new', label: 'New Project' },
+  { id: 'golden', label: 'Golden Schema' },
+  { id: 'convert', label: 'Batch Convert' },
+  { id: 'report', label: 'Report & Export' },
+]
+
+/** The tab set a project exposes, driven by its kind. Correction is the
+ *  default; json_alignment gets the focused convert flow. */
+function tabsForKind(kind: string | undefined): TabDef[] {
+  return kind === 'json_alignment' ? JSON_TABS : CORRECTION_TABS
+}
+
 // Diagnostics is a separate page (/diagnostics), handled before this app shell.
-const ALL_TAB_IDS = new Set<Tab>(BASE_TABS.map((t) => t.id))
+const ALL_TAB_IDS = new Set<Tab>(
+  [...CORRECTION_TABS, ...JSON_TABS].map((t) => t.id),
+)
 
 /** Map a URL path to a tab. New Project is the root ('/'); every other tab is
  *  '/<id>' (e.g. '/pipeline'). Unknown paths fall back to New Project so a
@@ -114,6 +134,7 @@ function AppShell() {
   const {
     projects,
     activeId,
+    project,
     documents,
     supplementals,
     readiness,
@@ -125,11 +146,28 @@ function AppShell() {
     deleteProject,
     diagnosticsEnabled,
   } = useProject()
-  const TABS: TabDef[] = BASE_TABS
+  // The tab set is driven by the active project's kind. With no project yet,
+  // show the correction tab set (all gated) so the empty app still presents the
+  // familiar workflow; the kind-specific set applies once a project exists.
+  const isJson = project?.kind === 'json_alignment'
+  const TABS: TabDef[] = activeId ? tabsForKind(project?.kind) : CORRECTION_TABS
   // Tab state is URL-aware so views deep-link (e.g. /diagnostics opens the
   // Diagnostics tab) and browser back/forward work.
   const [tab, setTabState] = useState<Tab>(() => tabFromPath(window.location.pathname))
   const [inspecting, setInspecting] = useState<string | null>(null)
+  // New Project draft form state lives here (not inside NewProjectForm) so the
+  // kind/name/description the user picked SURVIVE navigating away and back — the
+  // form panel unmounts on tab switch, which would otherwise reset it.
+  const [draftKind, setDraftKind] = useState<ProjectKind | null>(null)
+  const [draftName, setDraftName] = useState('')
+  const [draftDescription, setDraftDescription] = useState('')
+  // Whether the active JSON-alignment project has a saved golden schema. Gates
+  // the Batch Convert tab. Reset on project switch; refreshed from the backend.
+  const [goldenConfigured, setGoldenConfigured] = useState(false)
+  useEffect(() => {
+    if (!activeId || !isJson) { setGoldenConfigured(false); return }
+    api.getTargetSchema(activeId).then(() => setGoldenConfigured(true)).catch(() => setGoldenConfigured(false))
+  }, [activeId, isJson])
 
   const setTab = useCallback((next: Tab) => {
     setTabState(next)
@@ -172,28 +210,46 @@ function AppShell() {
       case 'search':
         return !hasProject || !hasCompletedDocs
       case 'correction':
-      case 'report':
         return !hasProject || !correctable
+      case 'golden':
+        // JSON-alignment: defining the schema needs only a project.
+        return !hasProject
+      case 'convert':
+        // JSON-alignment: convert needs a project AND a saved golden schema.
+        return !hasProject || !goldenConfigured
+      case 'report':
+        // Correction projects need correction inputs; JSON projects can open
+        // the report once they exist (it shows nothing until a batch runs).
+        return !hasProject || (!isJson && !correctable)
       default:
         return false
     }
-  }, [hasProject, hasCompletedDocs, correctable])
+  }, [hasProject, hasCompletedDocs, correctable, isJson, goldenConfigured])
   const tabReason = (id: Tab): string => {
     if (!hasProject) return 'Create a project first'
     if (id === 'search' && !hasCompletedDocs)
       return 'Upload documents on the Ingestion tab first'
-    if ((id === 'correction' || id === 'report') && !correctable)
+    if (id === 'correction' && !correctable)
+      return 'Add correction inputs first (upload on the Ingestion tab, or use a sample)'
+    if (id === 'convert' && !goldenConfigured)
+      return 'Save a golden schema on the Golden Schema tab first'
+    if (id === 'report' && !isJson && !correctable)
       return 'Add correction inputs first (upload on the Ingestion tab, or use a sample)'
     return ''
   }
 
-  // If the current tab becomes disabled (e.g. its prerequisite is no longer
-  // met), fall back to a safe tab so the user is never stuck on a dead view.
+  // If the current tab is not part of the active project's tab set, or becomes
+  // disabled, fall back to a safe tab in THIS set so the user is never stuck on
+  // a dead view (e.g. a correction tab lingering after switching to a JSON
+  // project, or vice versa).
+  const inSet = useCallback((id: Tab): boolean => TABS.some((t) => t.id === id), [TABS])
+  const inThisSet = inSet(tab)
   useEffect(() => {
-    if (tabDisabled(tab)) {
-      setTab(hasProject ? 'pipeline' : 'new')
+    if (!inThisSet || tabDisabled(tab)) {
+      const firstUsable = TABS.find((t) => !tabDisabled(t.id))
+      setTab(firstUsable ? firstUsable.id : 'new')
     }
-  }, [tab, tabDisabled, hasProject, setTab])
+  }, [tab, inThisSet, tabDisabled, TABS, setTab])
 
   // On a fresh/empty app, land on the New Project page so there is always a
   // clear next step.
@@ -322,16 +378,26 @@ function AppShell() {
       {tab === 'new' && (
         <div id="panel-new" role="tabpanel" aria-labelledby="tab-new">
           <NewProjectForm
-            onCreated={async (id) => {
+            kind={draftKind}
+            name={draftName}
+            description={draftDescription}
+            onKindChange={setDraftKind}
+            onNameChange={setDraftName}
+            onDescriptionChange={setDraftDescription}
+            onCreated={async (id, newKind) => {
+              // Clear the draft now that it has become a real project.
+              setDraftKind(null); setDraftName(''); setDraftDescription('')
               await refreshProjects()
               setActiveId(id)
-              setTab('pipeline')   // next step: Ingestion
+              // Land on the first step after New Project for the chosen kind:
+              // Ingestion for correction, Golden Schema for json_alignment.
+              setTab(newKind === 'json_alignment' ? 'golden' : 'pipeline')
             }}
           />
         </div>
       )}
 
-      {tab === 'correction' && (
+      {tab === 'correction' && inSet('correction') && (
         <div id="panel-correction" role="tabpanel" aria-labelledby="tab-correction">
           <CorrectionPipeline
             projectId={activeId}
@@ -343,7 +409,7 @@ function AppShell() {
 
       {activeId ? (
         <>
-          {tab === 'pipeline' && (
+          {tab === 'pipeline' && inSet('pipeline') && (
             <div id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline">
               <IngestionBoard
                 projectId={activeId}
@@ -352,7 +418,6 @@ function AppShell() {
                 readiness={readiness}
                 onChange={reload}
                 onInspect={(id) => setInspecting(id)}
-                onProjectChange={() => void refreshProjects()}
               />
               <DocumentViewer
                 projectId={activeId}
@@ -362,7 +427,7 @@ function AppShell() {
             </div>
           )}
 
-          {tab === 'supplementals' && (
+          {tab === 'supplementals' && inSet('supplementals') && (
             <div id="panel-supplementals" role="tabpanel" aria-labelledby="tab-supplementals">
               <SupplementalsPanel
                 projectId={activeId}
@@ -373,7 +438,23 @@ function AppShell() {
             </div>
           )}
 
-          {tab === 'search' && (
+          {tab === 'golden' && inSet('golden') && project && (
+            <div id="panel-golden" role="tabpanel" aria-labelledby="tab-golden">
+              <GoldenSchemaPanel
+                project={project}
+                onProjectChange={() => void refreshProjects()}
+                onConfigured={setGoldenConfigured}
+              />
+            </div>
+          )}
+
+          {tab === 'convert' && inSet('convert') && project && (
+            <div id="panel-convert" role="tabpanel" aria-labelledby="tab-convert">
+              <BatchConvertPanel project={project} />
+            </div>
+          )}
+
+          {tab === 'search' && inSet('search') && (
             <div id="panel-search" role="tabpanel" aria-labelledby="tab-search">
               <SearchPanel projectId={activeId} />
             </div>
@@ -381,7 +462,9 @@ function AppShell() {
 
           {tab === 'report' && (
             <div id="panel-report" role="tabpanel" aria-labelledby="tab-report">
-              <ReportPanel projectId={activeId} />
+              {isJson && project
+                ? <JsonReportPanel project={project} />
+                : <ReportPanel projectId={activeId} />}
             </div>
           )}
         </>
@@ -398,9 +481,9 @@ function AppShell() {
         )
       )}
 
-      {BASE_TABS.some((t) => t.id === tab) && (
+      {TABS.some((t) => t.id === tab) && (
         <StepNav
-          steps={BASE_TABS}
+          steps={TABS}
           current={tab}
           disabled={tabDisabled}
           reason={tabReason}

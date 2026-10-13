@@ -10,8 +10,9 @@ import {
   selectProject,
 } from './helpers'
 
-// JSON->golden batch, driven through the real BatchPanel UI, exercising all
-// FIVE pathways the json-batch guide describes:
+// JSON->golden batch, driven through the real Golden Schema + Batch Convert
+// tabs of a json_alignment project, exercising all FIVE pathways the json-batch
+// guide describes:
 //   novel_research -> approve -> replay_clean -> drift_repair -> reject_irrelevant
 //
 // The lifecycle matters: submit a shape ONCE, approve it, THEN re-submit the
@@ -53,29 +54,34 @@ let projectId = ''
 
 test.beforeAll(async ({ request }) => {
   await assertBackendUp(request)
-  projectId = await createProject(request, 'E2E JSON batch')
+  // A JSON-alignment project exposes the Golden Schema + Batch Convert tabs.
+  projectId = await createProject(request, 'E2E JSON batch', 'json_alignment')
 })
 
 test.afterAll(async ({ request }) => {
   if (projectId) await deleteProject(request, projectId)
 })
 
-/** Open the project's Ingestion tab and turn on Batch mode. */
-async function openBatch(page: Page) {
+/** Select the project and open the Golden Schema tab (where the schema lives). */
+async function openGolden(page: Page) {
   await page.goto('/')
   await selectProject(page, projectId)
-  await openTab(page, 'Ingestion')
-  const toggle = page.getByRole('checkbox', { name: 'Enable batch conversion mode' })
-  if (!(await toggle.isChecked())) await toggle.check()
+  await openTab(page, 'Golden Schema')
 }
 
-/** Upload JSON files + process, returning when the Batch result renders. */
+/** Open the Batch Convert tab (where files are uploaded + converted). */
+async function openConvert(page: Page) {
+  await page.goto('/')
+  await selectProject(page, projectId)
+  await openTab(page, 'Batch Convert')
+}
+
+/** Upload JSON files + convert, returning when the Batch result renders. */
 async function processFiles(page: Page, files: string[], research: boolean) {
   const learn = page.getByRole('checkbox', { name: /Learn new shapes/i })
   if (research !== (await learn.isChecked())) await learn.setChecked(research)
-  // The hidden batch file input is the one that accepts .json inside the
-  // Upload & process panel.
-  const panel = page.locator('.panel', { has: page.getByText('Upload & process') })
+  // The hidden batch file input lives inside the Upload & convert panel.
+  const panel = page.locator('.panel', { has: page.getByText('Upload & convert') })
   await panel.locator('input[type="file"]').setInputFiles(files)
   // Wait for the Batch result panel to appear/update.
   await expect(page.getByText('Batch result')).toBeVisible({ timeout: 30_000 })
@@ -96,14 +102,14 @@ async function pathwayCounts(page: Page): Promise<Record<string, number>> {
 }
 
 test('batch: set golden schema', async ({ page }) => {
-  await openBatch(page)
+  await openGolden(page)
   await page.locator('#golden-schema').fill(GOLDEN)
   await page.getByRole('button', { name: 'Save golden schema' }).click()
   await expect(page.getByText(/Saved: game/)).toBeVisible()
 })
 
 test('batch: relevance dial persists to the project', async ({ page, request }) => {
-  await openBatch(page)
+  await openGolden(page)
   // Default 50%. Nudge it and confirm it persisted on the project.
   const dial = page.locator('#reject-dial')
   await dial.focus()
@@ -120,7 +126,7 @@ test('batch: relevance dial persists to the project', async ({ page, request }) 
 })
 
 test('batch: novel -> approve -> replay (3 pathways)', async ({ page }) => {
-  await openBatch(page)
+  await openConvert(page)
   // 1) NOVEL: a new shape, research on -> learned provisionally.
   await processFiles(page, [CLEAN], true)
   let counts = await pathwayCounts(page)
@@ -138,7 +144,7 @@ test('batch: novel -> approve -> replay (3 pathways)', async ({ page }) => {
 })
 
 test('batch: drift_repair pathway', async ({ page }) => {
-  await openBatch(page)
+  await openConvert(page)
   // Same shape as the approved one, but criticScore is non-numeric -> fill
   // rate collapses -> drift_repair.
   await processFiles(page, [DRIFTED], true)
@@ -147,7 +153,7 @@ test('batch: drift_repair pathway', async ({ page }) => {
 })
 
 test('batch: reject_irrelevant pathway (unrelated file, research off)', async ({ page }) => {
-  await openBatch(page)
+  await openConvert(page)
   await processFiles(page, [JUNK], false)
   const counts = await pathwayCounts(page)
   expect(counts['Quarantined (unrelated)']).toBeGreaterThanOrEqual(1)

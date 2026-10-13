@@ -60,11 +60,12 @@ export async function buildProjectFromCorpus(
   return projectId
 }
 
-/** Create an empty project; returns its id. */
+/** Create an empty project of the given kind (default correction); returns id. */
 export async function createProject(
   request: APIRequestContext, name: string,
+  kind: 'correction' | 'json_alignment' = 'correction',
 ): Promise<string> {
-  const res = await request.post(`${API}/projects`, { data: { name } })
+  const res = await request.post(`${API}/projects`, { data: { name, kind } })
   expect(res.ok(), 'create project').toBeTruthy()
   return (await res.json()).id as string
 }
