@@ -236,7 +236,12 @@ def _sweep_severity(axis_name: str, severity: int, rng: random.Random) -> Severi
     and add the junk-control false-match count."""
     ax = AXES[axis_name]
     sc = SeverityScore(severity=severity)
-    for base in CLEAN_POOL:
+    # A base-independent axis (e.g. junk_leak) builds a fixed record regardless
+    # of the clean base, so run it ONCE rather than once per pooled record (which
+    # would just triple identical counts). Other axes run over the whole pool so
+    # results don't hinge on one record's quirks.
+    bases: list[dict[str, Any]] = [{}] if ax.base_independent else CLEAN_POOL
+    for base in bases:
         mr = ax.fn(dict(base), severity, rng)
         _assert_leaf_unique(mr)
         res = run_alignment([mr.record], _schema())

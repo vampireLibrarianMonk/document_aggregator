@@ -1,0 +1,63 @@
+{
+  "$id": "https://example.com/schemas/game_rich.json",
+  "title": "game",
+  "type": "object",
+  "description": "A canonical video game catalogue record for analytic reporting.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The official published title of the video game as printed on the box art and store page."
+    },
+    "releaseYear": {
+      "type": "string",
+      "pattern": "^\\d{4}$",
+      "description": "The four-digit calendar year in which the game was first released to the public."
+    },
+    "developer": {
+      "type": "string",
+      "description": "The studio or development house that designed and built the game."
+    },
+    "publisher": {
+      "type": "string",
+      "description": "The company responsible for publishing, marketing and distributing the game."
+    },
+    "platform": {
+      "type": "string",
+      "description": "The console or hardware system the game runs on.",
+      "x-pydi-taxonomy": ["Windows PC", "Xbox", "PlayStation", "Nintendo Switch"],
+      "x-pydi-taxonomy-aliases": {"PC": "Windows PC", "XBOX": "Xbox", "PS": "PlayStation"}
+    },
+    "genres": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The gameplay genres or categories the game belongs to."
+    },
+    "criticScore": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "The aggregate professional critic review score for the game, out of one hundred."
+    },
+    "ESRB": {
+      "type": "string",
+      "description": "The ESRB content maturity age rating assigned to the game.",
+      "x-pydi-taxonomy": ["E", "E10+", "T", "M", "AO"],
+      "x-pydi-taxonomy-aliases": {"K-A": "E", "Kids to Adults": "E", "Mature": "M", "Teen": "T"}
+    },
+    "summary": {
+      "type": "string",
+      "description": "A short prose synopsis describing the game's premise, setting and gameplay."
+    },
+    "playerModes": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "The supported player modes, such as single-player, co-op or multiplayer.",
+      "x-pydi-taxonomy": ["Single-player", "Co-op", "Multiplayer", "Online", "Local"]
+    },
+    "ownerStudioCountry": {
+      "type": "string",
+      "description": "The country in which the game's developer studio is headquartered."
+    }
+  },
+  "required": ["name", "releaseYear"]
+}

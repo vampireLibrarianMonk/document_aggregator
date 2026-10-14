@@ -124,7 +124,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -136,7 +136,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -148,7 +148,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -160,7 +160,7 @@
           "required_recovered": 0,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": true
         },
         {
@@ -172,7 +172,7 @@
           "required_recovered": 0,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": true
         }
       ]
@@ -200,7 +200,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -212,7 +212,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -224,7 +224,7 @@
           "required_recovered": 3,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": true
         },
         {
@@ -236,7 +236,7 @@
           "required_recovered": 0,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": true
         },
         {
@@ -248,7 +248,7 @@
           "required_recovered": 0,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": true
         },
         {
@@ -260,7 +260,7 @@
           "required_recovered": 0,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": true
         },
         {
@@ -272,7 +272,7 @@
           "required_recovered": 0,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": true
         }
       ]
@@ -294,7 +294,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -306,7 +306,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -318,7 +318,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -330,7 +330,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -342,7 +342,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         }
       ]
@@ -364,7 +364,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -376,7 +376,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -388,7 +388,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -400,7 +400,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -412,7 +412,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -424,7 +424,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -436,7 +436,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -448,7 +448,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -460,7 +460,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -472,7 +472,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -484,7 +484,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         }
       ]
@@ -506,103 +506,103 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 1,
           "recovered": 21,
           "missed": 0,
-          "false_match": 1,
+          "false_match": 0,
           "present_golden": 21,
           "required_recovered": 3,
           "required_present": 3,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 2,
           "recovered": 18,
           "missed": 0,
-          "false_match": 6,
+          "false_match": 0,
           "present_golden": 18,
           "required_recovered": 0,
           "required_present": 0,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 3,
           "recovered": 15,
           "missed": 0,
-          "false_match": 9,
+          "false_match": 3,
           "present_golden": 15,
           "required_recovered": 0,
           "required_present": 0,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 4,
           "recovered": 12,
           "missed": 0,
-          "false_match": 7,
+          "false_match": 1,
           "present_golden": 12,
           "required_recovered": 0,
           "required_present": 0,
           "conflicts": 5,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 5,
           "recovered": 9,
           "missed": 0,
-          "false_match": 6,
+          "false_match": 1,
           "present_golden": 9,
           "required_recovered": 0,
           "required_present": 0,
-          "conflicts": 7,
-          "junk_false_match": 3,
+          "conflicts": 4,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 6,
           "recovered": 6,
           "missed": 0,
-          "false_match": 9,
+          "false_match": 3,
           "present_golden": 6,
           "required_recovered": 0,
           "required_present": 0,
-          "conflicts": 4,
-          "junk_false_match": 3,
+          "conflicts": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 7,
           "recovered": 3,
           "missed": 0,
-          "false_match": 11,
+          "false_match": 2,
           "present_golden": 3,
           "required_recovered": 0,
           "required_present": 0,
-          "conflicts": 6,
-          "junk_false_match": 3,
+          "conflicts": 4,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
           "severity": 8,
           "recovered": 0,
           "missed": 0,
-          "false_match": 11,
+          "false_match": 1,
           "present_golden": 0,
           "required_recovered": 0,
           "required_present": 0,
-          "conflicts": 10,
-          "junk_false_match": 3,
+          "conflicts": 5,
+          "junk_false_match": 0,
           "required_broken": false
         }
       ]
@@ -624,7 +624,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -636,7 +636,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -648,7 +648,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -660,7 +660,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         }
       ]
@@ -682,7 +682,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -694,7 +694,7 @@
           "required_recovered": 3,
           "required_present": 3,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -706,7 +706,7 @@
           "required_recovered": 3,
           "required_present": 3,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         }
       ]
@@ -728,7 +728,7 @@
           "required_recovered": 6,
           "required_present": 6,
           "conflicts": 0,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -740,7 +740,7 @@
           "required_recovered": 3,
           "required_present": 3,
           "conflicts": 3,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
           "required_broken": false
         },
         {
@@ -752,7 +752,125 @@
           "required_recovered": 3,
           "required_present": 3,
           "conflicts": 3,
-          "junk_false_match": 3,
+          "junk_false_match": 0,
+          "required_broken": false
+        }
+      ]
+    },
+    "junk_leak": {
+      "axis": "junk_leak",
+      "max_severity": 8,
+      "break_severity": null,
+      "last_ok_severity": null,
+      "broken_severities": [],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 3,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 4,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 5,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 6,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 7,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
+          "required_broken": false
+        },
+        {
+          "severity": 8,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 0,
           "required_broken": false
         }
       ]

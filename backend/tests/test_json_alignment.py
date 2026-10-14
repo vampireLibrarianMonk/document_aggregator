@@ -187,6 +187,104 @@ def test_synonym_and_fuzzy_rank_below_alias_and_exact():
     assert _FUZZY_MAX < _SYNONYM
 
 
+# --- value-evidence precision gate -----------------------------------------
+
+def _game_schema():
+    """The real golden schema subset with the constraints the value gate uses."""
+    return {"title": "t", "properties": {
+        "name": {"type": "string", "description": "the title of the game"},
+        "releaseYear": {"type": "string", "pattern": r"^\d{4}$",
+                        "description": "the year the game was published"},
+        "developer": {"type": "string",
+                      "description": "the studio that developed or made the game"},
+        "publisher": {"type": "string",
+                      "description": "the company that published the game"},
+        "platform": {"type": "string", "description": "the console or hardware system",
+                     "x-pydi-taxonomy": ["Windows PC", "Xbox", "PlayStation"]},
+        "criticScore": {"type": "integer", "minimum": 0, "maximum": 100,
+                        "description": "critic press rating out of 100"},
+        "ESRB": {"type": "string", "description": "esrb age rating",
+                 "x-pydi-taxonomy": ["E", "E10+", "T", "M", "AO"]}}}
+
+
+def _mapped(recs):
+    return infer_mapping(profile_source(recs), extract_target(_game_schema())).mapped()
+
+
+def test_value_gate_vetoes_pattern_violation():
+    # year_installed shares 'year' with releaseYear but its value is a timestamp,
+    # not a 4-digit year -> pattern veto.
+    assert "releaseYear" not in _mapped([{"year_installed": "1998-04-12T09:00:00Z"}])
+
+
+def test_value_gate_vetoes_out_of_range_number():
+    # a star string is not a 0-100 integer score.
+    assert "criticScore" not in _mapped([{"score_rating_stars": "4 stars"}])
+
+
+def test_value_gate_vetoes_out_of_vocabulary_enum():
+    # platform_vendor / esrb_descriptor values are not in the controlled vocab.
+    assert "platform" not in _mapped([{"platform_vendor": "Acme Instruments Inc"}])
+    assert "ESRB" not in _mapped([{"esrb_descriptor": "non-rated equipment"}])
+
+
+def test_value_gate_vetoes_email_for_name_like_target():
+    # developer_contact is an email, not a studio name.
+    assert "developer" not in _mapped([{"developer_contact": "ops@example.com"}])
+
+
+def test_weak_generic_overlap_demotes_qualified_generic_name():
+    # station_name shares only the GENERIC 'name' plus a foreign qualifier
+    # 'station' -> demoted, not grounded to name.
+    assert "name" not in _mapped([{"station_name": "North Field Buoy"}])
+
+
+def test_value_gate_vetoes_region_for_company_target():
+    # publisher_region / owner_studio_country carry a geographic REGION value,
+    # which is a location not a company -> vetoed for publisher/developer even
+    # though the target is free-text (no schema constraint to catch it).
+    assert "publisher" not in _mapped([{"publisher_region": "North America"}])
+    assert "publisher" not in _mapped([{"publisher_region": "EMEA"}])
+    assert "developer" not in _mapped([{"owner_studio_country": "United States"}])
+
+
+def test_value_corroboration_boosts_within_tier_but_never_past_alias():
+    # A value-corroborated synonym scores higher than an uncorroborated one, but
+    # the boost is capped so it never reaches the alias tier.
+    from app.json_alignment.mapping import _ALIAS, _score_candidate
+    from app.json_alignment.source_profile import profile_source
+    from app.json_alignment.target_profile import extract_target
+
+    tgt = extract_target(_game_schema()).by_name()["criticScore"]
+    # 'metascore' is a criticScore synonym; value 90 corroborates (0..100 int).
+    corrob = profile_source([{"metascore": 90}]).fields[0]
+    plain = profile_source([{"metascore": "N/A"}]).fields[0]  # no numeric value
+    s_corrob, _ = _score_candidate(corrob, tgt)
+    s_plain, _ = _score_candidate(plain, tgt)
+    assert s_corrob > s_plain          # corroboration lifts the score
+    assert s_corrob < _ALIAS           # but never into the alias band
+
+
+def test_real_region_in_company_name_is_not_vetoed():
+    # A publisher whose NAME contains a region word but is a company ("North
+    # American Games Inc") is NOT a bare region -> not vetoed.
+    m = _mapped([{"publisher": "North American Games Inc"}])
+    assert m.get("publisher") == "publisher"   # exact name, immune anyway
+
+
+def test_value_gate_preserves_real_matches():
+    # The gate must NOT veto genuine values or legitimate qualified names.
+    m = _mapped([{"release_year": "2007", "critic_score": 90,
+                  "platform": "Windows PC", "ESRB": "T",
+                  "publisher_name": "Valve", "game_name": "Portal"}])
+    assert m.get("releaseYear") == "release_year"   # 2007 matches ^\d{4}$
+    assert m.get("criticScore") == "critic_score"   # 90 in 0..100
+    assert m.get("platform") == "platform"          # in vocab
+    assert m.get("ESRB") == "ESRB"                   # in vocab
+    assert m.get("publisher") == "publisher_name"   # shared SPECIFIC token kept
+    assert m.get("name") == "game_name"             # 'game' explained by desc
+
+
 # --- transforms -------------------------------------------------------------
 
 @pytest.mark.parametrize("raw,expected", [

@@ -89,6 +89,150 @@ def test_required_fields_present_in_break_criterion() -> None:
     assert REQUIRED_FIELDS  # non-empty, else nothing could ever "break"
 
 
+def test_junk_leak_axis_scores_only_precision() -> None:
+    """The junk-leak axis is a pure PRECISION probe: a non-game record whose
+    field names share golden tokens. It has NO true golden field, so recall is
+    not scored (present_golden == 0 at every severity) and only false_match
+    carries signal. severity 0 (empty record) must be clean."""
+    fr = run_axis("junk_leak", seed=1337)
+    assert all(s.present_golden == 0 for s in fr.scores)
+    assert fr.scores[0].false_match == 0          # empty record grounds nothing
+    assert fr.break_severity is None              # no required field to break
+    # After the value-evidence gate + value-corroboration region veto, the leak
+    # is CLOSED: every golden-adjacent junk field is vetoed (the former
+    # publisher_region residual is caught by the region-value veto). The 5-leak
+    # baseline must not return.
+    assert all(s.false_match == 0 for s in fr.scores), (
+        f"junk-leak regressed: {[s.false_match for s in fr.scores]}")
+
+
+def test_junk_control_is_zero_after_value_gate() -> None:
+    """The hard-negative junk control (the headline junk_fp number) must be 0
+    after the value-evidence gate: a non-game record grounds no golden field."""
+    fr = run_axis("rename", seed=1337)   # junk control runs every severity
+    assert all(s.junk_false_match == 0 for s in fr.scores), (
+        f"junk control leaked: {[s.junk_false_match for s in fr.scores]}")
+
+
+def test_semantic_booster_is_precision_neutral() -> None:
+    """The gated embedding booster re-ranks the candidate LIST only; it must not
+    change any grounding decision (mapped/conflict/recovered/false_match) vs the
+    booster being off. Measured mandate: embeddings help ordering/recall-surfacing,
+    the lexical+value gates do all grounding. We assert ON == OFF on the axes most
+    able to expose a precision change (junk_leak, conflict, noise_decoyonly)."""
+    import app.json_alignment.mapping as m
+
+    from .harness import run_axis
+
+    if not m._semantic_available():
+        pytest.skip("semantic booster inert without a real model")
+
+    def snap() -> dict:
+        out = {}
+        for ax in ("junk_leak", "conflict", "noise_decoyonly", "rename"):
+            fr = run_axis(ax, seed=1337)
+            out[ax] = [(s.false_match, s.recovered, s.conflicts) for s in fr.scores]
+        return out
+
+    on = snap()
+    orig = m._semantic_available
+    try:
+        m._semantic_available = lambda: False
+        off = snap()
+    finally:
+        m._semantic_available = orig
+    assert on == off, f"semantic booster changed a grounding decision: {on} != {off}"
+
+
+def test_semantic_booster_never_selects_grounded_path_on_exact_tie() -> None:
+    """Adversarial coverage (Guardian): two DISTINCT source paths that both score
+    'exact'/'normalized' for one target (e.g. two nested '.title' leaves) are NOT
+    a harness axis (the axes enforce unique leaves), so this guards the case
+    directly: the GROUNDED path must be chosen by the deterministic lexical+path
+    order, never by the embedding booster. Only the candidate DISPLAY order may
+    differ ON vs OFF."""
+    import app.json_alignment.mapping as m
+    from app.json_alignment.source_profile import profile_source
+    from app.json_alignment.target_profile import extract_target
+
+    if not m._semantic_available():
+        pytest.skip("semantic booster inert without a real model")
+    schema = {"title": "t", "properties": {
+        "title": {"type": "string",
+                  "description": "the film title shown in cinemas and on posters"}}}
+    src = profile_source([{"z_alpha": {"title": "A"}, "a_beta": {"title": "B"}}])
+    tgt = extract_target(schema)
+
+    def grounded() -> tuple:
+        fm = next(f for f in m.infer_mapping(src, tgt).fields if f.target == "title")
+        return fm.source_path, fm.status
+
+    on = grounded()
+    orig = m._semantic_available
+    try:
+        m._semantic_available = lambda: False
+        off = grounded()
+    finally:
+        m._semantic_available = orig
+    assert on == off, (
+        f"booster changed the grounded path on an exact tie: {on} != {off}")
+
+
+def test_evidence_string_builder_is_deterministic() -> None:
+    """The evidence-string builder (name + description + example values) is pure
+    and order-stable — Task 8's embedding tier will reuse it, so lock its shape."""
+    from .evidence import evidence_string
+
+    a = evidence_string("criticScore", "critic review score out of 100", [90, 92])
+    b = evidence_string("criticScore", "critic review score out of 100", [90, 92])
+    assert a == b
+    assert "critic score" in a          # camelCase split
+    assert "90" in a and "92" in a      # values included
+    assert evidence_string("x") == "x"  # bare name degrades gracefully
+
+
+def test_evidence_embeddings_are_recall_signal_not_precision() -> None:
+    """The HONEST go/no-go measurement for the embedding tier, on an in-domain
+    hard-negative fixture (junk shares the golden's VOCABULARY but is a different
+    entity — the realistic analytic-report case). Two findings this locks:
+
+      1. RECALL: embedding the EVIDENCE STRING (name+description+values) ranks
+         every real synonym's top golden CORRECTLY (7/7), and does so where the
+         BARE NAME fails (bare gets several wrong and inverts signal/junk). So
+         embeddings ARE a good recall/ranking signal on rich text.
+      2. PRECISION: embeddings alone do NOT separate signal from in-domain junk
+         — the margin (weakest synonym top minus strongest junk top) is NOT
+         positive, because a junk column like 'year_installed' can be as close to
+         'releaseYear' as a real synonym. Therefore the embedding tier must be
+         RECALL-ONLY and every embedding proposal MUST pass the value-evidence
+         gate before it can ground. This is the measured mandate for Task 8's
+         design (gated booster, never authoritative on cosine alone).
+
+    Skipped only when the real model is unavailable (hashing carries no meaning)."""
+    from app.embeddings import embedder
+
+    from .evidence import measure_separation
+
+    if "minilm" not in embedder.model.lower():
+        pytest.skip(f"semantic separation needs a real model; active={embedder.model}")
+    out = measure_separation()
+    ev = out["evidence_string"]
+    bare = out["bare_name"]
+    # Finding 1 — recall: evidence strings rank every synonym correctly; bare does not.
+    assert ev["synonyms_top_correct"] == ev["synonyms_total"], (
+        f"evidence strings mis-ranked a synonym: {ev['synonyms_top_correct']}"
+        f"/{ev['synonyms_total']}")
+    assert bare["synonyms_top_correct"] < bare["synonyms_total"], (
+        "bare names unexpectedly ranked every synonym correctly — fixture may be "
+        "too easy; the whole point is that rich evidence beats bare names")
+    # Finding 2 — precision: embeddings alone do NOT separate in-domain junk, so
+    # the tier must be value-gated, not cosine-authoritative. (If this ever flips
+    # positive it means the junk got too easy; keep it honest.)
+    assert ev["margin"] <= 0.0, (
+        f"evidence margin positive ({ev['margin']}) — the in-domain junk fixture "
+        f"has gone soft; embeddings must NOT look like a standalone precision cut")
+
+
 def test_semantic_tier_gate_contract() -> None:
     """The adversarial semantic-tier exercise is the precision crux: it must
     show (1) a fabricator's picks are ALL rejected and add no false match,

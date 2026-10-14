@@ -314,11 +314,66 @@ def axis_conflict(rec: Record, severity: int, rng: random.Random) -> MutationRes
     return MutationResult(out, truth)
 
 
+# --------------------------------------------------------------------------
+# The junk-leak PRECISION axis (explicit target: drive junk_fp -> 0).
+#
+# This is a NON-GAME record whose field NAMES deliberately share a token with a
+# golden field, but whose MEANING and VALUES are unrelated — the exact trap the
+# purely-lexical matcher falls into (e.g. 'developer_contact' is an email, not a
+# studio; 'platform_vendor' is a company name, not a console; 'station_name' is a
+# weather station, not a game title). EVERY key has truth=None: the correct
+# behavior is to ground ZERO golden fields. Any confident mapping is a false
+# match the harness counts.
+#
+# Graded: severity N presents the first N golden-adjacent decoy fields, so the
+# leak can be watched scale up and (after the meaning tier + value-evidence gate)
+# driven to zero. Values are plausible-but-wrong for the golden field the name
+# resembles, so a value-evidence gate has something concrete to veto on.
+# --------------------------------------------------------------------------
+# Each trap: a field NAME that shares a golden token (or is semantically near a
+# golden field, to also tempt an embedding tier), paired with a value that is
+# genuinely WRONG for that golden — so a value-evidence gate has a concrete
+# contradiction to veto on. We deliberately make the VALUES vetoable even for the
+# traps that don't leak lexically today (year/score/genre), because the meaning
+# tier added later may raise their similarity; when it does, the value gate must
+# have something real to catch (a timestamp is not a 4-digit year; a star string
+# is not a 0-100 integer; a scalar is not a genres list).
+_JUNK_LEAK_FIELDS: list[tuple[str, Any]] = [
+    ("station_name",       "North Field Buoy"),       # ~name: not a game title
+    ("developer_contact",  "ops@example.com"),         # ~developer: an email, not a studio
+    ("platform_vendor",    "Acme Instruments Inc"),    # ~platform: a company, not a console
+    ("year_installed",     "1998-04-12T09:00:00Z"),    # ~releaseYear: a timestamp, not \d{4}
+    ("score_rating_stars", "4 stars"),                  # ~criticScore: a star string, not 0-100 int
+    ("genre_of_station",   "coastal"),                  # ~genres: a scalar, not a list
+    ("publisher_region",   "Pacific Northwest"),        # ~publisher: a region, not a company
+    ("esrb_descriptor",    "non-rated equipment"),      # ~ESRB: not an ESRB enum code
+]
+
+
+def axis_junk_leak(rec: Record, severity: int, rng: random.Random) -> MutationResult:
+    """A graded golden-adjacent NON-GAME record. severity N includes the first N
+    trap fields (severity 0 = empty record = trivially clean). The record carries
+    NO true golden field, so present_golden is empty and recall is not scored;
+    the axis exists purely to measure PRECISION — every confident mapping is a
+    false match. Deterministic (values are fixed, `rng` unused)."""
+    out: Record = {}
+    truth: dict[str, str | None] = {}
+    for name, value in _JUNK_LEAK_FIELDS[:max(0, severity)]:
+        out[name] = value
+        truth[name] = None
+    return MutationResult(out, truth)
+
+
 @dataclass
 class Axis:
     name: str
     fn: Callable[[Record, int, random.Random], MutationResult]
     max_severity: int
+    # When True the axis's output does NOT depend on the clean base record (it
+    # builds a fixed record of its own), so the harness runs it ONCE per severity
+    # instead of once per pooled base record (which would merely triple identical
+    # counts). Used by the junk-leak precision axis.
+    base_independent: bool = False
 
 
 AXES: dict[str, Axis] = {
@@ -330,6 +385,8 @@ AXES: dict[str, Axis] = {
     "typecoerce":  Axis("typecoerce", axis_typecoerce, 3),
     "split_merge": Axis("split_merge", axis_split_merge, 2),
     "conflict":    Axis("conflict", axis_conflict, 2),
+    "junk_leak":   Axis("junk_leak", axis_junk_leak, len(_JUNK_LEAK_FIELDS),
+                        base_independent=True),
 }
 
 
