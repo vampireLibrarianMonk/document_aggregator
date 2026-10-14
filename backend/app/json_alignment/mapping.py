@@ -19,9 +19,11 @@ match. Everything here is pure and reproducible.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from .evidence import evidence_string
 from .source_profile import FieldStat, SourceProfile, name_tokens
 from .target_profile import TargetField, TargetSchema
 
@@ -33,6 +35,17 @@ _SYNONYM = 0.88           # curated field-name synonym (below alias, above fuzzy
 _FUZZY_MAX = 0.86         # ceiling for a near-miss (typo) match
 _FUZZY_MIN = 0.80         # floor confidence for an accepted typo match
 _DESC_FLOOR = 0.34        # Jaccard overlap required to propose a description match
+# Embeddings are NOT a grounding tier (measured: on thin data cosine can't
+# separate real synonyms from in-domain junk). They are used only as a display-
+# order booster in infer_mapping via _cosine_to_target — re-ranking candidates a
+# lexical tier already proposed, never selecting the grounded path.
+# Positive value-corroboration boost: a small confidence bump applied to a
+# sub-authoritative match whose VALUES positively fit the target's shape, so a
+# value-backed candidate outranks a merely-lexical one for the same target. Kept
+# small and capped per-tier so it never promotes a candidate past the next tier
+# (a boosted description match stays below alias; it only breaks ties / reorders
+# within the sub-authoritative band).
+_VALUE_BOOST = 0.04
 
 STATUS_MAPPED = "mapped"
 STATUS_NEEDS_REVIEW = "needs_review"
@@ -283,6 +296,329 @@ def _type_compatible(src_type: str, tgt: TargetField) -> bool:
     return False
 
 
+# --------------------------------------------------------------------------
+# Value-evidence precision gate.
+#
+# A field matched only by a SUB-AUTHORITATIVE tier (description/synonym/fuzzy —
+# NOT exact/normalized/alias, which are name-identity and self-evident) is a
+# PROPOSAL. Before trusting it, we corroborate it against the field's actual
+# VALUES: if the values positively CONTRADICT what the target field must hold,
+# we veto the match (it falls back to abstain / needs_review). This is what
+# separates a real field from a golden-ADJACENT junk field whose NAME overlaps
+# but whose VALUES are unrelated (e.g. developer_contact is an email, not a
+# studio; platform_vendor is a company, not a console; year_installed is a
+# timestamp, not a 4-digit year).
+#
+# Design rules (precision without hurting recall):
+#   - Only vetoes on a POSITIVE contradiction. "Unknown / no examples" never
+#     vetoes (we abstain from vetoing, not from matching).
+#   - Constraints come straight from the target SCHEMA (pattern, numeric range,
+#     enum/taxonomy) — never invented. A value is wrong only against the
+#     schema's own declared shape.
+#   - Shape heuristics (email/url/timestamp) only veto a FREE-TEXT, human-name-
+#     like target (name/developer/publisher), where such a value is self-
+#     evidently the wrong kind of thing. They never veto a constrained field.
+#
+# KNOWN RECALL-DEBT (tracked for the richer-real-data pass; adversarial review):
+#   The veto is strict against the SCHEMA's declared shape, so a GENUINE field
+#   whose values are UNIFORMLY in an alternate-but-legitimate encoding can be
+#   wrongly vetoed — e.g. a releaseYear synonym carrying a full ISO date vs the
+#   schema's ^\d{4}$, a criticScore encoded "9/10", or a platform/ESRB value
+#   that is valid in the world but absent from a small taxonomy ("Linux", "RP").
+#   This is contained today (only on sub-authoritative tiers, and only when
+#   EVERY sampled example is malformed, so one well-formed example disarms the
+#   veto) and regresses no current test, but it is a real ceiling on messy
+#   real-world data. When richer source values arrive, loosen to "extract a
+#   plausible value" (year-within-a-date, scale-aware score parsing) and treat
+#   small taxonomies as open rather than closed. Precision must stay the gate.
+#   (3) The region-value veto (below) could wrongly veto a GENUINE studio/
+#   publisher literally named a bare region word (e.g. a studio called
+#   "Oceania") reached via a sub-authoritative tier. Contained: name-identity
+#   tiers (exact/normalized/alias) are immune, multi-word company names escape,
+#   and one non-region example disarms the veto. Track for the rich-data pass.
+# --------------------------------------------------------------------------
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_URL_RE = re.compile(r"^(https?://|www\.)", re.IGNORECASE)
+_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
+
+# A small, explicit set of geographic REGION / TERRITORY / COUNTRY values. A
+# field whose values are drawn ENTIRELY from this set denotes a location, not a
+# company or person — so it is self-evidently NOT a publisher/developer name.
+# This closes the publisher_region/owner_studio_country class of hard negatives
+# that no schema constraint can catch (the target is free-text). Deliberately
+# conservative: a real publisher/studio is a company name, never a bare region.
+_REGION_VALUES = frozenset({
+    # sales regions / macro-territories
+    "emea", "apac", "amer", "latam", "anz", "mena", "na", "eu", "us", "uk",
+    "north america", "south america", "latin america", "central america",
+    "asia pacific", "asia-pacific", "europe", "middle east", "oceania",
+    "africa", "asia", "worldwide", "global", "international", "domestic",
+    # cardinal/relative regions
+    "north", "south", "east", "west", "northwest", "northeast", "southwest",
+    "southeast", "pacific northwest", "midwest",
+    # a handful of common country names (studios' HQ countries in reports)
+    "united states", "usa", "canada", "australia", "japan", "china", "germany",
+    "france", "united kingdom", "sweden", "finland", "poland", "south korea",
+    "new zealand", "brazil", "mexico", "spain", "italy", "netherlands",
+})
+
+
+def _looks_like_region(value: Any) -> bool:
+    """True when a string value is a bare geographic region / territory / country
+    (not a company or person name)."""
+    if not isinstance(value, str):
+        return False
+    return value.strip().lower() in _REGION_VALUES
+# Generic, low-information name tokens. Sharing ONLY one of these with the target
+# is weak evidence (every entity has a 'name'/'id'); when the source ALSO carries
+# a foreign specific qualifier (station_name, record_id), that qualifier usually
+# re-points the field at a DIFFERENT entity. Note the asymmetry this captures:
+# 'station_name' shares only the GENERIC 'name' (weak) whereas 'publisher_name'
+# shares the SPECIFIC 'publisher' and merely adds the generic 'name' (strong) —
+# so the former is demoted and the latter is kept.
+_GENERIC_TOKENS = frozenset({"name", "id", "code", "type", "value", "key", "label"})
+
+
+def _coerce_number(v: Any) -> float | None:
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int | float):
+        return float(v)
+    if isinstance(v, str):
+        s = v.strip()
+        # A trailing percent is an unambiguous numeric encoding (e.g. "90%").
+        if s.endswith("%"):
+            s = s[:-1].strip()
+        try:
+            return float(s)
+        except ValueError:
+            return None
+    return None
+
+
+def _enum_vocab(tgt: TargetField) -> set[str]:
+    """Lower-cased accepted values for an enum/taxonomy target, incl. alias keys
+    and their canonical values. Empty when the target has no controlled vocab."""
+    vocab: set[str] = set()
+    for e in tgt.enum:
+        vocab.add(str(e).strip().lower())
+    for k, val in tgt.aliases.items():
+        vocab.add(str(k).strip().lower())
+        vocab.add(str(val).strip().lower())
+    return vocab
+
+
+def _value_contradicts(sf: FieldStat, tgt: TargetField) -> bool:
+    """True when the source field's example VALUES positively contradict the
+    target's declared shape. Conservative: returns False (no veto) whenever
+    there is no evidence either way."""
+    examples = [e for e in sf.examples if e is not None]
+    if not examples:
+        return False  # no values seen -> cannot contradict
+
+    # 1. Pattern constraint (e.g. releaseYear ^\d{4}$): veto if NO example matches.
+    if tgt.pattern:
+        try:
+            pat = re.compile(tgt.pattern)
+        except re.error:
+            pat = None
+        if pat is not None and not any(
+                isinstance(e, str) and pat.search(e) for e in examples):
+            # also allow a non-string that stringifies to a match (e.g. int year)
+            if not any(pat.search(str(e)) for e in examples):
+                return True
+
+    # 2. Numeric range (e.g. criticScore 0..100 integer): veto if NO example is
+    #    a number within [min, max].
+    if (tgt.minimum is not None or tgt.maximum is not None) and \
+            ("integer" in tgt.types or "number" in tgt.types):
+        lo = tgt.minimum if tgt.minimum is not None else float("-inf")
+        hi = tgt.maximum if tgt.maximum is not None else float("inf")
+        nums = [n for n in (_coerce_number(e) for e in examples) if n is not None]
+        if not nums or not any(lo <= n <= hi for n in nums):
+            return True
+
+    # 3. Controlled vocabulary (enum/taxonomy, e.g. platform / ESRB): veto if NO
+    #    example is an accepted value (after alias + case normalization).
+    vocab = _enum_vocab(tgt)
+    if vocab:
+        if not any(isinstance(e, str) and e.strip().lower() in vocab
+                   for e in examples):
+            return True
+
+    # 4. Shape heuristic for a FREE-TEXT human-name-like target: a value that is
+    #    self-evidently the WRONG KIND of thing for a game name / studio /
+    #    publisher is a contradiction. Two shapes:
+    #      (a) email / url / timestamp — not a name;
+    #      (b) a bare geographic region / country — a location, not a company
+    #          (closes publisher_region->publisher, owner_studio_country->developer).
+    #    Only vetoes when EVERY example is such a shape (one real name disarms it).
+    name_like = (tgt.name in ("name", "developer", "publisher")
+                 and not tgt.enum and not tgt.pattern)
+    if name_like:
+        strs = [e for e in examples if isinstance(e, str)]
+        if strs and all(
+                _EMAIL_RE.match(e.strip()) or _URL_RE.match(e.strip())
+                or _TIMESTAMP_RE.match(e.strip())
+                for e in strs):
+            return True
+        if strs and all(_looks_like_region(e) for e in strs):
+            return True
+
+    return False
+
+
+def _value_corroborates(sf: FieldStat, tgt: TargetField) -> bool:
+    """True when the source values POSITIVELY fit the target's declared shape —
+    the complement of _value_contradicts. Used only as a small confidence BOOST
+    on an already-fired sub-authoritative match (it never creates a match, and a
+    value-contradicted candidate is vetoed upstream before this is consulted), so
+    a value-backed candidate outranks a merely-lexical one on the same target.
+
+    Conservative: requires POSITIVE evidence (an example that actually fits), so
+    'no values' or 'free-text target with no constraint' does not corroborate."""
+    examples = [e for e in sf.examples if e is not None]
+    if not examples:
+        return False
+
+    # Pattern fit (e.g. a 4-digit year for releaseYear).
+    if tgt.pattern:
+        try:
+            pat = re.compile(tgt.pattern)
+        except re.error:
+            pat = None
+        if pat is not None and any(pat.search(str(e)) for e in examples):
+            return True
+
+    # Numeric-range fit (e.g. a 0..100 integer for criticScore).
+    if (tgt.minimum is not None or tgt.maximum is not None) and \
+            ("integer" in tgt.types or "number" in tgt.types):
+        lo = tgt.minimum if tgt.minimum is not None else float("-inf")
+        hi = tgt.maximum if tgt.maximum is not None else float("inf")
+        nums = [n for n in (_coerce_number(e) for e in examples) if n is not None]
+        if any(lo <= n <= hi for n in nums):
+            return True
+
+    # Controlled-vocabulary fit (an example is an accepted enum/taxonomy value).
+    vocab = _enum_vocab(tgt)
+    if vocab and any(isinstance(e, str) and e.strip().lower() in vocab
+                     for e in examples):
+        return True
+
+    # Array-shape fit: the target is an array and the source actually carries a
+    # list (genres/playerModes), a positive structural signal.
+    if "array" in tgt.types and "array" in sf.types:
+        return True
+
+    return False
+
+
+def _weak_generic_overlap(sf: FieldStat, tgt: TargetField) -> bool:
+    """True when a description-tier match on a value-UNCONSTRAINED free-text
+    target rests on a WEAK name-structure signal and should be demoted to
+    needs_review (no fabrication) rather than confidently grounded.
+
+    The discriminating asymmetry (both conditions required):
+      - the match rests ONLY on a shared GENERIC token (name/id/code/...), i.e.
+        every shared token is low-information; AND
+      - the source carries an extra qualifier token that is FOREIGN to the
+        target's name+description vocabulary (a real qualifier pointing
+        elsewhere).
+    So 'station_name' (shares only generic 'name', adds foreign 'station') is
+    demoted, while 'publisher_name' (shares the SPECIFIC 'publisher', merely adds
+    generic 'name') is KEPT — the shared token is not generic there. 'game_name'
+    adds 'game', which is in name's description vocabulary, so it is not foreign
+    and the match stands. Never applied to value-CONSTRAINED targets (their value
+    gate decides)."""
+    if tgt.enum or tgt.pattern or tgt.minimum is not None or tgt.maximum is not None:
+        return False  # constrained targets are judged by value evidence instead
+    s_name = set(sf.tokens)
+    t_name = set(tgt.tokens)
+    shared = s_name & t_name
+    extra = s_name - t_name
+    if not shared or not extra:
+        return False  # no overlap, or a clean subset -> not this gate's concern
+    # Only weak when the shared evidence is purely generic (low information).
+    if not (shared <= _GENERIC_TOKENS):
+        return False
+    explained = t_name | set(tgt.desc_tokens)
+    foreign = extra - explained
+    # ...and the extra tokens are a foreign qualifier (not explained by the
+    # target's own vocabulary).
+    return bool(foreign)
+
+
+# --------------------------------------------------------------------------
+# Semantic (embedding) tier helpers. OFFLINE-SAFE + DETERMINISTIC-GIVEN-CACHE:
+# embeddings are computed lazily through the shared provider and memoized per
+# evidence string, so a given run is reproducible and repeated identical strings
+# are embedded once. On the hashing fallback (no semantic meaning) or on ANY
+# embedding error the tier is a NO-OP, so the matcher stays fully deterministic
+# and functional without a model.
+# --------------------------------------------------------------------------
+
+_embed_cache: dict[str, list[float]] = {}
+_SEMANTIC_PROBED = False
+_SEMANTIC_ENABLED = False
+
+
+def _semantic_available() -> bool:
+    """True only when a REAL embedding model is active. The hashing fallback is a
+    bag-of-words with no meaning, so the measurement showed it cannot separate
+    fields — we disable the semantic tier there rather than add noise. Probed
+    once per process; never raises."""
+    global _SEMANTIC_PROBED, _SEMANTIC_ENABLED
+    if _SEMANTIC_PROBED:
+        return _SEMANTIC_ENABLED
+    _SEMANTIC_PROBED = True
+    try:
+        from ..embeddings import embedder
+        _SEMANTIC_ENABLED = "minilm" in str(embedder.model).lower()
+    except Exception:
+        _SEMANTIC_ENABLED = False
+    return _SEMANTIC_ENABLED
+
+
+def _embed(text: str) -> list[float] | None:
+    """Memoized, offline-safe embed. Returns None on any failure (tier no-ops)."""
+    if not text:
+        return None
+    hit = _embed_cache.get(text)
+    if hit is not None:
+        return hit
+    try:
+        from ..embeddings import embedder
+        vec = embedder.embed(text)
+    except Exception:
+        return None
+    _embed_cache[text] = vec
+    return vec
+
+
+def _source_evidence(sf: FieldStat) -> str:
+    name = " ".join(sf.tokens) or sf.path
+    desc = " ".join(sf.desc_tokens)
+    return evidence_string(name, desc, list(sf.examples))
+
+
+def _target_evidence(tgt: TargetField) -> str:
+    return evidence_string(tgt.name, tgt.description, [])
+
+
+def _cosine_to_target(sf: FieldStat, tgt: TargetField) -> float:
+    """Raw evidence-string cosine source->target, or 0.0 when no real model /
+    error. Used by the gated booster to RE-RANK existing candidates (never to
+    create one)."""
+    if not _semantic_available():
+        return 0.0
+    sv = _embed(_source_evidence(sf))
+    tv = _embed(_target_evidence(tgt))
+    if sv is None or tv is None:
+        return 0.0
+    return sum(x * y for x, y in zip(sv, tv))
+
+
 def _score_candidate(sf: FieldStat, tgt: TargetField) -> tuple[float, str]:
     """Return (score, method) for one source field against one target field.
 
@@ -307,18 +643,34 @@ def _score_candidate(sf: FieldStat, tgt: TargetField) -> tuple[float, str]:
     for alias in tgt.aliases:
         if name_tokens(str(alias)) and set(name_tokens(str(alias))) == s_name:
             return _ALIAS, "alias"
+    # VALUE-EVIDENCE GATE: tiers below here are PROPOSALS (name/overlap based),
+    # not name-identity. Before any of them may fire, veto the candidate if the
+    # source field's actual VALUES positively contradict the target's declared
+    # shape. This is what stops a golden-ADJACENT junk field (name overlaps,
+    # values unrelated) from grounding, without touching exact/normalized/alias.
+    if _value_contradicts(sf, tgt):
+        return 0.0, "abstain"
+
+    # Positive value-corroboration: a small confidence boost for a
+    # sub-authoritative match whose VALUES fit the target shape, capped per-tier
+    # so it only reorders within the sub-authoritative band (never promotes past
+    # the next tier). Computed once; applied to synonym/fuzzy/description below.
+    boost = _VALUE_BOOST if _value_corroborates(sf, tgt) else 0.0
+
     # 3b. curated field-name synonym (offline dictionary tier). Exact token-set
     #     equality against a closed synonym vocabulary; type-compatible only. A
     #     single synonym token (e.g. 'studio' for developer) would dilute below
     #     the description floor, so this tier is what recovers pure synonyms.
     if _synonym_match(s_name, tgt) and _type_compatible(sf.primary_type, tgt):
-        return _SYNONYM, "synonym"
+        # cap below alias (0.9) so a boosted synonym never outranks a real alias.
+        return min(_SYNONYM + boost, _ALIAS - 0.01), "synonym"
     # 3c. fuzzy near-miss (typo tolerance). Bounded whole-name edit similarity
     #     with a length guard; type-compatible only. Recovers misspelled field
     #     names without opening the door to unrelated short words.
     fscore = _fuzzy_score(s_name, tgt)
     if fscore > 0.0 and _type_compatible(sf.primary_type, tgt):
-        return fscore, "fuzzy"
+        # cap below the synonym floor so a boosted fuzzy stays under synonyms.
+        return min(fscore + boost, _SYNONYM - 0.01), "fuzzy"
     # 4. token overlap. Compare the richest available bag of tokens on each side
     #    (name + description), so metadata descriptions help when names are opaque.
     s_bag = s_name | s_desc
@@ -327,8 +679,23 @@ def _score_candidate(sf: FieldStat, tgt: TargetField) -> tuple[float, str]:
     # Also consider name-vs-(name+desc) in case only one side has a description.
     overlap = max(overlap, _jaccard(s_name, t_bag), _jaccard(s_bag, t_name))
     if overlap >= _DESC_FLOOR and _type_compatible(sf.primary_type, tgt):
-        score = min(0.85, 0.5 + overlap / 2)
+        # Name-structure veto: a description-tier match on a value-unconstrained
+        # free-text target that rests only on a shared GENERIC token plus an
+        # unexplained qualifier (station_name->name, publisher_region->publisher)
+        # is too weak to confidently ground -> abstain (routes to needs_review).
+        if _weak_generic_overlap(sf, tgt):
+            return 0.0, "abstain"
+        # cap below alias so a boosted description match never outranks alias.
+        score = min(0.85 + boost, _ALIAS - 0.01, 0.5 + overlap / 2 + boost)
         return score, "description"
+    # NOTE: the embedding (semantic) signal is intentionally NOT a standalone
+    # grounding tier. Measurement showed that on thin data (short names, single
+    # values, no descriptions) cosine cannot separate real synonyms from
+    # in-domain junk — the ranges overlap — so a cosine-grounding tier re-opens
+    # the junk leak. The embedding signal (_cosine_to_target) is used only as a
+    # GATED BOOSTER in infer_mapping (re-ranking the DISPLAYED candidate list
+    # among candidates that already cleared a lexical tier), never to ground a
+    # pair no lexical tier proposed and never to select the grounded path.
     return 0.0, "abstain"
 
 
@@ -341,30 +708,62 @@ def infer_mapping(source: SourceProfile, target: TargetSchema) -> Mapping:
     src_fields = source.fields
     out: list[FieldMapping] = []
 
+    sf_by_path = {sf.path: sf for sf in src_fields}
+
     for tgt in target.fields:
         scored: list[tuple[float, str, str]] = []  # (score, method, source_path)
         for sf in src_fields:
             score, method = _score_candidate(sf, tgt)
             if score > 0.0:
                 scored.append((score, method, sf.path))
-        # Rank: score desc, then source path asc for a stable deterministic order.
+
+        # GROUNDING ORDER is PURELY LEXICAL + deterministic (score desc, then
+        # path asc). This decides which candidate is `top` and whether a tie is a
+        # conflict — the embedding signal must NEVER influence it (adversarial
+        # review: two distinct paths can both score 'exact'/'normalized' for one
+        # target, e.g. movie.title and alt.title both normalize to {title}; if
+        # cosine chose among them it would be the embedding selecting the grounded
+        # path — a precision decision the measured mandate forbids).
         scored.sort(key=lambda x: (-x[0], x[2]))
-        candidates = tuple((p, s) for s, _m, p in scored)
 
         if not scored:
             out.append(FieldMapping(
                 target=tgt.name, source_path=None, method="abstain",
                 confidence=0.0, status=STATUS_NEEDS_REVIEW,
-                candidates=candidates,
+                candidates=(),
                 note="no source field cleared the match floor",
             ))
             continue
 
         top_score, top_method, top_path = scored[0]
+
+        # GATED SEMANTIC BOOSTER (Option A): embeddings re-rank ONLY the
+        # DISPLAYED candidate list (what a human reviews / the UI surfaces),
+        # never the grounding choice above. Among candidates sharing a lexical
+        # score, cosine orders the more meaning-relevant first. Recall/ordering
+        # signal only; precision stays with the lexical + value gates. Computed
+        # once per candidate, cached, and only when there is more than one.
+        cand_order = scored
+        if len(scored) > 1:
+            cos_by_path = {
+                p: _cosine_to_target(sf_by_path[p], tgt)
+                for _s, _m, p in scored if p in sf_by_path
+            }
+            cand_order = sorted(
+                scored, key=lambda x: (-x[0], -cos_by_path.get(x[2], 0.0), x[2]))
+        candidates = tuple((p, s) for s, _m, p in cand_order)
         # Conflict only when two DISTINCT source paths tie at the very top with a
         # non-authoritative method (exact/normalized are self-evidently unique).
         tied = [c for c in scored if c[0] == top_score and c[2] != top_path]
         if tied and top_method not in ("exact", "normalized"):
+            # A genuine tie stays a CONFLICT (abstain-with-candidates). The
+            # semantic booster deliberately does NOT resolve it into a confident
+            # map: when the tied candidates are all junk (as in a decoy-only
+            # record), picking one by cosine would ground a decoy — turning a
+            # precision-safe abstention into a false match. Measured: forcing a
+            # tie-break raised false_match on the decoy-only axis. So the booster
+            # only RE-RANKS the candidate list (already applied above, improving
+            # the order a human reviews), never changes mapped/conflict status.
             out.append(FieldMapping(
                 target=tgt.name, source_path=None, method=top_method,
                 confidence=top_score, status=STATUS_CONFLICT,
