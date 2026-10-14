@@ -108,6 +108,85 @@ def test_mapping_conflict_on_tie():
         assert fm.source_path is None
 
 
+# --- mapping: dictionary (synonym) + fuzzy (typo) tiers --------------------
+
+def _one_field_schema():
+    """The game schema's descriptions matter for the overlap tier, so use a
+    realistic subset."""
+    return {"title": "t", "properties": {
+        "developer": {"type": "string",
+                      "description": "the studio that developed or made the game"},
+        "publisher": {"type": "string",
+                      "description": "the company that published the game"},
+        "name": {"type": "string", "description": "the title of the game"}}}
+
+
+def test_synonym_tier_recovers_unambiguous_synonym():
+    # 'studio' shares no token with 'developer' and a single token dilutes below
+    # the description floor -> only the curated synonym tier can recover it.
+    recs = [{"studio": "Valve"}]
+    m = infer_mapping(profile_source(recs), extract_target(_one_field_schema()))
+    by = {fm.target: fm for fm in m.fields}
+    assert by["developer"].status == STATUS_MAPPED
+    assert by["developer"].method == "synonym"
+    assert by["developer"].source_path == "studio"
+
+
+def test_synonym_tier_excludes_ambiguous_words():
+    # 'label' is ambiguous (publisher OR a title's label) and 'rating' (ESRB OR
+    # criticScore); neither may be in the dictionary, so a lone such key must
+    # NOT be confidently mapped by the synonym tier (no fabrication).
+    from app.json_alignment.mapping import _SYNONYMS
+
+    all_syn = {s for syns in _SYNONYMS.values() for s in syns}
+    assert "label" not in all_syn
+    assert "rating" not in all_syn
+    assert "score" not in all_syn
+
+
+def test_fuzzy_tier_recovers_single_typo_but_not_unrelated():
+    # A one-character typo of a field name is recovered; an unrelated short word
+    # of similar length is not (length + edit-budget guards).
+    recs = [{"dveloper": "Valve", "zzzz": "junk"}]
+    m = infer_mapping(profile_source(recs), extract_target(_one_field_schema()))
+    by = {fm.target: fm for fm in m.fields}
+    assert by["developer"].status == STATUS_MAPPED
+    assert by["developer"].method == "fuzzy"
+    # 'zzzz' must not be grabbed for any target.
+    assert all(fm.source_path != "zzzz" for fm in m.fields)
+
+
+def test_fuzzy_tier_rejects_multitoken_decoy_by_length_guard():
+    # 'developer_contact' (a hard-negative decoy) is far longer than any target
+    # name joined, so the length guard rejects it from the fuzzy tier. It may
+    # still match 'developer' via token overlap (shares the token), which is a
+    # separate, already-studied behavior; here we only assert the FUZZY tier is
+    # not the thing that matched (method != 'fuzzy').
+    recs = [{"developer_contact": "ops@example.com"}]
+    m = infer_mapping(profile_source(recs), extract_target(_one_field_schema()))
+    by = {fm.target: fm for fm in m.fields}
+    assert by["developer"].method != "fuzzy"
+
+
+def test_fuzzy_tier_blocks_common_word_near_short_name():
+    # 'game' is one edit from 'name' but is a common standalone word, not a typo
+    # of the golden field; the blocklist guard must stop the fuzzy tier from
+    # claiming it (no fabrication on a short golden name).
+    recs = [{"game": "Portal"}]
+    m = infer_mapping(profile_source(recs), extract_target(_one_field_schema()))
+    by = {fm.target: fm for fm in m.fields}
+    assert by["name"].method != "fuzzy"
+    # and it must not be confidently mapped to name via fuzzy
+    assert not (by["name"].status == STATUS_MAPPED and by["name"].source_path == "game")
+
+
+def test_synonym_and_fuzzy_rank_below_alias_and_exact():
+    from app.json_alignment.mapping import _ALIAS, _FUZZY_MAX, _NORMALIZED, _SYNONYM
+
+    assert _SYNONYM < _ALIAS < _NORMALIZED
+    assert _FUZZY_MAX < _SYNONYM
+
+
 # --- transforms -------------------------------------------------------------
 
 @pytest.mark.parametrize("raw,expected", [

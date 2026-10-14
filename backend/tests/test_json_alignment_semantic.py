@@ -68,11 +68,17 @@ def test_tier_only_sees_abstained_targets():
 def test_verified_picks_are_upgraded():
     v, src, tgt, m = _blind_rename()
     truth = {t: sp for sp, t in v.gold_mapping.items()}  # correct source per target
+    # Pick a target the DETERMINISTIC matcher still abstains on in this variation
+    # (so the semantic tier is what resolves it). The deterministic dictionary
+    # tier now recovers some unambiguous synonyms (e.g. name<-title) on its own,
+    # which is correct; `developer` here is a blind rename (made_by) that stays
+    # needs_review, so it exercises the model-upgrade path.
+    target = "developer"
+    assert target in m.needs_review()
     out = apply_semantic_tier(m, src, tgt, proposer=_FakeProposer(truth))
-    # name/releaseYear/etc. recovered via the model, marked semantic_model.
-    assert "name" in out.mapped()
-    name_fm = next(f for f in out.fields if f.target == "name")
-    assert name_fm.method == "semantic_model" and name_fm.status == STATUS_MAPPED
+    assert target in out.mapped()
+    fm = next(f for f in out.fields if f.target == target)
+    assert fm.method == "semantic_model" and fm.status == STATUS_MAPPED
 
 
 def test_pick_to_nonexistent_source_is_rejected():

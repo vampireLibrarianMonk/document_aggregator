@@ -29,11 +29,48 @@ from .target_profile import TargetField, TargetSchema
 _EXACT = 1.0
 _NORMALIZED = 0.95
 _ALIAS = 0.9
+_SYNONYM = 0.88           # curated field-name synonym (below alias, above fuzzy)
+_FUZZY_MAX = 0.86         # ceiling for a near-miss (typo) match
+_FUZZY_MIN = 0.80         # floor confidence for an accepted typo match
 _DESC_FLOOR = 0.34        # Jaccard overlap required to propose a description match
 
 STATUS_MAPPED = "mapped"
 STATUS_NEEDS_REVIEW = "needs_review"
 STATUS_CONFLICT = "conflict"
+
+# --------------------------------------------------------------------------
+# Embedded field-name synonym dictionary (the "offline semantic/dictionary
+# tier"). Maps a target field NAME to known synonymous source field names whose
+# tokens carry no lexical overlap with the target name — so the token-overlap
+# tier cannot reach them (a single synonym token dilutes below _DESC_FLOOR).
+# This is a CLOSED, curated vocabulary: it only ever proposes a candidate when a
+# source leaf's normalized token-set EXACTLY equals one of these synonyms. It
+# never fuzzy-expands, never fabricates, and is scored strictly below the alias
+# tier so a real alias/exact always dominates. Deterministic and offline.
+#
+# Why this is precision-safe: matching is exact token-set equality against a
+# finite hand-authored list, identical in mechanism to the alias tier. A decoy
+# like 'developer_contact' tokenizes to {developer, contact} which equals no
+# synonym set, so it is NOT grabbed; 'studio' tokenizes to {studio} which DOES
+# equal developer's synonym, which is the intended recovery.
+# --------------------------------------------------------------------------
+# IMPORTANT precision rule: only UNAMBIGUOUS synonyms belong here. A word that
+# can denote more than one golden field (e.g. 'label' -> publisher OR a title's
+# label; 'rating' -> ESRB OR criticScore; 'score' -> criticScore OR a generic
+# score) is DELIBERATELY excluded, because asserting one meaning would fabricate
+# a correspondence on genuinely ambiguous data. Ambiguous names are left to
+# abstain (and, if needed, to the human/LLM tier). This keeps the dictionary a
+# high-precision recall extender, not a guesser.
+_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "name":        ("title",),
+    "releaseYear": ("launched", "launch", "debut"),
+    "developer":   ("studio", "creator", "maker"),
+    "publisher":   ("distributor",),
+    "platform":    ("console", "system", "hardware"),
+    "genres":      ("categories", "category", "genre", "tags"),
+    "criticScore": ("metacritic", "metascore"),
+    "ESRB":        ("maturity",),
+}
 
 
 @dataclass
@@ -135,6 +172,100 @@ def _jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
+def _levenshtein(a: str, b: str) -> int:
+    """Classic edit distance (insert/delete/substitute). Pure, O(len(a)*len(b)),
+    used only on short field names so cost is trivial. Deterministic."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(
+                prev[j] + 1,          # deletion
+                cur[j - 1] + 1,       # insertion
+                prev[j - 1] + (ca != cb),  # substitution
+            ))
+        prev = cur
+    return prev[-1]
+
+
+# Common standalone English words that happen to sit within one edit of a SHORT
+# golden name (e.g. 'game'/'fame'/'tame' vs 'name'; 'date'/'rate' vs ...). A real
+# source shipping such a bare field is almost never a typo of the golden name, so
+# the fuzzy tier must NOT claim it (that would be a fabrication). This is a
+# precision guard the adversarial review flagged as a latent surface; it is
+# deliberately tiny and explicit — a true typo of a golden name will not be one
+# of these dictionary words.
+_FUZZY_WORD_BLOCKLIST = frozenset({
+    "game", "fame", "tame", "same", "lame", "dame", "came", "mane", "nave",
+    "date", "rate", "late", "gate", "mate", "fate", "hate", "time", "type",
+    "note", "code", "node", "mode", "role", "line", "list", "size", "year",
+})
+
+
+def _synonym_match(s_name: set[str], tgt: TargetField) -> bool:
+    """True when the source's name token-set EXACTLY equals one of the target's
+    curated field-name synonyms. Closed vocabulary, exact set equality — the
+    same precision posture as the alias tier."""
+    syns = _SYNONYMS.get(tgt.name)
+    if not syns:
+        return False
+    return any({syn} == s_name for syn in syns)
+
+
+def _fuzzy_score(s_name: set[str], tgt: TargetField) -> float:
+    """A bounded typo-tolerance score for a near-miss on the WHOLE normalized
+    name, so only a genuine misspelling of the target name — not an unrelated
+    short word — can clear it.
+
+    Precision design (two independent guards, both must pass):
+      - LENGTH guard: a true typo preserves length within 2 chars. This alone
+        rejects multi-token decoys (e.g. 'name_prefix' vs 'name') and anything
+        structurally different.
+      - EDIT-BUDGET guard: the allowed number of edits scales with target
+        length — 1 edit per 4 chars (so a 4-7 char name tolerates 1 edit, 8-11
+        tolerates 2, ...). An absolute budget is far stricter than a flat ratio
+        for short names: a 4-char name accepts ONLY a single-character typo, not
+        a 25%-different unrelated word. A decoy would have to be literally one
+        keystroke from the target name (and type-compatible, and not already
+        caught by a higher tier) to slip through.
+
+    Returns a confidence in [_FUZZY_MIN, _FUZZY_MAX] scaled by how clean the
+    match is (fewer edits -> higher), else 0.0. Requires >=1 real token per side
+    and a target name of at least 3 chars (a 2-char target like an abbreviation
+    is too short to typo-match safely)."""
+    if not s_name or not tgt.tokens:
+        return 0.0
+    # Precision guard: a lone common dictionary word that merely sits near a
+    # short golden name is not a typo of it. Reject when the source is a single
+    # blocklisted word that is not itself a real token of the target.
+    if len(s_name) == 1:
+        (only,) = tuple(s_name)
+        if only in _FUZZY_WORD_BLOCKLIST and only not in set(tgt.tokens):
+            return 0.0
+    s_joined = "".join(sorted(s_name))
+    t_joined = "".join(sorted(tgt.tokens))
+    if len(t_joined) < 3:
+        return 0.0
+    if abs(len(s_joined) - len(t_joined)) > 2:
+        return 0.0
+    budget = max(1, len(t_joined) // 4)
+    dist = _levenshtein(s_joined, t_joined)
+    if dist == 0 or dist > budget:
+        # dist==0 is an exact/normalized match already handled upstream; a true
+        # 0 here would mean the higher tiers didn't fire, so leave it to overlap.
+        return 0.0
+    # Scale: a 1-edit match scores near the ceiling; a budget-exhausting match
+    # scores near the floor. Deterministic.
+    cleanliness = 1.0 - (dist - 1) / budget
+    return _FUZZY_MIN + cleanliness * (_FUZZY_MAX - _FUZZY_MIN)
+
+
 def _type_compatible(src_type: str, tgt: TargetField) -> bool:
     """Soft compatibility: strings cast to many targets, so this is permissive;
     used only to break near-ties, never to create a match."""
@@ -176,6 +307,18 @@ def _score_candidate(sf: FieldStat, tgt: TargetField) -> tuple[float, str]:
     for alias in tgt.aliases:
         if name_tokens(str(alias)) and set(name_tokens(str(alias))) == s_name:
             return _ALIAS, "alias"
+    # 3b. curated field-name synonym (offline dictionary tier). Exact token-set
+    #     equality against a closed synonym vocabulary; type-compatible only. A
+    #     single synonym token (e.g. 'studio' for developer) would dilute below
+    #     the description floor, so this tier is what recovers pure synonyms.
+    if _synonym_match(s_name, tgt) and _type_compatible(sf.primary_type, tgt):
+        return _SYNONYM, "synonym"
+    # 3c. fuzzy near-miss (typo tolerance). Bounded whole-name edit similarity
+    #     with a length guard; type-compatible only. Recovers misspelled field
+    #     names without opening the door to unrelated short words.
+    fscore = _fuzzy_score(s_name, tgt)
+    if fscore > 0.0 and _type_compatible(sf.primary_type, tgt):
+        return fscore, "fuzzy"
     # 4. token overlap. Compare the richest available bag of tokens on each side
     #    (name + description), so metadata descriptions help when names are opaque.
     s_bag = s_name | s_desc

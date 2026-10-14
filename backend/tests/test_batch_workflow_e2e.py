@@ -319,14 +319,16 @@ def test_full_mixed_batch_routes_each_file_to_its_pathway(client):
     )
     labels = _pathway_label_counts(result)
 
-    # clean -> learned for approval (grounds all its fields). renamed (no shared
-    # tokens) AND weather (grounds nothing) both land in review: a shape whose
-    # inferred mapping grounds ZERO golden fields is NOT registered as a
-    # provisional profile (it would only ever replay into empty records), so it
-    # is downgraded to review rather than offered as an all-"needs review"
-    # approval card.
-    assert labels.get("New shape — needs approval", 0) == 1
-    assert labels.get("Needs human review", 0) == 2
+    # clean -> learned for approval (grounds all its fields). renamed now ALSO
+    # grounds golden fields: its keys (title/studio/console/metascore) are
+    # unambiguous synonyms the deterministic dictionary tier recovers
+    # (title->name, studio->developer, console->platform, metascore->criticScore),
+    # plus year->releaseYear via token overlap. So the renamed shape is offered
+    # for approval rather than downgraded to review. Only weather grounds ZERO
+    # golden fields (it is a non-game record) and is NOT registered as a
+    # provisional profile, so it alone lands in review.
+    assert labels.get("New shape — needs approval", 0) == 2
+    assert labels.get("Needs human review", 0) == 1
     # Only the clean shape produced real conformed records (no empty-record
     # inflation from weather).
     assert result["summary"]["conformed_records"] >= 1
