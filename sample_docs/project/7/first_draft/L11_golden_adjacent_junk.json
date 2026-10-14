@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Celeste",
+    "release_year": "2018",
+    "developer_studio": "Maddy Makes Games",
+    "platform_vendor": "Steam",
+    "developer_contact": "licensing@maddymakesgames.example",
+    "publisher_region": "North America",
+    "year_installed": "2024-02-11T14:03:00Z",
+    "score_rating_stars": "4.5 stars",
+    "esrb_descriptor": "Fantasy Violence",
+    "owner_studio_country": "United States"
+  },
+  {
+    "name": "Hollow Knight",
+    "release_year": "2017",
+    "developer_studio": "Team Cherry",
+    "platform_vendor": "Epic Games Store",
+    "developer_contact": "biz@teamcherry.example",
+    "publisher_region": "APAC",
+    "year_installed": "2023-11-01T09:12:00Z",
+    "score_rating_stars": "4.8 stars",
+    "esrb_descriptor": "Mild Blood",
+    "owner_studio_country": "Australia"
+  }
+]
