@@ -1,0 +1,761 @@
+{
+  "embedding_backend": "auto",
+  "bedrock_enabled": false,
+  "semantic_tier": [
+    {
+      "proposer": "honest(abstains)",
+      "abstained_before": [
+        "ESRB",
+        "criticScore",
+        "developer",
+        "genres",
+        "platform",
+        "publisher"
+      ],
+      "accepted_upgrades": [],
+      "rejected_picks": [],
+      "base_false_match": 0,
+      "false_match": 0,
+      "false_match_delta": 0,
+      "verdict": "ok"
+    },
+    {
+      "proposer": "adversarial-fabricator",
+      "abstained_before": [
+        "ESRB",
+        "criticScore",
+        "developer",
+        "genres",
+        "platform",
+        "publisher"
+      ],
+      "accepted_upgrades": [],
+      "rejected_picks": [
+        "ESRB",
+        "criticScore",
+        "developer",
+        "genres",
+        "platform",
+        "publisher"
+      ],
+      "base_false_match": 0,
+      "false_match": 0,
+      "false_match_delta": 0,
+      "verdict": "ok"
+    },
+    {
+      "proposer": "adversarial-decoy-picker",
+      "abstained_before": [
+        "ESRB",
+        "criticScore",
+        "developer",
+        "genres",
+        "platform",
+        "publisher"
+      ],
+      "accepted_upgrades": [
+        "ESRB",
+        "criticScore",
+        "developer",
+        "genres",
+        "platform",
+        "publisher"
+      ],
+      "rejected_picks": [],
+      "base_false_match": 0,
+      "false_match": 6,
+      "false_match_delta": 6,
+      "verdict": "ok"
+    },
+    {
+      "proposer": "adversarial-out-of-set",
+      "abstained_before": [
+        "ESRB",
+        "criticScore",
+        "developer",
+        "genres",
+        "name",
+        "platform",
+        "publisher"
+      ],
+      "accepted_upgrades": [],
+      "rejected_picks": [
+        "name"
+      ],
+      "base_false_match": 0,
+      "false_match": 0,
+      "false_match_delta": 0,
+      "verdict": "ok"
+    }
+  ],
+  "golden_fields": [
+    "name",
+    "releaseYear",
+    "developer",
+    "publisher",
+    "platform",
+    "genres",
+    "criticScore",
+    "ESRB"
+  ],
+  "required_fields": [
+    "name",
+    "releaseYear"
+  ],
+  "seed": 1337,
+  "axes": {
+    "rename": {
+      "axis": "rename",
+      "max_severity": 4,
+      "break_severity": 3,
+      "last_ok_severity": 2,
+      "broken_severities": [
+        3,
+        4
+      ],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 21,
+          "missed": 3,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 21,
+          "missed": 3,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 3,
+          "recovered": 3,
+          "missed": 21,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 0,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": true
+        },
+        {
+          "severity": 4,
+          "recovered": 0,
+          "missed": 24,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 0,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": true
+        }
+      ]
+    },
+    "misspell": {
+      "axis": "misspell",
+      "max_severity": 6,
+      "break_severity": 2,
+      "last_ok_severity": 1,
+      "broken_severities": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 15,
+          "missed": 9,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 3,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": true
+        },
+        {
+          "severity": 3,
+          "recovered": 0,
+          "missed": 24,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 0,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": true
+        },
+        {
+          "severity": 4,
+          "recovered": 0,
+          "missed": 24,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 0,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": true
+        },
+        {
+          "severity": 5,
+          "recovered": 0,
+          "missed": 24,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 0,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": true
+        },
+        {
+          "severity": 6,
+          "recovered": 0,
+          "missed": 24,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 0,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": true
+        }
+      ]
+    },
+    "nesting": {
+      "axis": "nesting",
+      "max_severity": 4,
+      "break_severity": null,
+      "last_ok_severity": null,
+      "broken_severities": [],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 21,
+          "missed": 3,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 3,
+          "recovered": 21,
+          "missed": 3,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 4,
+          "recovered": 21,
+          "missed": 3,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        }
+      ]
+    },
+    "noise": {
+      "axis": "noise",
+      "max_severity": 10,
+      "break_severity": null,
+      "last_ok_severity": null,
+      "broken_severities": [],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 3,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 4,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 5,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 6,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 7,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 8,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 9,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 10,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        }
+      ]
+    },
+    "noise_decoyonly": {
+      "axis": "noise_decoyonly",
+      "max_severity": 8,
+      "break_severity": null,
+      "last_ok_severity": null,
+      "broken_severities": [],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 21,
+          "missed": 0,
+          "false_match": 1,
+          "present_golden": 21,
+          "required_recovered": 3,
+          "required_present": 3,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 18,
+          "missed": 0,
+          "false_match": 6,
+          "present_golden": 18,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 3,
+          "recovered": 15,
+          "missed": 0,
+          "false_match": 9,
+          "present_golden": 15,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 4,
+          "recovered": 12,
+          "missed": 0,
+          "false_match": 7,
+          "present_golden": 12,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 5,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 5,
+          "recovered": 9,
+          "missed": 0,
+          "false_match": 6,
+          "present_golden": 9,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 7,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 6,
+          "recovered": 6,
+          "missed": 0,
+          "false_match": 9,
+          "present_golden": 6,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 4,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 7,
+          "recovered": 3,
+          "missed": 0,
+          "false_match": 11,
+          "present_golden": 3,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 6,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 8,
+          "recovered": 0,
+          "missed": 0,
+          "false_match": 11,
+          "present_golden": 0,
+          "required_recovered": 0,
+          "required_present": 0,
+          "conflicts": 10,
+          "junk_false_match": 3,
+          "required_broken": false
+        }
+      ]
+    },
+    "typecoerce": {
+      "axis": "typecoerce",
+      "max_severity": 3,
+      "break_severity": null,
+      "last_ok_severity": null,
+      "broken_severities": [],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 3,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        }
+      ]
+    },
+    "split_merge": {
+      "axis": "split_merge",
+      "max_severity": 2,
+      "break_severity": null,
+      "last_ok_severity": null,
+      "broken_severities": [],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 21,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 21,
+          "required_recovered": 3,
+          "required_present": 3,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 15,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 15,
+          "required_recovered": 3,
+          "required_present": 3,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        }
+      ]
+    },
+    "conflict": {
+      "axis": "conflict",
+      "max_severity": 2,
+      "break_severity": null,
+      "last_ok_severity": null,
+      "broken_severities": [],
+      "monotonic": true,
+      "scores": [
+        {
+          "severity": 0,
+          "recovered": 24,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 24,
+          "required_recovered": 6,
+          "required_present": 6,
+          "conflicts": 0,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 1,
+          "recovered": 21,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 21,
+          "required_recovered": 3,
+          "required_present": 3,
+          "conflicts": 3,
+          "junk_false_match": 3,
+          "required_broken": false
+        },
+        {
+          "severity": 2,
+          "recovered": 21,
+          "missed": 0,
+          "false_match": 0,
+          "present_golden": 21,
+          "required_recovered": 3,
+          "required_present": 3,
+          "conflicts": 3,
+          "junk_false_match": 3,
+          "required_broken": false
+        }
+      ]
+    }
+  }
+}
