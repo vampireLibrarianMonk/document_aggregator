@@ -604,3 +604,29 @@ textarea:focus-visible {
 .gov-needs_review { color: var(--warn); }
 .gov-retry, .gov-downshift { color: var(--warn); }
 .gov-start, .gov-done, .gov-verdict { color: var(--muted); }
+
+/* Accepted-values editor: a small tag/chip per allowed value. Built-in (schema)
+   chips are muted; learned (human-accepted) chips carry a remove (×) button. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  margin: 2px 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  background: var(--panel-2);
+}
+.chip.muted { color: var(--muted); background: transparent; }
+.chip-x {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 0 0 2px;
+}
+.chip-x:hover { color: var(--err); }
+.chip-x:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { AlignmentLibrary, AlignmentOutput, BatchSummary, JobStatus, Project } from '../api/types'
+import type {
+  AlignmentLibrary,
+  AlignmentOutput,
+  BatchSummary,
+  JobStatus,
+  Project,
+  VocabField,
+} from '../api/types'
 
 interface Props {
   project: Project
@@ -86,6 +93,119 @@ function RelevanceDial({ project, onProjectChange }: Props) {
  * conformed to, and set the relevance cutoff. `onConfigured` reports whether a
  * schema is now saved so the shell can gate the Convert step.
  */
+/** Editable selection box for a golden field's ACCEPTED VALUES: the schema's
+ *  built-in taxonomy (read-only) plus the human-learned values (add / remove).
+ *  Teaching a value here lets a batch run accept it (e.g. platform 'Linux')
+ *  without the matcher ever guessing; removing it re-vetoes the value. Built-in
+ *  and learned are shown separately so the list stays auditable. */
+function AcceptedValuesEditor({ project }: { project: Project }) {
+  const [fields, setFields] = useState<VocabField[] | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)        // "target" being changed
+  const [draft, setDraft] = useState<Record<string, string>>({}) // per-field add input
+
+  const load = useCallback(() => {
+    api.getValueVocab(project.id)
+      .then((r) => { setFields(r.fields); setErr(null) })
+      .catch(() => setFields([]))  // no schema yet / no enumerable fields
+  }, [project.id])
+
+  useEffect(() => { load() }, [load])
+
+  const change = async (
+    action: 'add' | 'remove', target: string, value: string,
+  ) => {
+    if (action === 'add' && !value.trim()) return
+    setBusy(target)
+    setErr(null)
+    try {
+      const r = await api.changeValueVocab(project.id, { action, target, value: value.trim() })
+      setFields(r.vocab)
+      if (action === 'add') setDraft((d) => ({ ...d, [target]: '' }))
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (fields === null) return null
+  if (fields.length === 0) return null  // nothing enumerable to show
+
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="row">
+        <strong>Accepted values</strong>
+        <span className="muted small">
+          · per field: built-in (from the schema) + values you accept
+        </span>
+      </div>
+      <p className="small muted" style={{ margin: '4px 0 8px' }}>
+        Add a value here to allow it for a field (e.g. a platform or rating the
+        schema didn’t list). Removing a learned value makes future runs reject it
+        again. Built-in values come from the schema and can’t be edited here.
+      </p>
+      {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
+      <table className="docs">
+        <thead>
+          <tr><th>Field</th><th>Built-in</th><th>Accepted (learned)</th><th>Add</th></tr>
+        </thead>
+        <tbody>
+          {fields.map((f) => (
+            <tr key={f.target}>
+              <td className="mono small" title={f.description}>{f.target}</td>
+              <td className="small">
+                {f.builtin.length === 0
+                  ? <span className="muted">—</span>
+                  : f.builtin.map((v) => (
+                      <span key={v} className="chip muted" style={{ marginRight: 4 }}>{v}</span>
+                    ))}
+              </td>
+              <td className="small">
+                {f.learned.length === 0
+                  ? <span className="muted">none</span>
+                  : f.learned.map((e) => (
+                      <span key={e.value} className="chip"
+                            title={`added by ${e.added_by || 'unknown'}${e.note ? ' — ' + e.note : ''}`}
+                            style={{ marginRight: 4 }}>
+                        {e.value}
+                        <button className="chip-x" aria-label={`Remove ${e.value}`}
+                                disabled={busy === f.target}
+                                onClick={() => void change('remove', f.target, e.value)}>
+                          ×
+                        </button>
+                      </span>
+                    ))}
+              </td>
+              <td>
+                <div className="row" style={{ gap: 4 }}>
+                  <input
+                    className="small"
+                    aria-label={`Accept a value for ${f.target}`}
+                    placeholder="value…"
+                    value={draft[f.target] ?? ''}
+                    disabled={busy === f.target}
+                    onChange={(ev) => setDraft((d) => ({ ...d, [f.target]: ev.target.value }))}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter') void change('add', f.target, draft[f.target] ?? '')
+                    }}
+                    style={{ width: 120 }}
+                  />
+                  <button className="btn small" disabled={busy === f.target || !(draft[f.target] ?? '').trim()}
+                          onClick={() => void change('add', f.target, draft[f.target] ?? '')}>
+                    +
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+
 export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Props & {
   onConfigured?: (configured: boolean) => void
 }) {
@@ -159,6 +279,8 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
         </div>
       </div>
 
+      {loaded === 'set' && <AcceptedValuesEditor project={project} />}
+
       <RelevanceDial project={project} onProjectChange={onProjectChange} />
     </>
   )
@@ -208,6 +330,16 @@ function ApprovalCards({ project, library, onApproved }: {
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [remapping, setRemapping] = useState<string | null>(null)
+  // Per-(profile,field) draft value a reviewer is accepting into the vocabulary,
+  // and which field is mid-save, so the inline "accept value" control is local.
+  const [acceptDraft, setAcceptDraft] = useState<Record<string, string>>({})
+  // Which (profile,field) keys are mid-save. A set (not a single slot) so two
+  // different fields accepting/undoing at once don't clear each other's lock.
+  const [accepting, setAccepting] = useState<Record<string, boolean>>({})
+  const [acceptMsg, setAcceptMsg] = useState<Record<string, string>>({})
+  // The value last accepted on each (profile,field), so the success affordance
+  // can offer a one-click undo that removes it from the vocabulary again.
+  const [accepted, setAccepted] = useState<Record<string, string>>({})
   // Per-profile propagation report from the last override: how many of the
   // shape's records now strictly conform after the human mapping.
   const [propagation, setPropagation] = useState<Record<string, {
@@ -237,6 +369,78 @@ function ApprovalCards({ project, library, onApproved }: {
       onApproved()  // refreshes the library view
     } finally {
       setRemapping(null)
+    }
+  }
+
+  // Inline value acceptance: teach the project that `value` is valid for golden
+  // field `target` (persisted to the learned value vocabulary). A later run of
+  // this shape then accepts that value instead of flagging it. Scoped to the
+  // field; precision-safe (only the exact value a human accepts is allowed).
+  const acceptValue = async (pid: string, target: string, value: string) => {
+    const v = value.trim()
+    if (!v) return
+    const key = `${pid}:${target}`
+    if (accepting[key]) return
+    setAccepting((s) => ({ ...s, [key]: true }))
+    try {
+      const res = await api.changeValueVocab(project.id, {
+        action: 'add', target, value: v, added_by: 'reviewer',
+        note: 'accepted on review', example: v,
+      })
+      // Confirm against the server's view: only treat it as accepted (and show
+      // the undo) if the value is actually present in the field's learned list.
+      const field = res.vocab.find((f) => f.target === target)
+      const landed = field?.learned.some((en) => en.value === v) ?? false
+      setAcceptDraft((d) => ({ ...d, [key]: '' }))
+      if (landed) {
+        setAccepted((a) => ({ ...a, [key]: v }))
+        setAcceptMsg((m) => ({ ...m, [key]: `accepted “${v}” for ${target}` }))
+      } else {
+        setAcceptMsg((m) => ({ ...m, [key]: `“${v}” was not recorded for ${target}` }))
+      }
+    } catch (e) {
+      setAcceptMsg((m) => ({ ...m, [key]: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setAccepting((s) => {
+        const next = { ...s }
+        delete next[key]
+        return next
+      })
+    }
+  }
+
+  // Undo a just-made acceptance: remove the exact value from the vocabulary so
+  // the field flags it again, reverting the human teach. Scoped to the value.
+  const undoAccept = async (pid: string, target: string, value: string) => {
+    const key = `${pid}:${target}`
+    if (accepting[key]) return
+    setAccepting((s) => ({ ...s, [key]: true }))
+    try {
+      const res = await api.changeValueVocab(project.id, {
+        action: 'remove', target, value, added_by: 'reviewer',
+      })
+      // Confirm against the server's view before clearing local state, so the
+      // "removed" affordance is server-granted — symmetric with acceptValue.
+      const field = res.vocab.find((f) => f.target === target)
+      const gone = !(field?.learned.some((en) => en.value === value) ?? false)
+      if (gone) {
+        setAccepted((a) => {
+          const next = { ...a }
+          delete next[key]
+          return next
+        })
+        setAcceptMsg((m) => ({ ...m, [key]: `removed “${value}” from ${target}` }))
+      } else {
+        setAcceptMsg((m) => ({ ...m, [key]: `“${value}” could not be removed from ${target}` }))
+      }
+    } catch (e) {
+      setAcceptMsg((m) => ({ ...m, [key]: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setAccepting((s) => {
+        const next = { ...s }
+        delete next[key]
+        return next
+      })
     }
   }
 
@@ -326,6 +530,47 @@ function ApprovalCards({ project, library, onApproved }: {
                           no source fields available
                         </span>
                       )}
+                      {/* Inline value acceptance: when a field is flagged
+                          because a VALUE wasn't in the schema's allowed set, a
+                          reviewer can accept that value for this field here, and
+                          future runs of this shape will allow it. */}
+                      {(() => {
+                        const akey = `${e.profile_id}:${t}`
+                        const asaving = accepting[akey] ?? false
+                        return (
+                          <div className="row small" style={{ gap: 4, marginTop: 4 }}>
+                            <span className="muted">or accept a value:</span>
+                            <input
+                              className="small"
+                              aria-label={`Accept a value for ${t}`}
+                              placeholder="value…"
+                              value={acceptDraft[akey] ?? ''}
+                              disabled={asaving}
+                              onChange={(ev) => setAcceptDraft((d) => ({ ...d, [akey]: ev.target.value }))}
+                              onKeyDown={(ev) => {
+                                if (ev.key === 'Enter') void acceptValue(e.profile_id, t, acceptDraft[akey] ?? '')
+                              }}
+                              style={{ width: 110 }}
+                            />
+                            <button className="btn small"
+                                    disabled={asaving || !(acceptDraft[akey] ?? '').trim()}
+                                    onClick={() => void acceptValue(e.profile_id, t, acceptDraft[akey] ?? '')}>
+                              accept
+                            </button>
+                            {acceptMsg[akey] && (
+                              <span className="muted" style={{ marginLeft: 4 }}>{acceptMsg[akey]}</span>
+                            )}
+                            {accepted[akey] && (
+                              <button className="btn small"
+                                      disabled={asaving}
+                                      title={`Remove “${accepted[akey]}” from ${t}`}
+                                      onClick={() => void undoAccept(e.profile_id, t, accepted[akey])}>
+                                undo
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </td>
                   </tr>
                 )

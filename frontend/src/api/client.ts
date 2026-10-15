@@ -23,6 +23,7 @@ import type {
   SearchResponse,
   Supplemental,
   SupplementalKind,
+  ValueVocab,
 } from './types'
 
 const BASE = '/api'
@@ -485,6 +486,38 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profile_id: profileId, target, source_path: sourcePath }),
+    }).then((r) => json(r))
+  },
+
+  /** The per-project learned value vocabulary: each enumerable golden field's
+   *  built-in (schema) values plus the human-accepted (learned) ones. */
+  getValueVocab(projectId: string): Promise<ValueVocab> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/value-vocab`).then((r) =>
+      json<ValueVocab>(r),
+    )
+  },
+
+  /** CRUD a learned accepted value for a golden field. `action` is
+   *  'add' | 'update' | 'remove'. On update, omitted optional fields (null) are
+   *  left unchanged; a sent value sets them ('' clears). Returns the refreshed
+   *  per-field vocabulary. */
+  changeValueVocab(
+    projectId: string,
+    change: {
+      action: 'add' | 'update' | 'remove'
+      target: string
+      value: string
+      new_value?: string | null
+      alias?: string | null
+      added_by?: string
+      note?: string | null
+      example?: string | null
+    },
+  ): Promise<{ project_id: string; change: unknown; vocab: ValueVocab['fields'] }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/value-vocab`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(change),
     }).then((r) => json(r))
   },
 

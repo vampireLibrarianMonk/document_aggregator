@@ -131,6 +131,31 @@ export interface AlignmentLibrary {
   entries: LibraryEntry[]
 }
 
+/** One human-accepted value a reviewer taught for a golden field. */
+export interface VocabEntry {
+  value: string
+  alias: string | null
+  added_by: string
+  added_at: string
+  note: string
+  example: string
+}
+
+/** The accepted values for one golden field: the schema's built-in taxonomy
+ *  (read-only) plus the human-learned values (editable). */
+export interface VocabField {
+  target: string
+  description: string
+  builtin: string[]
+  learned: VocabEntry[]
+}
+
+/** The per-project learned value vocabulary (one entry per enumerable field). */
+export interface ValueVocab {
+  project_id: string
+  fields: VocabField[]
+}
+
 /** The per-cluster outcome summary a batch job returns on completion. */
 export interface BatchSummary {
   clusters: number
