@@ -1,5 +1,5 @@
 import { expect, Page, APIRequestContext } from '@playwright/test'
-import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 // The served app proxies /api -> the live backend, so tests reach the backend
@@ -117,4 +117,45 @@ export async function openTab(page: Page, name: string | RegExp): Promise<void> 
 export async function selectProject(page: Page, id: string): Promise<void> {
   await page.locator('#active-project').selectOption(id)
   await page.waitForTimeout(300)
+}
+
+// --- walkthrough-specific helpers (used by walkthrough.spec.ts) ------------
+
+/** Where walkthrough screenshots are written. One dir, created on first use. */
+export const SCREENSHOTS = join(process.cwd(), 'e2e', 'screenshots')
+
+/** Where walkthrough fixtures live (the deterministic game JSON files). */
+export const FIXTURES = join(process.cwd(), 'e2e', 'fixtures')
+
+/** Capture a full-page screenshot of the asserted state. Called explicitly on
+ *  pass (the config's screenshot:'only-on-failure' would otherwise skip it), so
+ *  every scenario leaves an auditable 0N-*.png behind. */
+export async function shot(page: Page, name: string): Promise<void> {
+  mkdirSync(SCREENSHOTS, { recursive: true })
+  await page.screenshot({ path: join(SCREENSHOTS, name), fullPage: true })
+}
+
+/** Resolve a fixture file's absolute path for setInputFiles. */
+export function fixture(name: string): string {
+  return join(FIXTURES, name)
+}
+
+/** The real project-7 'game' golden schema, read from disk (source of truth for
+ *  every field/enum the walkthrough uses; no fields are invented). */
+export function readProject7Schema(): unknown {
+  return JSON.parse(
+    readFileSync(join(SAMPLE_DOCS, '7', 'golden', 'target_schema.json'), 'utf8'),
+  )
+}
+
+/** Seed a project's golden target schema via the same endpoint the UI uses, so
+ *  later scenarios never depend on UI save timing. */
+export async function seedGoldenSchema(
+  request: APIRequestContext, projectId: string, schema: unknown,
+): Promise<void> {
+  const res = await request.put(
+    `${API}/projects/${projectId}/alignment/target-schema`,
+    { data: { target: schema } },
+  )
+  expect(res.ok(), 'seed golden schema').toBeTruthy()
 }
