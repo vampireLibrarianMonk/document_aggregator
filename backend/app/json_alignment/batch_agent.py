@@ -27,6 +27,8 @@ A deterministic path (run_batch) and the command-center path
 from __future__ import annotations
 
 import concurrent.futures
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -127,7 +129,6 @@ def _learn_profile(cluster: Cluster, target_schema: dict[str, Any],
     library.register(pid, signature_of(cluster.records), profile,
                      state=STATE_PROVISIONAL)
     return result, True
-    return result
 
 
 def _outcome_from_result(decision: ClusterDecision, result: AlignmentResult,
@@ -284,13 +285,22 @@ class BatchResult:
 def run_batch(docs: list[SourceDoc], target_schema: dict[str, Any],
               library: ProfileLibrary, *, reject_below: float,
               research_available: bool = True, parallel: bool = True,
+              on_cluster_done: Callable[[int], None] | None = None,
               ) -> BatchResult:
     """Direct (non-coordinator) batch run: plan -> execute each cluster.
 
     Clusters are independent and run concurrently (thread pool, cores-1) when
     `parallel`; results are reassembled in deterministic cluster order so the
     output does not depend on finish order. This is the reference the
-    command-center path must match."""
+    command-center path must match.
+
+    `on_cluster_done`, if supplied, is called with the cumulative count of files
+    consumed so far each time a cluster's outcome is consumed (submission order
+    for the parallel pure loop, sequential for the learn loop). It is
+    OBSERVATIONAL ONLY — it never touches outcomes/library/ordering, so the
+    default-None path is byte-identical to a run without it (NFR1.3). The
+    callback receives a cumulative value (never a delta), so even a reordered
+    call can only report a value already reached."""
     clusters = cluster_documents(docs)
     report = plan_batch(docs, target_schema, library, reject_below=reject_below,
                         research_available=research_available)
@@ -308,16 +318,33 @@ def run_batch(docs: list[SourceDoc], target_schema: dict[str, Any],
     pure = [d for d in decisions if d.pathway not in (PATHWAY_NOVEL, PATHWAY_DRIFT_REPAIR)]
     outcomes: dict[str, ClusterOutcome] = {}
 
+    _lock = threading.Lock()
+    _done = 0
+
+    def _tick(o: ClusterOutcome) -> None:
+        if on_cluster_done is None:
+            return
+        nonlocal _done
+        with _lock:
+            _done += len(o.doc_ids)
+            cb = _done
+        on_cluster_done(cb)
+
     if parallel and len(pure) > 1:
         workers = worker_count(maximum=len(pure))
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
             for d, o in zip(pure, ex.map(_run, pure)):
                 outcomes[d.cluster_key] = o
+                _tick(o)
     else:
         for d in pure:
-            outcomes[d.cluster_key] = _run(d)
+            o = _run(d)
+            outcomes[d.cluster_key] = o
+            _tick(o)
     for d in learn:  # sequential: deterministic library mutation
-        outcomes[d.cluster_key] = _run(d)
+        o = _run(d)
+        outcomes[d.cluster_key] = o
+        _tick(o)
 
     # Reassemble in the deterministic decision order.
     ordered = [outcomes[d.cluster_key] for d in decisions]
@@ -374,7 +401,8 @@ class BatchAlignmentAgent:
         result = run_batch(p["docs"], p["target_schema"], p["library"],
                            reject_below=p["reject_below"],
                            research_available=p.get("research_available", True),
-                           parallel=p.get("parallel", True))
+                           parallel=p.get("parallel", True),
+                           on_cluster_done=p.get("on_cluster_done"))
         context["artifacts"]["batch_result"] = result
         # Expose a convergence-report shape so the Coordinator's assess() can
         # read the batch like a correction run (needs_review across clusters).
@@ -401,7 +429,9 @@ def _batch_convergence_report(result: BatchResult) -> dict:
 def run_batch_via_coordinator(docs: list[SourceDoc], target_schema: dict[str, Any],
                               library: ProfileLibrary, *, reject_below: float,
                               research_available: bool = True,
-                              parallel: bool = True) -> BatchResult:
+                              parallel: bool = True,
+                              on_cluster_done: Callable[[int], None] | None = None,
+                              ) -> BatchResult:
     """Run the batch through the command-center Coordinator (same queue +
     assembler + convergence machinery as correction/alignment). Returns the same
     BatchResult the direct run_batch produces."""
@@ -414,7 +444,8 @@ def run_batch_via_coordinator(docs: list[SourceDoc], target_schema: dict[str, An
         extra_params={"docs": docs, "target_schema": target_schema,
                       "library": library, "reject_below": reject_below,
                       "research_available": research_available,
-                      "parallel": parallel},
+                      "parallel": parallel,
+                      "on_cluster_done": on_cluster_done},
     )
     if record.error:
         raise RuntimeError(record.error)

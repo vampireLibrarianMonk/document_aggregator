@@ -42,6 +42,7 @@ class Job:
     created_at: float = field(default_factory=time.time)
     started_at: float | None = None
     finished_at: float | None = None
+    progress: dict[str, Any] | None = None
 
 
 class JobQueue(Protocol):
@@ -49,6 +50,7 @@ class JobQueue(Protocol):
     def claim(self, worker_id: str) -> Job | None: ...
     def complete(self, job_id: str, result: dict) -> None: ...
     def fail(self, job_id: str, error: str) -> None: ...
+    def set_progress(self, job_id: str, done: int, total: int) -> None: ...
     def get(self, job_id: str) -> Job | None: ...
     def counts(self) -> dict[str, int]: ...
 
@@ -67,7 +69,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     worker_id TEXT,
     created_at REAL NOT NULL,
     started_at REAL,
-    finished_at REAL
+    finished_at REAL,
+    progress TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_jobs_claimable ON jobs(state, priority, created_at);
 """
@@ -82,6 +85,10 @@ class SqliteJobQueue:
         self._local = threading.local()
         c = self._conn()
         c.executescript(_SCHEMA)
+        # Idempotent migration: executescript uses CREATE TABLE IF NOT EXISTS, so
+        # an existing DB file will not gain the progress column automatically.
+        if "progress" not in {r["name"] for r in c.execute("PRAGMA table_info(jobs)")}:
+            c.execute("ALTER TABLE jobs ADD COLUMN progress TEXT")
 
     def _conn(self) -> sqlite3.Connection:
         """One connection per thread, reused (SQLite connections are not safe to
@@ -149,6 +156,14 @@ class SqliteJobQueue:
         c.execute("UPDATE jobs SET state=?, error=?, finished_at=? WHERE id=?",
                   (state, error, time.time(), job_id))
 
+    def set_progress(self, job_id: str, done: int, total: int) -> None:
+        """Write a point-in-time progress snapshot for a running job. Written in
+        place by the op (from the worker thread) and read back by job_status."""
+        self._conn().execute(
+            "UPDATE jobs SET progress=? WHERE id=?",
+            (json.dumps({"done": done, "total": total}), job_id),
+        )
+
     def get(self, job_id: str) -> Job | None:
         row = self._conn().execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
         return self._row_to_job(row) if row else None
@@ -167,4 +182,5 @@ class SqliteJobQueue:
             error=row["error"], worker_id=row["worker_id"],
             created_at=row["created_at"], started_at=row["started_at"],
             finished_at=row["finished_at"],
+            progress=json.loads(row["progress"]) if row["progress"] else None,
         )

@@ -14,9 +14,12 @@ Ops:
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from .worker import register_op
+
+_log = logging.getLogger(__name__)
 
 
 @register_op("reconcile")
@@ -149,6 +152,7 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
     from ..config import settings
     from ..json_alignment.batch import SourceDoc
     from ..json_alignment.batch_agent import run_batch_via_coordinator
+    from .progress import current_sink, publish_progress
     from ..json_alignment.project_store import (
         effective_target_schema,
         load_project_library,
@@ -177,10 +181,24 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
     reject_below = float(payload.get("reject_below", 0.5))
     research = bool(payload.get("research", settings.BEDROCK_ENABLED))
 
+    # Per-file progress: total is known up front (one tick-unit per source doc);
+    # publish 0/total before the batch so the first poll already shows "0 of M".
+    total = len(docs)
+    publish_progress(0, total)
+
     library = load_project_library(project_id)
     result = run_batch_via_coordinator(
         docs, schema, library, reject_below=reject_below,
-        research_available=research)
+        research_available=research,
+        on_cluster_done=lambda done: publish_progress(done, total))
+
+    # NIT-11: a non-empty batch whose progress never advanced past 0 points at a
+    # wiring bug (the callback never fired); warn once. Progress is observational
+    # so this never changes the result.
+    sink = current_sink()
+    if total > 0 and sink is not None and not sink.advanced:
+        _log.warning("batch_align: progress never advanced for %d files "
+                     "(project_id=%s)", total, project_id)
     # Persist the grown library (new provisional profiles / version bumps).
     save_project_library(project_id, library)
 

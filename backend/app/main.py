@@ -634,12 +634,13 @@ def submit_job(body: JobRequest) -> dict:
 
 @app.get("/jobs/{job_id}")
 def job_status(job_id: str) -> dict:
+    from .jobs.queue import JobState
     from .jobs.runtime import get_queue
 
     job = get_queue().get(job_id)
     if job is None:
         raise HTTPException(404, "job not found")
-    return {
+    payload = {
         "job_id": job.id,
         "op": job.op,
         "state": job.state.value,
@@ -647,6 +648,12 @@ def job_status(job_id: str) -> dict:
         "error": job.error,
         "result": job.result,
     }
+    # Progress is exposed ONLY while processing and only once a tick exists, so
+    # the completed/failed response shape is byte-for-byte unchanged (FR1.3). A
+    # non-dict/unparseable residual is treated as absent (defensive).
+    if job.state == JobState.processing and isinstance(job.progress, dict):
+        payload["progress"] = job.progress
+    return payload
 
 
 @app.get("/jobs")

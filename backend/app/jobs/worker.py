@@ -20,6 +20,7 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
+from .progress import _CURRENT, ProgressSink
 from .queue import Job, JobQueue
 
 # op name -> callable(payload) -> result dict
@@ -81,9 +82,13 @@ class Worker:
         if op is None:
             self.queue.fail(job.id, f"no registered op: {job.op}")
             return
+        sink = ProgressSink(self.queue, job.id)
+        token = _CURRENT.set(sink)
         try:
             result = op(job.payload)
             self.queue.complete(job.id, result if isinstance(result, dict) else {"value": result})
             self.processed += 1
         except Exception as exc:  # isolate: one bad job never kills the worker
             self.queue.fail(job.id, f"{type(exc).__name__}: {exc}\n{traceback.format_exc()[-800:]}")
+        finally:
+            _CURRENT.reset(token)
