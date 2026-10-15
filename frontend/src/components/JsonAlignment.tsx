@@ -322,13 +322,86 @@ function BatchStatus({ summary }: { summary: BatchSummary }) {
   )
 }
 
-/** Per-cluster approval cards for provisional (novel/drifted) shapes. */
-function ApprovalCards({ project, library, onApproved }: {
+/** Confirmation modal shown ONLY when approving a shape would auto-approve
+ *  N > 0 other files (the backend-computed cascade). It states that exact N,
+ *  reassures the human the effect is scoped to those files and this one change
+ *  (not a blanket approve-everything, no other shape changes), and offers
+ *  OK / Cancel. Accessible: role="dialog", focus moved in on open, Escape maps
+ *  to Cancel. N is passed in from the backend — never computed here. */
+function CascadeConfirmModal({ profileId, n, busy, onConfirm, onCancel }: {
+  profileId: string
+  n: number
+  busy: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const dialogRef = useRef<HTMLDivElement | null>(null)
+  const headingId = `cascade-confirm-heading-${profileId}`
+
+  // Move focus into the dialog on open and map Escape to Cancel.
+  useEffect(() => {
+    dialogRef.current?.focus()
+  }, [])
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,0.4)',
+      }}
+      onClick={onCancel}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        tabIndex={-1}
+        className="panel"
+        style={{ maxWidth: 440, margin: 16, background: 'var(--bg, #fff)' }}
+        onClick={(ev) => ev.stopPropagation()}
+        onKeyDown={(ev) => {
+          if (ev.key === 'Escape') onCancel()
+        }}
+      >
+        <strong id={headingId}>Approve this shape?</strong>
+        <p className="small" style={{ margin: '8px 0' }}>
+          Approving <span className="mono">{profileId}</span> will also auto-approve{' '}
+          <b>{n}</b> other file(s) that are waiting <i>only</i> on this same change and now
+          fully match the golden schema.
+        </p>
+        <p className="small muted" style={{ margin: '8px 0' }}>
+          This affects only those {n} file(s) and only this one change — it is not a blanket
+          “approve everything” and does not change any other shape.
+        </p>
+        <div className="row" style={{ justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+          <button className="btn small" disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn small" disabled={busy} onClick={() => void onConfirm()}>
+            {busy ? 'Approving…' : 'OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Per-cluster approval cards for provisional (novel/drifted) shapes.
+ *  Exported for unit testing of the two-phase approve + cascade modal. */
+export function ApprovalCards({ project, library, onApproved }: {
   project: Project
   library: AlignmentLibrary
   onApproved: () => void
 }) {
   const [busy, setBusy] = useState<string | null>(null)
+  // The pending cascade confirmation: set only when a preview returns N > 0.
+  // `n` is the backend-computed cascade_count; it is never derived here.
+  const [confirmCascade, setConfirmCascade] = useState<{ pid: string; n: number } | null>(null)
+  // A brief note surfaced after apply when the real cascade_applied differs
+  // from the previewed N (state moved between preview and apply, AC21).
+  const [applyNote, setApplyNote] = useState<string | null>(null)
   const [remapping, setRemapping] = useState<string | null>(null)
   // Per-(profile,field) draft value a reviewer is accepting into the vocabulary,
   // and which field is mid-save, so the inline "accept value" control is local.
@@ -349,14 +422,48 @@ function ApprovalCards({ project, library, onApproved }: {
   const provisional = library.entries.filter((e) => e.state === 'provisional')
   if (provisional.length === 0) return null
 
+  // Two-phase approve. First a read-only preview asks the backend how many
+  // OTHER files would auto-approve as a side effect of promoting exactly this
+  // shape (the cascade). When that count is 0, approve silently (today's
+  // behavior). When it is > 0, open a confirmation modal and wait for OK — the
+  // approval is NOT applied until the human confirms. N is always the backend's
+  // cascade_count; it is never computed on the client.
   const approve = async (pid: string) => {
     setBusy(pid)
+    setApplyNote(null)
     try {
-      await api.approveProfile(project.id, pid)
+      const pv = await api.approveProfile(project.id, pid, true)
+      if (pv.cascade_count && pv.cascade_count > 0) {
+        setConfirmCascade({ pid, n: pv.cascade_count })
+        return // defer apply until the modal is confirmed
+      }
+      await api.approveProfile(project.id, pid, false)
       onApproved()
     } finally {
       setBusy(null)
     }
+  }
+
+  // OK in the cascade modal: apply the approval (preview=false). The response's
+  // cascade_applied is authoritative — if it differs from the previewed N
+  // (state moved between preview and apply) surface a brief note.
+  const confirmApprove = async () => {
+    if (!confirmCascade) return
+    const { pid, n } = confirmCascade
+    setBusy(pid)
+    try {
+      const res = await api.approveProfile(project.id, pid, false)
+      const applied = res.cascade_applied ?? 0
+      if (applied !== n) setApplyNote(`Applied to ${applied} file(s)`)
+      setConfirmCascade(null)
+      onApproved()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const cancelApprove = () => {
+    setConfirmCascade(null)
   }
 
   // Human field-by-field remap: point a golden field at a real source path, or
@@ -451,6 +558,20 @@ function ApprovalCards({ project, library, onApproved }: {
         A new or changed source shape was learned. Approve its mapping once and
         every future file of that shape converts automatically.
       </p>
+      {applyNote && (
+        <p className="small" role="status" style={{ margin: '0 0 8px', color: 'var(--ok)' }}>
+          {applyNote}
+        </p>
+      )}
+      {confirmCascade && (
+        <CascadeConfirmModal
+          profileId={confirmCascade.pid}
+          n={confirmCascade.n}
+          busy={busy === confirmCascade.pid}
+          onConfirm={confirmApprove}
+          onCancel={cancelApprove}
+        />
+      )}
       {provisional.map((e) => (
         <div key={e.profile_id} className="panel" style={{ marginBottom: 8 }}>
           <div className="row">

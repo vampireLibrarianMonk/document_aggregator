@@ -460,14 +460,28 @@ export const api = {
     )
   },
 
+  /** Approve a provisional shape. Two-phase: `preview=true` computes the
+   *  backend auto-approve cascade count WITHOUT mutating; `preview=false`
+   *  (default) atomically approves + applies the cascade and reports the real
+   *  applied count. N is always the backend's — never computed client-side. */
   approveProfile(
     projectId: string,
     profileId: string,
-  ): Promise<{ project_id: string; approved: string; state: string }> {
+    preview = false,
+  ): Promise<{
+    project_id: string
+    profile_id?: string
+    approved?: string
+    state: string
+    preview?: boolean
+    cascade_count?: number
+    cascade_applied?: number
+    cascade_doc_ids?: string[]
+  }> {
     return fetch(`${BASE}/projects/${projectId}/alignment/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_id: profileId }),
+      body: JSON.stringify({ profile_id: profileId, preview }),
     }).then((r) => json(r))
   },
 
