@@ -152,7 +152,6 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
     from ..config import settings
     from ..json_alignment.batch import SourceDoc
     from ..json_alignment.batch_agent import run_batch_via_coordinator
-    from .progress import current_sink, publish_progress
     from ..json_alignment.cascade import schema_fingerprint
     from ..json_alignment.project_store import (
         effective_target_schema,
@@ -162,6 +161,7 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
         save_project_library,
         save_shape_records,
     )
+    from .progress import current_sink, publish_progress
 
     project_id = payload.get("project_id", "")
     # Use the EFFECTIVE schema: the golden schema with the project's
