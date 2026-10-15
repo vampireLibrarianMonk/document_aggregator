@@ -239,6 +239,29 @@ def test_weak_generic_overlap_demotes_qualified_generic_name():
     assert "name" not in _mapped([{"station_name": "North Field Buoy"}])
 
 
+def test_value_gate_recovers_ratio_encoded_score():
+    # recall-debt payoff (step 1): a criticScore synonym carrying a '9/10'
+    # ratio is a genuine score and must NOT be vetoed (whole-string ratio).
+    assert _mapped([{"metacritic": "9/10"}]).get("criticScore") == "metacritic"
+    assert _mapped([{"metacritic": "88%"}]).get("criticScore") == "metacritic"
+
+
+def test_value_gate_recovers_date_for_year_field():
+    # recall-debt payoff (step 2): a releaseYear synonym carrying a real DATE
+    # satisfies the ^\d{4}$ pattern via token recovery (date-shaped value).
+    assert _mapped([{"launched": "2007-05-01"}]).get("releaseYear") == "launched"
+    assert _mapped([{"launched": "October 27, 2017"}]).get("releaseYear") == "launched"
+
+
+def test_value_gate_still_vetoes_timestamp_and_prose_year():
+    # precision guard (step 2 + Guardian finding): a releaseYear synonym whose
+    # value is a TIMESTAMP (clock) or PROSE containing a stray year must STAY
+    # vetoed — token recovery only fires for a plausible DATE.
+    assert "releaseYear" not in _mapped([{"launched": "1998-04-12T09:00:00Z"}])
+    assert "releaseYear" not in _mapped([{"launched": "copyright 2019 acme"}])
+    assert "releaseYear" not in _mapped([{"launched": "page 1998 of 2000"}])
+
+
 def test_value_gate_vetoes_region_for_company_target():
     # publisher_region / owner_studio_country carry a geographic REGION value,
     # which is a location not a company -> vetoed for publisher/developer even

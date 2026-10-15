@@ -341,6 +341,15 @@ def _type_compatible(src_type: str, tgt: TargetField) -> bool:
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _URL_RE = re.compile(r"^(https?://|www\.)", re.IGNORECASE)
 _TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
+# A clock component (HH:MM) marks a value as a TIMESTAMP rather than a plain
+# date. Used to keep a timestamp-valued junk field (e.g. an install log
+# 'year_installed' = '1998-04-12T09:00:00Z') vetoed even when we loosen a
+# year-style pattern to accept a genuine release DATE like '2007-05-01'.
+_CLOCK_RE = re.compile(r"\d{1,2}:\d{2}")
+# Tokens of a value, split on whitespace and common date/text delimiters, so a
+# pattern-conforming part (e.g. the '2007' in '2007-05-01' or 'May 1, 2007') can
+# be recognized without matching the whole string.
+_VALUE_TOKEN_RE = re.compile(r"[^\s,/\-:]+")
 
 # A small, explicit set of geographic REGION / TERRITORY / COUNTRY values. A
 # field whose values are drawn ENTIRELY from this set denotes a location, not a
@@ -380,13 +389,30 @@ def _looks_like_region(value: Any) -> bool:
 _GENERIC_TOKENS = frozenset({"name", "id", "code", "type", "value", "key", "label"})
 
 
+_RATIO_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$")
+
+
 def _coerce_number(v: Any) -> float | None:
+    """Parse a value to a float, accepting common WHOLE-STRING numeric encodings.
+
+    Recognized string forms (the ENTIRE string must be the number — a bare
+    number embedded in prose like '4 stars' is deliberately NOT accepted, so a
+    junk field whose value merely contains a digit stays vetoed):
+      - plain int/float ('90', '88.5')
+      - trailing percent ('90%')
+      - a simple ratio ('9/10' -> 0.9), the common 'score out of N' encoding
+    Returns None when the whole string is not one of these."""
     if isinstance(v, bool):
         return None
     if isinstance(v, int | float):
         return float(v)
     if isinstance(v, str):
         s = v.strip()
+        # A ratio like "9/10" or "4.5/5" — a whole-string "out of N" score.
+        m = _RATIO_RE.match(s)
+        if m:
+            num, den = float(m.group(1)), float(m.group(2))
+            return num / den if den != 0 else None
         # A trailing percent is an unambiguous numeric encoding (e.g. "90%").
         if s.endswith("%"):
             s = s[:-1].strip()
@@ -395,6 +421,61 @@ def _coerce_number(v: Any) -> float | None:
         except ValueError:
             return None
     return None
+
+
+# Words allowed in a plausible DATE value (so the pattern token-recovery path
+# fires for a real date like 'May 1, 2007' but not for prose like
+# 'copyright 2019 acme'). Month names (full + 3-letter abbrev) and ordinal/era
+# words. Lower-cased; any alphabetic token outside this set means "not a date".
+_DATE_WORDS = frozenset({
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december",
+    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct",
+    "nov", "dec",
+    "st", "nd", "rd", "th",            # ordinal suffixes (1st, 2nd, 3rd, 4th)
+    "of", "the",                        # harmless connectors ("the 1st of May")
+})
+_ALPHA_TOKEN_RE = re.compile(r"[A-Za-z]+")
+
+
+def _looks_like_date(s: str) -> bool:
+    """True when `s` is a plausible date: it contains at least one digit and
+    every ALPHABETIC token is a month name / ordinal / connector (not arbitrary
+    prose). '2007-05-01' and 'May 1, 2007' pass; 'copyright 2019 acme' and
+    'page 1998 of 2000' do not (copyright/acme/page are not date words)."""
+    if not any(ch.isdigit() for ch in s):
+        return False
+    alpha = _ALPHA_TOKEN_RE.findall(s)
+    return all(tok.lower() in _DATE_WORDS for tok in alpha)
+
+
+def _satisfies_pattern(value: Any, pat: re.Pattern[str]) -> bool:
+    """True when `value` satisfies the target's pattern constraint, tolerating a
+    genuine alternate encoding that CONTAINS a conforming token.
+
+    - A whole-string match passes (the strict original behavior).
+    - Otherwise, if the value is NOT a timestamp (no HH:MM clock), a value TOKEN
+      (split on whitespace / , / - / : /) that fully matches the pattern passes.
+      This recovers a real release DATE ('2007-05-01', 'May 1, 2007') for a
+      '^\\d{4}$' year field, while a full TIMESTAMP ('1998-04-12T09:00:00Z', an
+      install-log value) is excluded by the clock guard and stays vetoed.
+    The executor/transform layer extracts the conforming part downstream; the
+    gate's job is only to not veto a value that genuinely contains it."""
+    s = str(value).strip()
+    if pat.search(s):
+        return True
+    if _CLOCK_RE.search(s):
+        return False  # a timestamp is not a plain date -> no token recovery
+    # Token recovery is allowed ONLY when the value is a PLAUSIBLE DATE, not
+    # arbitrary prose that happens to contain a conforming token. Otherwise a
+    # junk value like 'copyright 2019 acme' or 'page 1998 of 2000' would clear a
+    # '^\d{4}$' year field via a stray year token (adversarial review finding).
+    # A plausible date = every alphabetic token is a month name or an ordinal
+    # word; numbers/separators are free. '2007-05-01' and 'May 1, 2007' pass;
+    # 'copyright 2019 acme' is rejected (copyright/acme are not date words).
+    if not _looks_like_date(s):
+        return False
+    return any(pat.search(tok) for tok in _VALUE_TOKEN_RE.findall(s))
 
 
 def _enum_vocab(tgt: TargetField) -> set[str]:
@@ -417,17 +498,18 @@ def _value_contradicts(sf: FieldStat, tgt: TargetField) -> bool:
     if not examples:
         return False  # no values seen -> cannot contradict
 
-    # 1. Pattern constraint (e.g. releaseYear ^\d{4}$): veto if NO example matches.
+    # 1. Pattern constraint (e.g. releaseYear ^\d{4}$): veto if NO example
+    #    satisfies it. "Satisfies" tolerates a genuine alternate encoding that
+    #    CONTAINS a conforming token (a real date for a year field) but still
+    #    excludes a timestamp (install-log junk) via the clock guard.
     if tgt.pattern:
         try:
             pat = re.compile(tgt.pattern)
         except re.error:
             pat = None
         if pat is not None and not any(
-                isinstance(e, str) and pat.search(e) for e in examples):
-            # also allow a non-string that stringifies to a match (e.g. int year)
-            if not any(pat.search(str(e)) for e in examples):
-                return True
+                _satisfies_pattern(e, pat) for e in examples):
+            return True
 
     # 2. Numeric range (e.g. criticScore 0..100 integer): veto if NO example is
     #    a number within [min, max].
@@ -482,13 +564,13 @@ def _value_corroborates(sf: FieldStat, tgt: TargetField) -> bool:
     if not examples:
         return False
 
-    # Pattern fit (e.g. a 4-digit year for releaseYear).
+    # Pattern fit (e.g. a 4-digit year, or a date containing one, for releaseYear).
     if tgt.pattern:
         try:
             pat = re.compile(tgt.pattern)
         except re.error:
             pat = None
-        if pat is not None and any(pat.search(str(e)) for e in examples):
+        if pat is not None and any(_satisfies_pattern(e, pat) for e in examples):
             return True
 
     # Numeric-range fit (e.g. a 0..100 integer for criticScore).
