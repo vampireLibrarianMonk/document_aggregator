@@ -52,3 +52,9 @@ backend/tests/command_center/_sweep_run.log
 # accidental in-repo copy.
 madi_bench_data/
 **/MaDI-Bench/
+
+# ---- Agent / workflow scratch output (regenerated per run; not source) ----
+.agents/
+**/.agents/
+semantic-review/
+new_spec/
