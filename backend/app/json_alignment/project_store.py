@@ -45,6 +45,10 @@ def value_vocab_path(project_id: str) -> Path:
     return _alignment_dir(project_id) / "value_vocab.json"
 
 
+def pending_ledger_path(project_id: str) -> Path:
+    return _alignment_dir(project_id) / "pending.json"
+
+
 # -- golden target schema ----------------------------------------------------
 
 def save_target_schema(project_id: str, schema: dict[str, Any]) -> Path:
@@ -60,6 +64,40 @@ def save_target_schema(project_id: str, schema: dict[str, Any]) -> Path:
 
 def load_target_schema(project_id: str) -> dict[str, Any] | None:
     p = target_schema_path(project_id)
+    if not p.exists():
+        return None
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+# -- pending ledger (per-file batch disposition, for the cascade) ------------
+#
+# A batch writes one `alignment/pending.json` describing, per source file, the
+# file's own raw records + descriptions, the cluster it belonged to, and its
+# conformance disposition at batch time. The auto-approve cascade (cascade.py)
+# re-runs the real router over these records to discover which OTHER files flip
+# when a provisional shape is approved. Advisory: a later approve degrades to
+# N==0 when it is absent (design §2.1, §2.7). Lock-guarded + tmp/replace atomic,
+# mirroring save_target_schema.
+
+def _save_pending_ledger_locked(project_id: str, ledger: dict[str, Any]) -> Path:
+    """Lock-free inner writer; caller MUST already hold `_lock`."""
+    p = pending_ledger_path(project_id)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(ledger, indent=2, ensure_ascii=False),
+                   encoding="utf-8")
+    os.replace(tmp, p)
+    return p
+
+
+def save_pending_ledger(project_id: str, ledger: dict[str, Any]) -> Path:
+    with _lock:
+        return _save_pending_ledger_locked(project_id, ledger)
+
+
+def load_pending_ledger(project_id: str) -> dict[str, Any] | None:
+    """The per-file pending ledger, or None when no batch has written one."""
+    p = pending_ledger_path(project_id)
     if not p.exists():
         return None
     return json.loads(p.read_text(encoding="utf-8"))
@@ -176,6 +214,78 @@ def save_batch_outputs(project_id: str, conformed_by_doc: dict[str, list[dict[st
         (d / "manifest.json").write_text(
             json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
         return manifest
+
+
+def _unique_stem(doc_id: str, used: set[str]) -> str:
+    """A filesystem-safe stem for `doc_id` that does not collide with any stem in
+    `used` (suffixing _2, _3, … on a clash), matching save_batch_outputs."""
+    stem = _safe_stem(doc_id)
+    candidate, n = stem, 1
+    while candidate in used:
+        n += 1
+        candidate = f"{stem}_{n}"
+    return candidate
+
+
+def _merge_batch_outputs_locked(project_id: str,
+                                conformed_by_doc: dict[str, list[dict[str, Any]]],
+                                *, pathway: str = "replay_clean") -> dict[str, Any]:
+    """Lock-free inner writer; caller MUST already hold `_lock`.
+
+    Overwrite-by-`doc_id` merge (design §2.3, Finding 7): an incoming doc_id that
+    already has a manifest entry overwrites its stored file IN PLACE (no new stem,
+    no `_2` duplicate); a genuinely new doc_id gets a fresh collision-free stem.
+    Additive — never clears prior output. Idempotent on a repeated same-doc_id
+    merge. tmp/replace atomic."""
+    d = outputs_dir(project_id)
+    d.mkdir(parents=True, exist_ok=True)
+    manifest = load_batch_manifest(project_id) or {"outputs": [], "doc_count": 0}
+    entries: list[dict[str, Any]] = list(manifest.get("outputs", []))
+    by_doc = {e.get("doc_id"): e for e in entries}
+    used_stems = {e.get("stem") for e in entries if e.get("stem")}
+
+    for doc_id, records in conformed_by_doc.items():
+        existing = by_doc.get(doc_id)
+        if existing is not None:
+            stem = existing["stem"]
+            fname = existing.get("stored_file") or f"{stem}.records.json"
+            (d / fname).write_text(
+                json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8")
+            existing["stored_file"] = fname
+            existing["record_count"] = len(records)
+            existing["pathway"] = pathway
+        else:
+            stem = _unique_stem(doc_id, used_stems)
+            used_stems.add(stem)
+            fname = f"{stem}.records.json"
+            (d / fname).write_text(
+                json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8")
+            entry = {
+                "doc_id": doc_id,
+                "stem": stem,
+                "stored_file": fname,
+                "record_count": len(records),
+                "pathway": pathway,
+            }
+            entries.append(entry)
+            by_doc[doc_id] = entry
+
+    merged = {"outputs": entries, "doc_count": len({e.get("doc_id") for e in entries})}
+    tmp = d / "manifest.json.tmp"
+    tmp.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, d / "manifest.json")
+    return merged
+
+
+def merge_batch_outputs(project_id: str,
+                        conformed_by_doc: dict[str, list[dict[str, Any]]],
+                        *, pathway: str = "replay_clean") -> dict[str, Any]:
+    """Merge conformed records into the project's batch outputs, overwriting by
+    doc_id (never minting a `_2` duplicate for the same doc_id). Additive;
+    lock-guarded + tmp/replace atomic. See `_merge_batch_outputs_locked`."""
+    with _lock:
+        return _merge_batch_outputs_locked(project_id, conformed_by_doc,
+                                           pathway=pathway)
 
 
 def _shape_records_path(project_id: str) -> Path:
@@ -332,17 +442,92 @@ def load_batch_output_records(project_id: str, stem: str) -> list[dict[str, Any]
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+# -- approve + cascade: one atomic transaction (design §2.4, Finding 5) ------
+
+def _save_library_locked(library: ProfileLibrary, project_id: str) -> Path:
+    """Lock-free library writer; caller MUST already hold `_lock`."""
+    return save_library(library, library_path(project_id))
+
+
+def apply_approval_and_cascade(project_id: str, profile_id: str) -> dict[str, Any]:
+    """Approve `profile_id` AND auto-clear the files that flip solely because of
+    it, as ONE transaction under a single `_lock` acquisition (design §2.4).
+
+    Ordering is both-or-neither (FR2.14): the ledger is persisted FIRST and the
+    library (the thing that makes approval "real") LAST, so a crash leaves the
+    profile un-approved — the safe side. If any step raises, it raises before the
+    library is persisted, so neither the approval nor the ledger clear lands.
+
+    Returns {approved, state, cascade_applied, cascade_doc_ids}. Raises KeyError
+    for an unknown `profile_id` (the endpoint maps that to a 404) BEFORE any
+    mutation. A None effective schema degrades to a plain approve
+    (cascade_applied == 0), never an error (Finding 5).
+    """
+    from .cascade import cascade_count
+    from .pipeline import run_alignment
+
+    with _lock:
+        # Load fresh under the lock so the recompute sees a frozen snapshot.
+        library = load_project_library(project_id)
+        if library.get(profile_id) is None:
+            raise KeyError(profile_id)  # 404-equivalent, before any mutation
+
+        schema = effective_target_schema(project_id)
+        ledger = load_pending_ledger(project_id)
+
+        applied_doc_ids: list[str] = []
+        if schema is not None and ledger:
+            result = cascade_count(project_id, profile_id, library, schema)
+            applied_doc_ids = list(result.doc_ids)
+            if applied_doc_ids:
+                files_by_doc = {f.get("doc_id"): f
+                                for f in ledger.get("files", []) or []}
+                entry = library.get(profile_id)
+                conformed_by_doc: dict[str, list[dict[str, Any]]] = {}
+                for doc_id in applied_doc_ids:
+                    f = files_by_doc.get(doc_id)
+                    if f is None:
+                        continue
+                    records = f.get("records", []) or []
+                    res = run_alignment(records, schema, profile=entry.profile)
+                    flags = res.conformant_flags()
+                    kept = [rec for rec, ok in zip(res.records, flags) if ok]
+                    conformed_by_doc[doc_id] = kept
+                    f["status"] = "conformant"
+                if conformed_by_doc:
+                    _merge_batch_outputs_locked(project_id, conformed_by_doc,
+                                                pathway="replay_clean")
+                # Persist the ledger FIRST (cleared files recorded) …
+                _save_pending_ledger_locked(project_id, ledger)
+
+        # … then the library LAST, so a crash leaves nothing approved.
+        library.approve(profile_id)
+        _save_library_locked(library, project_id)
+
+        return {
+            "approved": profile_id,
+            "state": "approved",
+            "cascade_applied": len(applied_doc_ids),
+            "cascade_doc_ids": sorted(applied_doc_ids),
+        }
+
+
 __all__ = [
+    "apply_approval_and_cascade",
     "apply_vocab_change",
     "effective_target_schema",
     "library_path",
     "load_batch_manifest",
     "load_batch_output_records",
+    "load_pending_ledger",
     "load_project_library",
     "load_target_schema",
     "load_value_vocab",
+    "merge_batch_outputs",
     "outputs_dir",
+    "pending_ledger_path",
     "save_batch_outputs",
+    "save_pending_ledger",
     "save_project_library",
     "save_target_schema",
     "save_value_vocab",
