@@ -166,12 +166,11 @@ test('01 live progress indicator reaches M of M · 100%', async ({ page }) => {
 })
 
 // ---------------------------------------------------------------------------
-// Scenario 2 — BRAND-NEW SHAPE, N == 0, SILENT APPROVE
-// Approving a provisional shape with no other affected files applies with NO
-// cascade modal. Leaves the clean 8-field "game" shape S APPROVED (scenario 5
-// depends on this).
+// Scenario 2 — BRAND-NEW SHAPE, DIRECT APPROVE
+// Approving a provisional shape applies directly with NO confirmation dialog.
+// Leaves the clean 8-field "game" shape S APPROVED (scenario 5 depends on this).
 // ---------------------------------------------------------------------------
-test('02 brand-new shape with N==0 approves silently (no modal)', async ({ page }) => {
+test('02 brand-new shape approves directly (no dialog)', async ({ page }) => {
   await openConvert(page)
   await processFiles(page, [fixture('clean_known.json')], true)
 
@@ -182,7 +181,7 @@ test('02 brand-new shape with N==0 approves silently (no modal)', async ({ page 
   // Approve the single provisional shape.
   await page.getByRole('button', { name: /^Approve$/ }).first().click()
 
-  // NO cascade modal must appear (N==0 -> silent apply). Hold the assertion
+  // NO dialog must appear (approve applies directly). Hold the assertion
   // across a short window so a late-rendering dialog would still be caught.
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.waitForTimeout(800)
@@ -302,130 +301,6 @@ test('07 accept a value for platform then undo (server-confirmed)', async ({ pag
     page.getByText(/removed .*Linux.* from platform/),
   ).toBeVisible({ timeout: 15_000 })
   await expect(acceptRow.getByRole('button', { name: /^undo$/ })).toHaveCount(0)
-})
-
-// ---------------------------------------------------------------------------
-// Scenario 3 — APPROVE N>0 -> MODAL -> OK   ***BLOCKED (unreachable via UI)***
-// Scenario 4 — APPROVE N>0 -> MODAL -> CANCEL ***BLOCKED (same reason)***
-//
-// WHAT WE OBSERVED (recorded here and in WALKTHROUGH_RESULTS.md): no sequence of
-// real batch uploads can make the backend return cascade_count > 0, so the
-// confirmation modal that scenarios 3 & 4 drive never opens through the UI.
-//
-// WHY (grounded in the backend source we read):
-//   * cascade_count (backend/app/json_alignment/cascade.py) counts only OTHER
-//     ledger files whose own cluster did NOT produce the approved profile P AND
-//     that route to PATHWAY_REPLAY (replay_clean) under research_available=False
-//     once P is approved.
-//   * The pending ledger is written by op_batch_align (backend/app/jobs/ops.py):
-//     each file's cluster_key = its signature hash and produced_cluster_profile =
-//     the provisional profile its own cluster produced. Files of the SAME shape
-//     as P therefore share P's cluster_key and are EXCLUDED (direct producers).
-//   * A file of a DIFFERENT shape has >=1 added/removed path, which
-//     assess_drift (backend/app/json_alignment/drift.py) flags as STRUCTURAL
-//     drift (`match.added_paths or match.removed_paths`), so decide_pathway
-//     routes it to drift_repair, NOT replay_clean — so it is never counted,
-//     even at Jaccard 21/22 = 0.95 (HIGH band).
-//   * The only state that yields N>0 is a file with P's EXACT path-set but a
-//     DIFFERENT cluster_key — which the real batch pipeline never writes (same
-//     path-set => same signature hash => same cluster_key). The backend unit
-//     test test_cascade.py reaches N>0 only by hand-authoring such a ledger
-//     (`_write_ledger` sets cluster_key = signature + "_held"); there is no UI
-//     or API affordance to author that state.
-//
-// EVIDENCE: diag probes via the real /approve?preview endpoint returned
-// cascade_count: 0 for (a) three identical-shape files blocked by platform
-// 'Linux' then accepted, and (b) a learn-then-second-batch of the same shape.
-// Both the engineered fixtures below and those probes are reproduced live here
-// through the preview API so the 0 is captured in-run, a screenshot of the
-// provisional (no-modal) state is saved, then the scenario is marked skipped
-// with the blocker reason (NOT passed, NOT a fake green).
-//
-// To make these two scenarios runnable would require changing application
-// source (e.g. relaxing the structural-drift gate in drift.py so a superset
-// shape replays, or having op_batch_align record cross-shape ledger entries) —
-// which this task forbids. Flagged to the caller via send_message.
-// ---------------------------------------------------------------------------
-
-/** Live-probe the real cascade preview for the engineered state, so the
- *  observed cascade_count is captured in-run as evidence. Returns the count. */
-async function probeCascadeCount(
-  request: import('@playwright/test').APIRequestContext,
-  pid: string, baseDocId: string,
-): Promise<{ count: number; baseProfile: string }> {
-  const libRes = await request.get(`/api/projects/${pid}/alignment/library`)
-  const lib = await libRes.json() as {
-    entries: { profile_id: string; source_docs?: string[] }[]
-  }
-  const baseEntry = lib.entries.find((e) => (e.source_docs ?? []).includes(baseDocId))
-  const baseProfile = baseEntry?.profile_id ?? ''
-  const pvRes = await request.post(`/api/projects/${pid}/alignment/approve`, {
-    data: { profile_id: baseProfile, preview: true },
-  })
-  const pv = await pvRes.json() as { cascade_count?: number }
-  return { count: pv.cascade_count ?? -1, baseProfile }
-}
-
-test('03 approve with N>0 shows cascade modal, OK applies it', async ({ page, request }, testInfo) => {
-  await openConvert(page)
-  await processFiles(page, [
-    fixture('cascade_base.json'),
-    fixture('cascade_candidate_1.json'),
-    fixture('cascade_candidate_2.json'),
-  ], true)
-  await expect(page.getByText('Shapes awaiting your approval')).toBeVisible()
-
-  // Capture the provisional (no cascade modal) state as evidence.
-  await shot(page, '03-cascade-ok.png')
-
-  // Probe the real backend cascade preview for the engineered state.
-  const { count, baseProfile } = await probeCascadeCount(request, projectId, 'cascade_base.json')
-  // eslint-disable-next-line no-console
-  console.log(`[03] engineered state cascade_count=${count} for base=${baseProfile}`)
-  testInfo.annotations.push({
-    type: 'blocked',
-    description:
-      `Cross-file cascade N>0 is unreachable through real batch uploads: the ` +
-      `backend returned cascade_count=${count} for the engineered base profile ` +
-      `${baseProfile}. Same-shape files share the approved profile's cluster_key ` +
-      `(excluded as producers); different-shape files trigger structural drift ` +
-      `(drift.py) so they route drift_repair, not replay_clean, and are not ` +
-      `counted. The confirmation modal therefore never opens via the UI. See ` +
-      `WALKTHROUGH_RESULTS.md.`,
-  })
-  // Document the observed value, then mark BLOCKED (not pass, not red-fail).
-  expect(count, 'observed real cascade_count for the engineered state').toBe(0)
-  test.skip(true,
-    'BLOCKED: cascade N>0 unreachable via UI/API (structural-drift gate + ' +
-    'cluster_key exclusion); modal never opens. Observed cascade_count=0.')
-})
-
-test('04 approve with N>0 cascade modal, Cancel changes nothing', async ({ page, request }, testInfo) => {
-  await openConvert(page)
-  await processFiles(page, [
-    fixture('cascade4_base.json'),
-    fixture('cascade4_candidate_1.json'),
-    fixture('cascade4_candidate_2.json'),
-  ], true)
-  await expect(page.getByText('Shapes awaiting your approval')).toBeVisible()
-
-  await shot(page, '04-cascade-cancel.png')
-
-  const { count, baseProfile } = await probeCascadeCount(request, projectId, 'cascade4_base.json')
-  // eslint-disable-next-line no-console
-  console.log(`[04] engineered state cascade_count=${count} for base=${baseProfile}`)
-  testInfo.annotations.push({
-    type: 'blocked',
-    description:
-      `Same blocker as scenario 3: backend cascade_count=${count} for the ` +
-      `engineered base profile ${baseProfile}; the cascade confirmation modal ` +
-      `never opens via real batch uploads, so the Cancel path cannot be driven. ` +
-      `See WALKTHROUGH_RESULTS.md.`,
-  })
-  expect(count, 'observed real cascade_count for the engineered state').toBe(0)
-  test.skip(true,
-    'BLOCKED: cascade N>0 unreachable via UI/API; modal never opens. ' +
-    'Observed cascade_count=0.')
 })
 
 // ---------------------------------------------------------------------------

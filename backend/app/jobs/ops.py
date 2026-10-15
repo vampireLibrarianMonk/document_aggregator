@@ -152,12 +152,10 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
     from ..config import settings
     from ..json_alignment.batch import SourceDoc
     from ..json_alignment.batch_agent import run_batch_via_coordinator
-    from ..json_alignment.cascade import schema_fingerprint
     from ..json_alignment.project_store import (
         effective_target_schema,
         load_project_library,
         save_batch_outputs,
-        save_pending_ledger,
         save_project_library,
         save_shape_records,
     )
@@ -225,43 +223,6 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
                 bucket.extend(records_by_doc.get(did, []))
     if records_by_profile:
         save_shape_records(project_id, records_by_profile)
-
-    # Pending ledger (design §2.1): one entry per input doc with its OWN raw
-    # records/descriptions, the cluster it belonged to, a per-doc conformance
-    # status, and the provisional profile its own cluster produced (advisory).
-    # Best-effort: a failure here must NOT fail a good conversion (§2.9) — the
-    # library/outputs are already persisted; the ledger only accelerates a later
-    # approve's cascade, which degrades to N==0 when it is absent.
-    try:
-        kept_by_doc = result.conformed_by_doc()
-        # doc_id -> its cluster_key and its own cluster's provisional profile.
-        cluster_key_by_doc: dict[str, str] = {}
-        produced_profile_by_doc: dict[str, str | None] = {}
-        for o in result.outcomes:
-            for did in o.doc_ids:
-                cluster_key_by_doc[did] = o.cluster_key
-                produced_profile_by_doc[did] = o.provisional_profile
-        ledger_files = []
-        for d in docs:
-            input_count = len(d.records)
-            kept = len(kept_by_doc.get(d.doc_id, []))
-            status = ("conformant" if (input_count > 0 and kept == input_count)
-                      else "pending")
-            ledger_files.append({
-                "doc_id": d.doc_id,
-                "records": d.records,
-                "descriptions": d.descriptions,
-                "cluster_key": cluster_key_by_doc.get(d.doc_id, ""),
-                "status": status,
-                "produced_cluster_profile": produced_profile_by_doc.get(d.doc_id),
-            })
-        save_pending_ledger(project_id, {
-            "schema_fingerprint": schema_fingerprint(schema),
-            "files": ledger_files,
-        })
-    except Exception:  # noqa: BLE001 - advisory artifact; never fail the batch
-        _log.warning("batch_align: pending ledger write failed (project_id=%s)",
-                     project_id, exc_info=True)
 
     return {"ok": True, **result.to_dict()}
 

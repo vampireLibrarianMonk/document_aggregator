@@ -788,62 +788,26 @@ def get_library(project_id: str) -> dict:
 
 class ApproveProfile(BaseModel):
     profile_id: str
-    # When true, compute the auto-approve cascade WITHOUT mutating anything (a
-    # read-only preview the UI uses to show "approving this also clears N files").
-    # Default false preserves existing callers (apply path).
-    preview: bool = False
 
 
 @app.post("/projects/{project_id}/alignment/approve")
 def approve_profile(project_id: str, body: ApproveProfile) -> dict:
     """Approve a provisional profile (one-time human sign-off for a novel/drifted
-    shape), and auto-clear the OTHER files that become fully conformant solely
-    because of it (the files-only cascade). After approval, the shape replays
-    deterministically in future batches with zero re-inference.
-
-    `preview: true` computes the cascade count read-only (no mutation);
-    `preview: false` (default) approves + cascades atomically and returns the
-    REAL number of files cleared (recomputed at apply time — TOCTOU safe)."""
+    shape). After approval, that shape replays deterministically in future
+    batches with zero re-inference."""
     _resolve_project(project_id)
-    from .json_alignment.cascade import cascade_count
     from .json_alignment.project_store import (
-        apply_approval_and_cascade,
-        effective_target_schema,
         load_project_library,
+        save_project_library,
     )
 
     lib = load_project_library(project_id)
     if lib.get(body.profile_id) is None:
         raise HTTPException(404, f"no such profile: {body.profile_id}")
-
-    if body.preview:
-        # Read-only: cascade_count deep-copies the library internally and never
-        # mutates. A None/absent schema degrades to n=0 (never a 500).
-        schema = effective_target_schema(project_id)
-        result = cascade_count(project_id, body.profile_id, lib, schema)
-        return {
-            "project_id": project_id,
-            "profile_id": body.profile_id,
-            "preview": True,
-            "cascade_count": result.n,
-            "cascade_doc_ids": result.doc_ids,
-            "state": "provisional",
-        }
-
-    try:
-        outcome = apply_approval_and_cascade(project_id, body.profile_id)
-    except KeyError:
-        # Lost a race: the profile vanished between the check and the apply.
-        raise HTTPException(404, f"no such profile: {body.profile_id}")
-    except Exception as exc:  # noqa: BLE001 - corrupt ledger / unparseable schema
-        raise HTTPException(500, f"approve failed: {exc}")
-    return {
-        "project_id": project_id,
-        "approved": outcome["approved"],
-        "state": outcome["state"],
-        "cascade_applied": outcome["cascade_applied"],
-        "cascade_doc_ids": outcome["cascade_doc_ids"],
-    }
+    lib.approve(body.profile_id)
+    save_project_library(project_id, lib)
+    return {"project_id": project_id, "approved": body.profile_id,
+            "state": "approved"}
 
 
 class OverrideField(BaseModel):
