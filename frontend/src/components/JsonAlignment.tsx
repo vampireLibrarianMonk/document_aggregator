@@ -583,6 +583,15 @@ function ApprovalCards({ project, library, onApproved }: {
   )
 }
 
+/** Render the live batch progress text for the "Upload & convert" header slot.
+ *  Falls back to the static "processing…" when progress is absent or the total
+ *  is not yet known, so no "0 of 0 files" or "NaN%" can ever appear. */
+export function batchProgressLabel(p: { done: number; total: number } | null): string {
+  if (!p || p.total <= 0) return 'processing…'
+  const pct = Math.round((p.done / p.total) * 100)
+  return `${p.done} of ${p.total} files · ${pct}%`
+}
+
 /**
  * Step: convert a batch. The Batch Convert tab for a JSON-alignment project —
  * upload many source JSON files to conform to the project's golden schema.
@@ -599,6 +608,7 @@ export function BatchConvertPanel({ project }: { project: Project }) {
   const [err, setErr] = useState<string | null>(null)
   const [schemaSet, setSchemaSet] = useState<boolean | null>(null)
   const [summary, setSummary] = useState<BatchSummary | null>(null)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [library, setLibrary] = useState<AlignmentLibrary | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const pollRef = useRef<number | null>(null)
@@ -620,12 +630,15 @@ export function BatchConvertPanel({ project }: { project: Project }) {
         if (job.state === 'completed') {
           const result = job.result as { summary?: BatchSummary } | null
           if (result?.summary) setSummary(result.summary)
+          setProgress(null)
           setBusy(false)
           refreshLibrary()
         } else if (job.state === 'failed') {
+          setProgress(null)
           setErr(job.error ?? 'batch failed')
           setBusy(false)
         } else {
+          setProgress(job.progress ?? null)
           pollRef.current = window.setTimeout(tick, 600)
         }
       }).catch((e) => { setErr(String(e)); setBusy(false) })
@@ -637,6 +650,7 @@ export function BatchConvertPanel({ project }: { project: Project }) {
     if (!files || files.length === 0) return
     setErr(null)
     setSummary(null)
+    setProgress(null)
     setBusy(true)
     try {
       const { docs, errors } = await filesToDocs(files)
@@ -671,7 +685,7 @@ export function BatchConvertPanel({ project }: { project: Project }) {
           <div className="row">
             <strong>Upload & convert</strong>
             <div className="spacer" />
-            {busy && <span className="muted small">processing…</span>}
+            {busy && <span className="muted small" role="status" aria-live="polite">{batchProgressLabel(progress)}</span>}
             <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input
                 type="checkbox"

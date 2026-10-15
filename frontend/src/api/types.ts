@@ -174,6 +174,7 @@ export interface JobStatus {
   attempts: number
   error: string | null
   result: unknown
+  progress?: { done: number; total: number }
 }
 
 export interface SearchHit {
