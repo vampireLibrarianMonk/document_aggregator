@@ -450,8 +450,11 @@ export function ApprovalCards({ project, library, onApproved }: {
     <div className="panel" style={{ marginBottom: 12 }}>
       <strong>Shapes awaiting your approval</strong>
       <p className="small muted" style={{ margin: '4px 0 8px' }}>
-        A new or changed source shape was learned. Approve its mapping once and
-        every future file of that shape converts automatically.
+        This source shape is new, so the system learned it and proposed the
+        field mapping below. Confirm the mapping is right by approving it once —
+        this one-time check is why a brand-new shape always stops here. After you
+        approve, every future file of this shape converts automatically, with no
+        more prompts.
       </p>
       {provisional.map((e) => (
         <div key={e.profile_id} className="panel" style={{ marginBottom: 8 }}>
