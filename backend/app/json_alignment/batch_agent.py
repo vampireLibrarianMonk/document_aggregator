@@ -179,12 +179,24 @@ def _unlearnable_outcome(decision: ClusterDecision,
 
 def execute_cluster(decision: ClusterDecision, cluster: Cluster,
                     target_schema: dict[str, Any], library: ProfileLibrary,
+                    on_doc_done: Callable[[str], None] | None = None,
                     ) -> ClusterOutcome:
     """Run a single cluster's pathway. Pure wrt everything except `library`,
-    into which novel/drift pathways register a provisional profile."""
+    into which novel/drift pathways register a provisional profile.
+
+    `on_doc_done`, if supplied, is called once per source doc_id in the cluster
+    (iterating `cluster.doc_ids` in input order) as the cluster's pathway
+    completes. It is OBSERVATIONAL ONLY — it never affects the returned outcome,
+    the library, or ordering, so the default-None path is byte-identical."""
     target_title = extract_target(target_schema).title
 
     rec_doc_ids = tuple(cluster.record_doc_ids)
+
+    def _done() -> None:
+        """Signal per-doc completion after the pathway finished (observational)."""
+        if on_doc_done is not None:
+            for did in cluster.doc_ids:
+                on_doc_done(did)
 
     if decision.pathway == PATHWAY_REPLAY:
         entry = library.get(decision.matched_profile or "")
@@ -192,16 +204,21 @@ def execute_cluster(decision: ClusterDecision, cluster: Cluster,
             pid = _profile_id_for(cluster, target_title)
             res, registered = _learn_profile(cluster, target_schema, library, pid=pid)
             if not registered:
+                _done()
                 return _unlearnable_outcome(decision, rec_doc_ids)
-            return _outcome_from_result(decision, res, provisional=pid,
-                                        record_doc_ids=rec_doc_ids,
-                                        extra_reasons=("replay target missing; "
-                                                       "re-learned provisionally",))
+            outcome = _outcome_from_result(decision, res, provisional=pid,
+                                           record_doc_ids=rec_doc_ids,
+                                           extra_reasons=("replay target missing; "
+                                                          "re-learned provisionally",))
+            _done()
+            return outcome
         res = run_alignment(cluster.records, target_schema,
                             profile=entry.profile,
                             source_descriptions=cluster.descriptions or None)
-        return _outcome_from_result(decision, res, provisional=None,
-                                    record_doc_ids=rec_doc_ids)
+        outcome = _outcome_from_result(decision, res, provisional=None,
+                                       record_doc_ids=rec_doc_ids)
+        _done()
+        return outcome
 
     if decision.pathway in (PATHWAY_NOVEL, PATHWAY_DRIFT_REPAIR):
         # Both re-research the cluster; drift_repair additionally supersedes the
@@ -215,17 +232,22 @@ def execute_cluster(decision: ClusterDecision, cluster: Cluster,
             # Nothing grounded -> no provisional profile, no output. Downgrade to
             # review so the user isn't handed an all-"needs review" approval card
             # for a shape that maps nothing (e.g. opaque keys / unrelated data).
+            _done()
             return _unlearnable_outcome(decision, rec_doc_ids)
-        return _outcome_from_result(decision, res, provisional=pid,
-                                    record_doc_ids=rec_doc_ids)
+        outcome = _outcome_from_result(decision, res, provisional=pid,
+                                       record_doc_ids=rec_doc_ids)
+        _done()
+        return outcome
 
     # review / reject: nothing is produced; the golden is never emitted.
-    return ClusterOutcome(
+    outcome = ClusterOutcome(
         cluster_key=decision.cluster_key, pathway=decision.pathway,
         doc_ids=decision.doc_ids, records=[], conformed=0, needs_review=0,
         quarantined=(decision.pathway == PATHWAY_REJECT),
         reasons=decision.reasons,
     )
+    _done()
+    return outcome
 
 
 @dataclass
@@ -295,20 +317,37 @@ def run_batch(docs: list[SourceDoc], target_schema: dict[str, Any],
     command-center path must match.
 
     `on_cluster_done`, if supplied, is called with the cumulative count of files
-    consumed so far each time a cluster's outcome is consumed (submission order
-    for the parallel pure loop, sequential for the learn loop). It is
-    OBSERVATIONAL ONLY — it never touches outcomes/library/ordering, so the
-    default-None path is byte-identical to a run without it (NFR1.3). The
-    callback receives a cumulative value (never a delta), so even a reordered
-    call can only report a value already reached."""
+    consumed so far — incremented by ONE as each source doc finishes within a
+    cluster — so a batch dominated by one shape still advances file-by-file
+    rather than in a single cluster-sized jump. The parallel pure loop and the
+    sequential learn loop share one counter under `_lock`; the final value is
+    exactly len(docs). It is OBSERVATIONAL ONLY — it never touches
+    outcomes/library/ordering, so the default-None path is byte-identical to a
+    run without it (NFR1.3). The callback receives a cumulative value (never a
+    delta), so even a reordered call can only report a value already reached."""
     clusters = cluster_documents(docs)
     report = plan_batch(docs, target_schema, library, reject_below=reject_below,
                         research_available=research_available)
     by_key = {c.key: c for c in clusters}
     decisions = report.decisions
 
+    _lock = threading.Lock()
+    _done = 0
+
+    def _on_doc_done(_doc_id: str) -> None:
+        nonlocal _done
+        with _lock:
+            _done += 1
+            cb = _done
+        on_cluster_done(cb)
+
+    # Only wire per-doc ticking when a callback is present; otherwise execute
+    # exactly as before so the on_cluster_done=None path stays byte-identical.
+    doc_cb = _on_doc_done if on_cluster_done is not None else None
+
     def _run(d: ClusterDecision) -> ClusterOutcome:
-        return execute_cluster(d, by_key[d.cluster_key], target_schema, library)
+        return execute_cluster(d, by_key[d.cluster_key], target_schema, library,
+                               on_doc_done=doc_cb)
 
     # Profile registration mutates `library`; a thread pool makes that
     # interleave. Registration is per-distinct-id and idempotent-ish, but to
@@ -318,33 +357,18 @@ def run_batch(docs: list[SourceDoc], target_schema: dict[str, Any],
     pure = [d for d in decisions if d.pathway not in (PATHWAY_NOVEL, PATHWAY_DRIFT_REPAIR)]
     outcomes: dict[str, ClusterOutcome] = {}
 
-    _lock = threading.Lock()
-    _done = 0
-
-    def _tick(o: ClusterOutcome) -> None:
-        if on_cluster_done is None:
-            return
-        nonlocal _done
-        with _lock:
-            _done += len(o.doc_ids)
-            cb = _done
-        on_cluster_done(cb)
-
     if parallel and len(pure) > 1:
         workers = worker_count(maximum=len(pure))
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
             for d, o in zip(pure, ex.map(_run, pure)):
                 outcomes[d.cluster_key] = o
-                _tick(o)
     else:
         for d in pure:
             o = _run(d)
             outcomes[d.cluster_key] = o
-            _tick(o)
     for d in learn:  # sequential: deterministic library mutation
         o = _run(d)
         outcomes[d.cluster_key] = o
-        _tick(o)
 
     # Reassemble in the deterministic decision order.
     ordered = [outcomes[d.cluster_key] for d in decisions]

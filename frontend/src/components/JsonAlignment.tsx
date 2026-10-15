@@ -641,7 +641,7 @@ export function BatchConvertPanel({ project }: { project: Project }) {
           setBusy(false)
         } else {
           setProgress(job.progress ?? null)
-          pollRef.current = window.setTimeout(tick, 600)
+          pollRef.current = window.setTimeout(tick, 250)
         }
       }).catch((e) => { setErr(String(e)); setBusy(false) })
     }

@@ -15,6 +15,15 @@ describe('batchProgressLabel', () => {
     expect(batchProgressLabel(null)).toBe('processing…')
     expect(batchProgressLabel({ done: 0, total: 0 })).toBe('processing…')
   })
+
+  it('renders distinct intermediate frames for a 4-file run', () => {
+    // File-granular progress: each file completion is its own visible frame,
+    // not a single 0->100% jump.
+    expect(batchProgressLabel({ done: 1, total: 4 })).toBe('1 of 4 files · 25%')
+    expect(batchProgressLabel({ done: 2, total: 4 })).toBe('2 of 4 files · 50%')
+    expect(batchProgressLabel({ done: 3, total: 4 })).toBe('3 of 4 files · 75%')
+    expect(batchProgressLabel({ done: 4, total: 4 })).toBe('4 of 4 files · 100%')
+  })
 })
 
 describe('batch progress indicator slot', () => {

@@ -90,6 +90,29 @@ def test_on_cluster_done_monotonic_to_total():
     assert seen[-1] == total
 
 
+def test_on_cluster_done_file_granular_single_cluster():
+    """Regression guard against the old single-jump: a batch whose docs ALL
+    share one shape (one cluster) must still tick file-by-file, emitting
+    multiple distinct intermediate cumulative values that end exactly at N."""
+    schema = _schema()
+    n = 5
+    docs = [
+        SourceDoc(doc_id=f"d{i}", records=[{"name": f"G{i}", "releaseYear": "2020"}])
+        for i in range(n)
+    ]
+    seen: list[int] = []
+    run_batch(docs, schema, ProfileLibrary(), reject_below=0.5,
+              research_available=False,
+              on_cluster_done=lambda done: seen.append(done))
+    assert seen, "callback never fired"
+    assert seen == sorted(seen), "callback values must be non-decreasing"
+    assert all(0 < v <= n for v in seen)
+    assert seen[-1] == n
+    # file-granular: at least one strictly-intermediate value, not a lone jump.
+    assert any(0 < v < n for v in seen)
+    assert len(set(seen)) >= 3
+
+
 def test_on_cluster_done_default_none_is_observational():
     """run_batch with on_cluster_done=None produces identical outcomes."""
     schema = _schema()
