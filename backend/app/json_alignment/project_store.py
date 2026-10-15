@@ -24,6 +24,7 @@ from typing import Any
 
 from ..config import settings
 from .profile_store import ProfileLibrary, load_library, save_library
+from .value_vocab import ValueVocabulary
 
 _lock = threading.RLock()
 
@@ -38,6 +39,10 @@ def target_schema_path(project_id: str) -> Path:
 
 def library_path(project_id: str) -> Path:
     return _alignment_dir(project_id) / "library.json"
+
+
+def value_vocab_path(project_id: str) -> Path:
+    return _alignment_dir(project_id) / "value_vocab.json"
 
 
 # -- golden target schema ----------------------------------------------------
@@ -58,6 +63,40 @@ def load_target_schema(project_id: str) -> dict[str, Any] | None:
     if not p.exists():
         return None
     return json.loads(p.read_text(encoding="utf-8"))
+
+
+# -- learned value vocabulary (per-project, per-field accepted values) --------
+
+def load_value_vocab(project_id: str) -> ValueVocabulary:
+    """Load the project's learned value vocabulary, or a fresh empty one."""
+    p = value_vocab_path(project_id)
+    if not p.exists():
+        return ValueVocabulary()
+    return ValueVocabulary.from_dict(json.loads(p.read_text(encoding="utf-8")))
+
+
+def save_value_vocab(project_id: str, vocab: ValueVocabulary) -> Path:
+    p = value_vocab_path(project_id)
+    with _lock:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(vocab.to_dict(), indent=2, ensure_ascii=False),
+                       encoding="utf-8")
+        os.replace(tmp, p)
+    return p
+
+
+def effective_target_schema(project_id: str) -> dict[str, Any] | None:
+    """The golden schema a batch run should MATCH against: the stored schema
+    with the project's human-accepted value vocabulary merged into each field's
+    taxonomy. Returns None if no schema is saved. This is the single seam that
+    teaches the matcher the learned values — callers that align/convert for a
+    project should load the schema through here, not raw load_target_schema."""
+    schema = load_target_schema(project_id)
+    if schema is None:
+        return None
+    from .value_vocab import merge_vocab_into_schema
+    return merge_vocab_into_schema(schema, load_value_vocab(project_id))
 
 
 # -- profile library ---------------------------------------------------------
@@ -215,6 +254,63 @@ def apply_profile_override(project_id: str, profile_id: str, target: str,
                 "source_path": source_path}
 
 
+def _schema_field_names(project_id: str) -> set[str]:
+    schema = load_target_schema(project_id)
+    if not schema:
+        return set()
+    props = schema.get("properties")
+    return set(props.keys()) if isinstance(props, dict) else set()
+
+
+def apply_vocab_change(project_id: str, action: str, target: str, *,
+                       value: str = "", new_value: str | None = None,
+                       alias: str | None = ...,  # type: ignore[assignment]
+                       added_by: str = "",
+                       note: str | None = ...,     # type: ignore[assignment]
+                       example: str | None = ...,  # type: ignore[assignment]
+                       ) -> dict[str, Any]:
+    """CRUD on the per-project learned value vocabulary, lock-guarded + atomic.
+
+    action: 'add' | 'update' | 'remove'. `target` must be a golden field the
+    project's schema actually declares (a value can only be taught for a REAL
+    field — never an invented one, mirroring the override guard). Returns a
+    small status dict; the change is persisted before returning so a subsequent
+    batch run (which loads via effective_target_schema) sees it.
+
+    `alias`/`note`/`example` use the Ellipsis sentinel on UPDATE: omit to leave a
+    field unchanged (so a partial edit never silently wipes provenance). On ADD,
+    an omitted note/example simply defaults to empty."""
+    with _lock:
+        if target not in _schema_field_names(project_id):
+            return {"ok": False, "error": f"unknown golden field: {target}"}
+        vocab = load_value_vocab(project_id)
+        try:
+            if action == "add":
+                entry = vocab.add(
+                    target, value,
+                    alias=(alias if isinstance(alias, str) else None),
+                    added_by=added_by,
+                    note=(note if isinstance(note, str) else ""),
+                    example=(example if isinstance(example, str) else ""))
+                result = entry.to_dict()
+            elif action == "update":
+                entry = vocab.update(target, value, new_value=new_value,
+                                     alias=alias, note=note, example=example)
+                result = entry.to_dict()
+            elif action == "remove":
+                removed = vocab.remove(target, value)
+                if not removed:
+                    return {"ok": False,
+                            "error": f"{target} has no learned value {value!r}"}
+                result = {"removed": value}
+            else:
+                return {"ok": False, "error": f"unknown action: {action}"}
+        except (ValueError, KeyError) as exc:
+            return {"ok": False, "error": str(exc)}
+        save_value_vocab(project_id, vocab)
+        return {"ok": True, "action": action, "target": target, "entry": result}
+
+
 def load_batch_manifest(project_id: str) -> dict[str, Any] | None:
     p = outputs_dir(project_id) / "manifest.json"
     if not p.exists():
@@ -237,14 +333,19 @@ def load_batch_output_records(project_id: str, stem: str) -> list[dict[str, Any]
 
 
 __all__ = [
+    "apply_vocab_change",
+    "effective_target_schema",
     "library_path",
     "load_batch_manifest",
     "load_batch_output_records",
     "load_project_library",
     "load_target_schema",
+    "load_value_vocab",
     "outputs_dir",
     "save_batch_outputs",
     "save_project_library",
     "save_target_schema",
+    "save_value_vocab",
     "target_schema_path",
+    "value_vocab_path",
 ]

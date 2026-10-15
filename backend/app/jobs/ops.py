@@ -150,15 +150,18 @@ def op_batch_align(payload: dict[str, Any]) -> dict[str, Any]:
     from ..json_alignment.batch import SourceDoc
     from ..json_alignment.batch_agent import run_batch_via_coordinator
     from ..json_alignment.project_store import (
+        effective_target_schema,
         load_project_library,
-        load_target_schema,
         save_batch_outputs,
         save_project_library,
         save_shape_records,
     )
 
     project_id = payload.get("project_id", "")
-    schema = load_target_schema(project_id)
+    # Use the EFFECTIVE schema: the golden schema with the project's
+    # human-accepted value vocabulary merged into each field's taxonomy, so a
+    # value a reviewer taught (e.g. platform 'Linux') is allowed on this run.
+    schema = effective_target_schema(project_id)
     if schema is None:
         return {"ok": False, "error": "no golden target schema set for this project"}
 

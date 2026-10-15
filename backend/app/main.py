@@ -843,18 +843,96 @@ def override_field_mapping(project_id: str, body: OverrideField) -> dict:
     }
 
 
+@app.get("/projects/{project_id}/alignment/value-vocab")
+def get_value_vocab(project_id: str) -> dict:
+    """Per-field ACCEPTED VALUES for the project's golden schema: the schema's
+    built-in taxonomy (authoritative, read-only) plus the human-LEARNED values a
+    reviewer accepted (editable). The two are returned SEPARATELY so the UI can
+    show which values came from the schema and which a human added — the audit
+    surface that keeps the learned vocabulary from being a silent backdoor.
+
+    Only enumerable fields (those with a declared taxonomy OR at least one
+    learned value) are returned."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import load_target_schema, load_value_vocab
+
+    schema = load_target_schema(project_id)
+    if schema is None:
+        raise HTTPException(404, "no golden target schema set for this project")
+    vocab = load_value_vocab(project_id)
+    props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    fields = []
+    for name, node in (props.items() if isinstance(props, dict) else []):
+        if not isinstance(node, dict):
+            continue
+        builtin = list(node.get("x-pydi-taxonomy", []) or [])
+        learned = [e.to_dict() for e in vocab.list_field(name)]
+        if builtin or learned:
+            fields.append({
+                "target": name,
+                "description": str(node.get("description", "") or ""),
+                "builtin": builtin,            # read-only, from the schema
+                "learned": learned,            # editable, human-accepted
+            })
+    return {"project_id": project_id, "fields": fields}
+
+
+class VocabChange(BaseModel):
+    action: str                       # 'add' | 'update' | 'remove'
+    target: str                       # the golden field the value belongs to
+    value: str = ""                   # the accepted value (and the key for update/remove)
+    new_value: str | None = None      # for 'update': rename the value
+    alias: str | None = None          # optional source spelling that normalizes to value
+    added_by: str = ""                # provenance
+    note: str | None = None           # optional justification (None = omit)
+    example: str | None = None        # source example that motivated it (None = omit)
+
+
+@app.post("/projects/{project_id}/alignment/value-vocab")
+def change_value_vocab(project_id: str, body: VocabChange) -> dict:
+    """CRUD a learned ACCEPTED VALUE for a golden field (add / update / remove).
+
+    A value can only be taught for a REAL golden field (never invented). A
+    removal takes effect on the next batch run (the value is no longer merged
+    into the taxonomy, so the gate vetoes it again). Returns the refreshed
+    per-field vocabulary view."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import apply_vocab_change
+
+    kwargs: dict = {"value": body.value, "added_by": body.added_by}
+    if body.action == "update":
+        # Partial update: a field the client OMITTED (sent null) is left
+        # unchanged (Ellipsis sentinel); an explicitly-sent value sets it ("" to
+        # clear). This stops a partial edit from silently wiping provenance.
+        kwargs["new_value"] = body.new_value
+        kwargs["alias"] = ... if body.alias is None else body.alias
+        kwargs["note"] = ... if body.note is None else body.note
+        kwargs["example"] = ... if body.example is None else body.example
+    else:
+        # Add: an omitted note/example simply defaults to empty.
+        kwargs["alias"] = body.alias
+        kwargs["note"] = body.note or ""
+        kwargs["example"] = body.example or ""
+    result = apply_vocab_change(project_id, body.action, body.target, **kwargs)
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("error", "value-vocab change failed"))
+    return {"project_id": project_id, "change": result,
+            "vocab": get_value_vocab(project_id)["fields"]}
+
+
 def _propagation_report(project_id: str, profile_id: str) -> dict:
     """Re-run the (now-overridden) profile over the shape's retained source
     records and report how many strictly conform now. The one human mapping
     replays across every record of the shape — this quantifies that payoff."""
     from .json_alignment.pipeline import run_alignment
     from .json_alignment.project_store import (
+        effective_target_schema,
         load_project_library,
         load_shape_records,
-        load_target_schema,
     )
 
-    schema = load_target_schema(project_id)
+    # Effective schema so a human-accepted value counts as conformant here too.
+    schema = effective_target_schema(project_id)
     sample, total = load_shape_records(project_id, profile_id)
     lib = load_project_library(project_id)
     entry = lib.get(profile_id)
