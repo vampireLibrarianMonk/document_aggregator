@@ -184,8 +184,13 @@ export function AcceptedValuesEditor({ project }: { project: Project }) {
         below (they’re kept and reactivate when you turn free-form off).
       </p>
       {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
+      {/* Bounded + scrollable: the editor lists one row per golden field and
+          can grow tall (many fields, or a field with many learned values), so
+          cap the height and let it scroll rather than push the rest of the tab
+          down. The sticky header keeps column labels visible while scrolling. */}
+      <div style={{ maxHeight: 360, overflow: 'auto' }}>
       <table className="docs">
-        <thead>
+        <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--panel, #1a2029)' }}>
           <tr>
             <th>Field</th><th>Built-in</th><th>Accepted (learned)</th>
             <th>Free-form</th><th>Add</th>
@@ -267,6 +272,7 @@ export function AcceptedValuesEditor({ project }: { project: Project }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
