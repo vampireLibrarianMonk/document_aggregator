@@ -34,6 +34,7 @@ from typing import Any
 
 from ..command_center.core import SubTask, TaskResult
 from .batch import (
+    PATHWAY_DECLINED,
     PATHWAY_DRIFT_REPAIR,
     PATHWAY_NOVEL,
     PATHWAY_REJECT,
@@ -49,7 +50,12 @@ from .batch import (
 from .concurrency import worker_count
 from .drift import FillBaseline
 from .pipeline import AlignmentResult, run_alignment
-from .profile_store import STATE_PROVISIONAL, ProfileLibrary, build_profile
+from .profile_store import (
+    STATE_PROVISIONAL,
+    STATE_REJECTED,
+    ProfileLibrary,
+    build_profile,
+)
 from .signature import signature_of
 from .source_profile import profile_source
 from .target_profile import extract_target
@@ -109,6 +115,16 @@ def _learn_profile(cluster: Cluster, target_schema: dict[str, Any],
     Research pathways enable the optional LLM semantic tier (use_semantic): it
     upgrades deterministic abstentions with re-verified model picks when Bedrock
     is enabled, and is a no-op offline (inference stays deterministic)."""
+    # Backstop: never overwrite a human-rejected entry into provisional. The
+    # primary seam (decide_pathway -> PATHWAY_DECLINED) prevents us reaching here
+    # for a rejected shape, but if any future caller did, treat it as unlearnable
+    # (which downgrades the cluster to review via _unlearnable_outcome — the
+    # declined STATUS is owned by decide_pathway, not this backstop).
+    existing = library.get(pid)
+    if existing is not None and existing.state == STATE_REJECTED:
+        return run_alignment(cluster.records, target_schema,
+                             source_descriptions=cluster.descriptions or None,
+                             use_semantic=True), False
     result = run_alignment(cluster.records, target_schema,
                            source_descriptions=cluster.descriptions or None,
                            use_semantic=True)
@@ -236,6 +252,19 @@ def execute_cluster(decision: ClusterDecision, cluster: Cluster,
             return _unlearnable_outcome(decision, rec_doc_ids)
         outcome = _outcome_from_result(decision, res, provisional=pid,
                                        record_doc_ids=rec_doc_ids)
+        _done()
+        return outcome
+
+    if decision.pathway == PATHWAY_DECLINED:
+        # Human rejected this shape: emit nothing, learn nothing, don't quarantine
+        # as irrelevant. _done() MUST fire so the per-doc progress tick advances
+        # for declined clusters too (mirrors every other branch).
+        outcome = ClusterOutcome(
+            cluster_key=decision.cluster_key, pathway=PATHWAY_DECLINED,
+            doc_ids=decision.doc_ids, records=[], conformed=0, needs_review=0,
+            quarantined=False, provisional_profile=None,
+            reasons=decision.reasons,
+        )
         _done()
         return outcome
 
@@ -441,6 +470,8 @@ def _batch_convergence_report(result: BatchResult) -> dict:
     for o in result.outcomes:
         if o.quarantined:
             status = "conflict"            # unresolved + not convertible
+        elif o.pathway == PATHWAY_DECLINED:
+            status = "conflict"            # human-rejected shape, not convertible
         elif o.pathway == PATHWAY_REVIEW or o.provisional_profile:
             status = "needs_review"        # awaits human approval/confirmation
         else:

@@ -23,7 +23,13 @@ from pathlib import Path
 from typing import Any
 
 from ..config import settings
-from .profile_store import ProfileLibrary, load_library, save_library
+from .profile_store import (
+    ProfileLibrary,
+    compose_rejection_text,
+    load_library,
+    save_library,
+    validate_rejection,
+)
 from .value_vocab import ValueVocabulary
 
 _lock = threading.RLock()
@@ -326,6 +332,50 @@ def apply_profile_override(project_id: str, profile_id: str, target: str,
                 "source_path": source_path}
 
 
+def apply_rejection(project_id: str, profile_id: str, category: str,
+                    fields: list[str] | None, note: str | None,
+                    rejected_by: str) -> dict[str, Any]:
+    """Reject a learned shape with a SERVER-VALIDATED structured reason,
+    lock-guarded + atomic. Validation runs fully before any mutation, so a
+    hollow reason (422) never persists. Returns a status dict carrying an HTTP
+    `status` the endpoint maps to an HTTPException on failure."""
+    with _lock:
+        lib = load_project_library(project_id)
+        entry = lib.get(profile_id)
+        if entry is None:
+            return {"ok": False, "error": f"no such profile: {profile_id}",
+                    "status": 404}
+        known = _schema_field_names(project_id)
+        ok, err = validate_rejection(category, fields, note or "",
+                                     known_fields=known)
+        if not ok:
+            return {"ok": False, "error": err, "status": 422}
+        composed = compose_rejection_text(category, fields, note or "")
+        lib.reject(profile_id, category=category, fields=fields, note=note or "",
+                   composed_text=composed, rejected_by=rejected_by)
+        save_project_library(project_id, lib)
+        return {"ok": True, "profile_id": profile_id, "state": "rejected",
+                "rejection": entry.meta["rejection"]}
+
+
+def apply_restore(project_id: str, profile_id: str) -> dict[str, Any]:
+    """Un-reject a shape, returning it to its pre-reject state (approved or
+    provisional), lock-guarded + atomic. 404 if unknown, 409 if not currently
+    rejected. Returns the RESTORED state."""
+    with _lock:
+        lib = load_project_library(project_id)
+        entry = lib.get(profile_id)
+        if entry is None:
+            return {"ok": False, "error": f"no such profile: {profile_id}",
+                    "status": 404}
+        try:
+            lib.restore(profile_id)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc), "status": 409}
+        save_project_library(project_id, lib)
+        return {"ok": True, "profile_id": profile_id, "state": entry.state}
+
+
 def _schema_field_names(project_id: str) -> set[str]:
     schema = load_target_schema(project_id)
     if not schema:
@@ -340,6 +390,7 @@ def apply_vocab_change(project_id: str, action: str, target: str, *,
                        added_by: str = "",
                        note: str | None = ...,     # type: ignore[assignment]
                        example: str | None = ...,  # type: ignore[assignment]
+                       free_form: bool = False,
                        ) -> dict[str, Any]:
     """CRUD on the per-project learned value vocabulary, lock-guarded + atomic.
 
@@ -375,6 +426,12 @@ def apply_vocab_change(project_id: str, action: str, target: str, *,
                     return {"ok": False,
                             "error": f"{target} has no learned value {value!r}"}
                 result = {"removed": value}
+            elif action == "set_free_form":
+                vocab.set_free_form(target, bool(free_form))
+                result = {"target": target, "free_form": vocab.is_free_form(target)}
+            elif action == "clear_free_form":
+                vocab.set_free_form(target, False)
+                result = {"target": target, "free_form": False}
             else:
                 return {"ok": False, "error": f"unknown action: {action}"}
         except (ValueError, KeyError) as exc:
@@ -405,6 +462,8 @@ def load_batch_output_records(project_id: str, stem: str) -> list[dict[str, Any]
 
 
 __all__ = [
+    "apply_rejection",
+    "apply_restore",
     "apply_vocab_change",
     "effective_target_schema",
     "library_path",

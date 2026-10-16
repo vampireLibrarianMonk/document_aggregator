@@ -102,10 +102,37 @@ export interface AlignmentOutput {
   pathway: string
 }
 
+/** The lifecycle state of a learned shape. */
+export type LibraryState = 'provisional' | 'approved' | 'retired' | 'rejected'
+
+/** The fixed set of structured reasons a reviewer may give when rejecting a
+ *  learned shape. Mirrors the backend REJECT_CATEGORIES. */
+export const REJECT_CATEGORIES = [
+  'not_our_data',
+  'wrong_mapping',
+  'duplicate_shape',
+  'bad_source_data',
+  'other',
+] as const
+export type RejectCategory = (typeof REJECT_CATEGORIES)[number]
+
+/** The structured rejection reason stored on a declined shape (server-composed). */
+export interface RejectionRecord {
+  category: RejectCategory
+  fields?: string[]
+  note?: string
+  composed_text: string
+  rejected_at: string
+  rejected_by: string
+  /** The state the shape held BEFORE the reject, so restore is a clean
+   *  round-trip (approved->rejected->restore lands on approved). */
+  prev_state?: 'approved' | 'provisional'
+}
+
 /** One learned shape in a project's alignment profile library. */
 export interface LibraryEntry {
   profile_id: string
-  state: 'provisional' | 'approved' | 'retired'
+  state: LibraryState
   version: number
   mapped: Record<string, string>
   needs_review: string[]
@@ -121,6 +148,8 @@ export interface LibraryEntry {
   source_docs: string[]
   /** Total number of source files that fed this shape (may exceed source_docs). */
   source_doc_count: number
+  /** The structured rejection reason when this shape was declined (else null). */
+  rejection?: RejectionRecord | null
 }
 
 export interface AlignmentLibrary {
@@ -128,6 +157,7 @@ export interface AlignmentLibrary {
   target_title: string
   approved: string[]
   provisional: string[]
+  rejected: string[]
   entries: LibraryEntry[]
 }
 
@@ -148,6 +178,9 @@ export interface VocabField {
   description: string
   builtin: string[]
   learned: VocabEntry[]
+  /** The per-field free-form marker: when true the field is unconstrained and
+   *  built-in/learned values are shown inactive. */
+  free_form: boolean
 }
 
 /** The per-project learned value vocabulary (one entry per enumerable field). */

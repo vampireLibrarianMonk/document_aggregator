@@ -17,6 +17,8 @@ import type {
   Project,
   ProjectKind,
   RawDoc,
+  RejectCategory,
+  RejectionRecord,
   Report,
   ProjectComponent,
   ProjectModels,
@@ -34,6 +36,21 @@ async function json<T>(res: Response): Promise<T> {
     throw new Error(`${res.status}: ${text}`)
   }
   return res.json() as Promise<T>
+}
+
+/** Extract a clean server message from an Error thrown by `json<T>`. The helper
+ *  throws `Error("<status>: <rawBody>")`; for a FastAPI HTTPException the raw
+ *  body is `{"detail":"msg"}`, so strip the status prefix and parse out detail
+ *  (falling back to the stripped body when it isn't JSON). */
+export function serverDetail(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e)
+  const body = msg.replace(/^\d+:\s*/, '')
+  try {
+    const parsed = JSON.parse(body)
+    return typeof parsed?.detail === 'string' ? parsed.detail : body
+  } catch {
+    return body
+  }
 }
 
 export const api = {
@@ -472,6 +489,33 @@ export const api = {
     }).then((r) => json(r))
   },
 
+  /** Reject a learned shape with a server-validated structured reason. The
+   *  server composes + stores a canonical reason and declines future files of
+   *  this shape. Throws on 422 (hollow reason) / 404 (unknown profile). */
+  rejectProfile(
+    projectId: string,
+    body: { profile_id: string; category: RejectCategory; fields?: string[]; note?: string },
+  ): Promise<{ project_id: string; profile_id: string; state: 'rejected'; rejection: RejectionRecord }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => json(r))
+  },
+
+  /** Un-reject a shape, returning it to its pre-reject state (approved or
+   *  provisional). Throws on 409 (not rejected) / 404 (unknown profile). */
+  restoreProfile(
+    projectId: string,
+    profileId: string,
+  ): Promise<{ project_id: string; profile_id: string; state: 'approved' | 'provisional' }> {
+    return fetch(`${BASE}/projects/${projectId}/alignment/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id: profileId }),
+    }).then((r) => json(r))
+  },
+
   /** Record a human field-by-field correspondence on a learned shape: map a
    *  golden field to a real source path, or null to leave it unmapped. */
   overrideFieldMapping(
@@ -505,14 +549,15 @@ export const api = {
   changeValueVocab(
     projectId: string,
     change: {
-      action: 'add' | 'update' | 'remove'
+      action: 'add' | 'update' | 'remove' | 'set_free_form' | 'clear_free_form'
       target: string
-      value: string
+      value?: string
       new_value?: string | null
       alias?: string | null
       added_by?: string
       note?: string | null
       example?: string | null
+      free_form?: boolean
     },
   ): Promise<{ project_id: string; change: unknown; vocab: ValueVocab['fields'] }> {
     return fetch(`${BASE}/projects/${projectId}/alignment/value-vocab`, {

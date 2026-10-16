@@ -776,12 +776,16 @@ def get_library(project_id: str) -> dict:
             # card), with the total count when more than the stored sample.
             "source_docs": list(meta.get("source_docs", [])),
             "source_doc_count": int(meta.get("source_doc_count", 0)),
+            # The structured rejection reason when this shape was declined
+            # (null for non-rejected entries). Lives on the ENTRY's meta.
+            "rejection": (e.meta or {}).get("rejection"),
         })
     return {
         "project_id": project_id,
         "target_title": lib.target_title,
         "approved": lib.approved_ids(),
         "provisional": lib.provisional_ids(),
+        "rejected": lib.rejected_ids(),
         "entries": entries,
     }
 
@@ -808,6 +812,49 @@ def approve_profile(project_id: str, body: ApproveProfile) -> dict:
     save_project_library(project_id, lib)
     return {"project_id": project_id, "approved": body.profile_id,
             "state": "approved"}
+
+
+class RejectProfile(BaseModel):
+    profile_id: str
+    category: str
+    fields: list[str] | None = None
+    note: str | None = None
+    rejected_by: str | None = None   # provenance; defaults to "reviewer"
+
+
+@app.post("/projects/{project_id}/alignment/reject")
+def reject_profile(project_id: str, body: RejectProfile) -> dict:
+    """Reject a learned shape with a SERVER-VALIDATED structured reason. The
+    reason is composed into a canonical string and remembered, so the shape's
+    future files are quarantined (declined) rather than re-prompted as a
+    provisional card. Reversible via /restore. Hollow reasons -> 422."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import apply_rejection
+
+    result = apply_rejection(project_id, body.profile_id, body.category,
+                             body.fields, body.note, body.rejected_by or "reviewer")
+    if not result.get("ok"):
+        raise HTTPException(result.get("status", 400),
+                            result.get("error", "reject failed"))
+    return {"project_id": project_id, **result}
+
+
+class RestoreProfile(BaseModel):
+    profile_id: str
+
+
+@app.post("/projects/{project_id}/alignment/restore")
+def restore_profile(project_id: str, body: RestoreProfile) -> dict:
+    """Un-reject a shape, returning it to its pre-reject state (approved or
+    provisional). 404 unknown, 409 if not currently rejected."""
+    _resolve_project(project_id)
+    from .json_alignment.project_store import apply_restore
+
+    result = apply_restore(project_id, body.profile_id)
+    if not result.get("ok"):
+        raise HTTPException(result.get("status", 400),
+                            result.get("error", "restore failed"))
+    return {"project_id": project_id, **result}
 
 
 class OverrideField(BaseModel):
@@ -858,8 +905,9 @@ def get_value_vocab(project_id: str) -> dict:
     show which values came from the schema and which a human added — the audit
     surface that keeps the learned vocabulary from being a silent backdoor.
 
-    Only enumerable fields (those with a declared taxonomy OR at least one
-    learned value) are returned."""
+    Returns EVERY top-level golden-schema property, each with its built-in
+    taxonomy, learned values, and free-form flag (so a free-text field can be
+    opted into enumeration or marked free-form)."""
     _resolve_project(project_id)
     from .json_alignment.project_store import load_target_schema, load_value_vocab
 
@@ -872,20 +920,29 @@ def get_value_vocab(project_id: str) -> dict:
     for name, node in (props.items() if isinstance(props, dict) else []):
         if not isinstance(node, dict):
             continue
-        builtin = list(node.get("x-pydi-taxonomy", []) or [])
+        # `builtin` mirrors extract_target's precedence EXACTLY, including the
+        # item-level enum for array fields, or a constrained array (genres[])
+        # would show an empty builtin and look free-text in the editor.
+        items = node.get("items") if isinstance(node.get("items"), dict) else {}
+        builtin = list(
+            node.get("enum")
+            or (items.get("enum") if isinstance(items, dict) else None)
+            or node.get("x-pydi-taxonomy")
+            or []
+        )
         learned = [e.to_dict() for e in vocab.list_field(name)]
-        if builtin or learned:
-            fields.append({
-                "target": name,
-                "description": str(node.get("description", "") or ""),
-                "builtin": builtin,            # read-only, from the schema
-                "learned": learned,            # editable, human-accepted
-            })
+        fields.append({
+            "target": name,
+            "description": str(node.get("description", "") or ""),
+            "builtin": builtin,                   # read-only, from the schema (incl. items.enum)
+            "learned": learned,                   # editable, human-accepted
+            "free_form": vocab.is_free_form(name),  # per-field free-form marker
+        })
     return {"project_id": project_id, "fields": fields}
 
 
 class VocabChange(BaseModel):
-    action: str                       # 'add' | 'update' | 'remove'
+    action: str                       # 'add' | 'update' | 'remove' | 'set_free_form' | 'clear_free_form'
     target: str                       # the golden field the value belongs to
     value: str = ""                   # the accepted value (and the key for update/remove)
     new_value: str | None = None      # for 'update': rename the value
@@ -893,6 +950,7 @@ class VocabChange(BaseModel):
     added_by: str = ""                # provenance
     note: str | None = None           # optional justification (None = omit)
     example: str | None = None        # source example that motivated it (None = omit)
+    free_form: bool | None = None     # for set_free_form/clear_free_form
 
 
 @app.post("/projects/{project_id}/alignment/value-vocab")
@@ -920,6 +978,8 @@ def change_value_vocab(project_id: str, body: VocabChange) -> dict:
         kwargs["alias"] = body.alias
         kwargs["note"] = body.note or ""
         kwargs["example"] = body.example or ""
+    if body.action in ("set_free_form", "clear_free_form"):
+        kwargs["free_form"] = bool(body.free_form)
     result = apply_vocab_change(project_id, body.action, body.target, **kwargs)
     if not result.get("ok"):
         raise HTTPException(400, result.get("error", "value-vocab change failed"))

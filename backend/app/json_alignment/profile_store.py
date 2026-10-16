@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,68 @@ LIBRARY_VERSION = 1
 STATE_PROVISIONAL = "provisional"   # inferred, awaiting one-time human approval
 STATE_APPROVED = "approved"         # a human signed off; replays automatically
 STATE_RETIRED = "retired"           # superseded (e.g. after drift) but kept for audit
+STATE_REJECTED = "rejected"         # a human declined this shape, with a structured reason
+
+# The fixed set of reasons a reviewer may give when rejecting a learned shape,
+# and the minimum informative length for a free-form note (non-whitespace chars).
+REJECT_CATEGORIES = ("not_our_data", "wrong_mapping", "duplicate_shape",
+                     "bad_source_data", "other")
+_MIN_NOTE_CHARS = 10
+
+
+def _reject_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def validate_rejection(category: str, fields: list[str] | None, note: str,
+                       *, known_fields: set[str]) -> tuple[bool, str]:
+    """Return (ok, error). PURE. Server-authoritative rejection-reason rules;
+    the frontend mirrors them for UX only.
+
+    `known_fields` is the golden schema's property names, used to validate a
+    `wrong_mapping` field selection names only REAL golden fields (never an
+    invented one, mirroring the override/vocab guards)."""
+    if category not in REJECT_CATEGORIES:
+        return False, f"unknown reject category: {category}"
+    if category == "wrong_mapping":
+        picked = list(fields or [])
+        if not picked:
+            return False, "wrong_mapping requires at least one golden field"
+        for name in picked:
+            if name not in known_fields:
+                return False, f"not a golden field: {name}"
+    elif category == "other":
+        # At least _MIN_NOTE_CHARS non-whitespace characters. "".join(note.split())
+        # collapses ALL whitespace so the bar is well-defined regardless of spacing.
+        if len("".join(note.split())) < _MIN_NOTE_CHARS:
+            return (False, "category 'other' requires an informative note "
+                           "(>= 10 non-whitespace characters)")
+    return True, ""
+
+
+def compose_rejection_text(category: str, fields: list[str] | None,
+                           note: str) -> str:
+    """Compose the canonical, human-readable rejection string the backend
+    stores (never client-supplied). Deterministic."""
+    note = (note or "").strip()
+    if category == "not_our_data":
+        text = "Rejected — not our data."
+    elif category == "wrong_mapping":
+        joined = ", ".join(fields or [])
+        text = f"Rejected — wrong field mapping ({joined})."
+    elif category == "duplicate_shape":
+        text = "Rejected — duplicate of an existing shape."
+    elif category == "bad_source_data":
+        text = "Rejected — bad source data."
+    elif category == "other":
+        text = f"Rejected — {note}."
+    else:  # defensive; validation blocks this upstream
+        text = "Rejected."
+    # For a non-'other' category, append the optional note (the 'other' text
+    # already carries the note as its body).
+    if category != "other" and note:
+        text = f"{text} Note: {note}"
+    return text
 
 
 @dataclass
@@ -203,17 +266,72 @@ class ProfileLibrary:
         entry.state = STATE_RETIRED
         return entry
 
+    def reject(self, profile_id: str, *, category: str, fields: list[str] | None,
+               note: str, composed_text: str, rejected_by: str = "") -> LibraryEntry:
+        """Decline a shape with a structured, pre-validated reason.
+
+        Captures the entry's CURRENT state into entry.meta['rejection']
+        ['prev_state'] BEFORE flipping it, so restore() can return the shape to
+        exactly where it came from (approved->rejected->restore lands on
+        approved; provisional->rejected->restore lands on provisional). Sets
+        state=rejected and stores the structured reason on entry.meta. Allowed
+        from any non-retired state. Unknown id raises KeyError. Does not bump
+        version (a reject is a state transition on the same shape)."""
+        entry = self.entries[profile_id]
+        record: dict[str, Any] = {
+            "category": category,
+            "composed_text": composed_text,
+            "rejected_at": _reject_now_iso(),
+            "rejected_by": rejected_by,
+            "prev_state": entry.state,
+        }
+        if fields:
+            record["fields"] = list(fields)
+        if note:
+            record["note"] = note
+        entry.meta["rejection"] = record
+        entry.state = STATE_REJECTED
+        return entry
+
+    def restore(self, profile_id: str) -> LibraryEntry:
+        """Un-reject: return a rejected entry to the state it held BEFORE the
+        reject (meta['rejection']['prev_state']), then clear the reason. A
+        missing prev_state falls back to provisional. Raises KeyError on unknown
+        id, ValueError if the entry is not currently rejected."""
+        entry = self.entries[profile_id]
+        if entry.state != STATE_REJECTED:
+            raise ValueError(f"profile {profile_id!r} is not rejected")
+        rejection = entry.meta.get("rejection") or {}
+        prev_state = rejection.get("prev_state") or STATE_PROVISIONAL
+        entry.state = prev_state
+        entry.meta.pop("rejection", None)
+        return entry
+
     # -- lookup -------------------------------------------------------------
 
     def get(self, profile_id: str) -> LibraryEntry | None:
         return self.entries.get(profile_id)
 
     def signatures(self, *, approved_only: bool = False) -> dict[str, Signature]:
-        """profile_id -> Signature, for routing (optionally approved shapes only)."""
-        return {
-            pid: e.signature for pid, e in self.entries.items()
-            if e.state != STATE_RETIRED and (not approved_only or e.is_approved)
-        }
+        """profile_id -> Signature. By default excludes RETIRED and REJECTED
+        entries so a rejected shape is never a routing/replay target under any
+        flag; approved_only further narrows to approved entries.
+
+        Making the rejected exclusion structural (not incidental to the one
+        approved_only=True caller) means even a careless unfiltered consumer
+        cannot resurrect a rejected shape. Backward compatible: with no rejected
+        entries the returned set is byte-identical to before."""
+        if approved_only:
+            return {pid: e.signature for pid, e in self.entries.items()
+                    if e.is_approved}
+        return {pid: e.signature for pid, e in self.entries.items()
+                if e.state not in (STATE_RETIRED, STATE_REJECTED)}
+
+    def rejected_signatures(self) -> dict[str, Signature]:
+        """profile_id -> Signature for REJECTED entries, for declined-shape
+        routing in decide_pathway."""
+        return {pid: e.signature for pid, e in self.entries.items()
+                if e.state == STATE_REJECTED}
 
     def approved_ids(self) -> list[str]:
         return sorted(pid for pid, e in self.entries.items() if e.is_approved)
@@ -221,6 +339,10 @@ class ProfileLibrary:
     def provisional_ids(self) -> list[str]:
         return sorted(pid for pid, e in self.entries.items()
                       if e.state == STATE_PROVISIONAL)
+
+    def rejected_ids(self) -> list[str]:
+        return sorted(pid for pid, e in self.entries.items()
+                      if e.state == STATE_REJECTED)
 
     # -- persistence --------------------------------------------------------
 
@@ -261,15 +383,19 @@ def load_library(path: str | Path) -> ProfileLibrary:
 __all__ = [
     "LIBRARY_VERSION",
     "PROFILE_VERSION",
+    "REJECT_CATEGORIES",
     "STATE_APPROVED",
     "STATE_PROVISIONAL",
+    "STATE_REJECTED",
     "STATE_RETIRED",
     "ConversionProfile",
     "LibraryEntry",
     "ProfileLibrary",
     "build_profile",
+    "compose_rejection_text",
     "load_library",
     "load_profile",
     "save_library",
     "save_profile",
+    "validate_rejection",
 ]

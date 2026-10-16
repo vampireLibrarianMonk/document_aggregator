@@ -1,13 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from '../api/client'
+import { api, serverDetail } from '../api/client'
 import type {
   AlignmentLibrary,
   AlignmentOutput,
   BatchSummary,
   JobStatus,
   Project,
+  RejectCategory,
   VocabField,
 } from '../api/types'
+import { REJECT_CATEGORIES } from '../api/types'
+
+/** Friendly labels for the structured reject categories. */
+const REJECT_CATEGORY_LABELS: Record<RejectCategory, string> = {
+  not_our_data: 'Not our data',
+  wrong_mapping: 'Wrong field mapping',
+  duplicate_shape: 'Duplicate of an existing shape',
+  bad_source_data: 'Bad source data',
+  other: 'Other (explain)',
+}
+
+/** Client mirror of the server's note rule (byte-for-byte identical predicate):
+ *  an 'other' note must have at least 10 non-whitespace characters. */
+function noteIsInformative(note: string): boolean {
+  return note.replace(/\s/g, '').length >= 10
+}
 
 interface Props {
   project: Project
@@ -98,7 +115,7 @@ function RelevanceDial({ project, onProjectChange }: Props) {
  *  Teaching a value here lets a batch run accept it (e.g. platform 'Linux')
  *  without the matcher ever guessing; removing it re-vetoes the value. Built-in
  *  and learned are shown separately so the list stays auditable. */
-function AcceptedValuesEditor({ project }: { project: Project }) {
+export function AcceptedValuesEditor({ project }: { project: Project }) {
   const [fields, setFields] = useState<VocabField[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)        // "target" being changed
@@ -107,7 +124,7 @@ function AcceptedValuesEditor({ project }: { project: Project }) {
   const load = useCallback(() => {
     api.getValueVocab(project.id)
       .then((r) => { setFields(r.fields); setErr(null) })
-      .catch(() => setFields([]))  // no schema yet / no enumerable fields
+      .catch(() => setFields([]))  // no schema yet
   }, [project.id])
 
   useEffect(() => { load() }, [load])
@@ -129,36 +146,71 @@ function AcceptedValuesEditor({ project }: { project: Project }) {
     }
   }
 
+  // Toggle the per-field free-form marker. The server is authoritative: we
+  // refresh from its response so the inactive styling reflects the stored state.
+  const toggleFreeForm = async (target: string, on: boolean) => {
+    setBusy(target)
+    setErr(null)
+    try {
+      const r = await api.changeValueVocab(project.id, {
+        action: on ? 'set_free_form' : 'clear_free_form', target, value: '', free_form: on,
+      })
+      setFields(r.vocab)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (fields === null) return null
-  if (fields.length === 0) return null  // nothing enumerable to show
+  if (fields.length === 0) return null  // no schema set yet
+
+  const inactive = { opacity: 0.45, textDecoration: 'line-through' as const }
 
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
       <div className="row">
         <strong>Accepted values</strong>
         <span className="muted small">
-          · per field: built-in (from the schema) + values you accept
+          · per field: built-in (from the schema) + values you accept, or mark free-form
         </span>
       </div>
       <p className="small muted" style={{ margin: '4px 0 8px' }}>
         Add a value here to allow it for a field (e.g. a platform or rating the
         schema didn’t list). Removing a learned value makes future runs reject it
-        again. Built-in values come from the schema and can’t be edited here.
+        again. Built-in values come from the schema and can’t be edited here. Mark
+        a field <b>free-form</b> to accept any value — this overrides the lists
+        below (they’re kept and reactivate when you turn free-form off).
       </p>
       {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
       <table className="docs">
         <thead>
-          <tr><th>Field</th><th>Built-in</th><th>Accepted (learned)</th><th>Add</th></tr>
+          <tr>
+            <th>Field</th><th>Built-in</th><th>Accepted (learned)</th>
+            <th>Free-form</th><th>Add</th>
+          </tr>
         </thead>
         <tbody>
           {fields.map((f) => (
             <tr key={f.target}>
-              <td className="mono small" title={f.description}>{f.target}</td>
+              <td className="mono small" title={f.description}>
+                {f.target}
+                {f.free_form && (
+                  <span className="chip" style={{ marginLeft: 6 }}
+                        aria-label="free-form — accepts anything">
+                    free-form — accepts anything
+                  </span>
+                )}
+              </td>
               <td className="small">
                 {f.builtin.length === 0
                   ? <span className="muted">—</span>
                   : f.builtin.map((v) => (
-                      <span key={v} className="chip muted" style={{ marginRight: 4 }}>{v}</span>
+                      <span key={v} className="chip muted" style={{ marginRight: 4, ...(f.free_form ? inactive : {}) }}
+                            aria-label={f.free_form ? 'inactive while free-form is on' : undefined}>
+                        {v}
+                      </span>
                     ))}
               </td>
               <td className="small">
@@ -167,15 +219,28 @@ function AcceptedValuesEditor({ project }: { project: Project }) {
                   : f.learned.map((e) => (
                       <span key={e.value} className="chip"
                             title={`added by ${e.added_by || 'unknown'}${e.note ? ' — ' + e.note : ''}`}
-                            style={{ marginRight: 4 }}>
+                            aria-label={f.free_form ? 'inactive while free-form is on' : undefined}
+                            style={{ marginRight: 4, ...(f.free_form ? inactive : {}) }}>
                         {e.value}
                         <button className="chip-x" aria-label={`Remove ${e.value}`}
-                                disabled={busy === f.target}
+                                disabled={busy === f.target || f.free_form}
                                 onClick={() => void change('remove', f.target, e.value)}>
                           ×
                         </button>
                       </span>
                     ))}
+              </td>
+              <td>
+                <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Mark ${f.target} free-form`}
+                    checked={f.free_form}
+                    disabled={busy === f.target}
+                    onChange={(ev) => void toggleFreeForm(f.target, ev.target.checked)}
+                  />
+                  free-form
+                </label>
               </td>
               <td>
                 <div className="row" style={{ gap: 4 }}>
@@ -184,14 +249,15 @@ function AcceptedValuesEditor({ project }: { project: Project }) {
                     aria-label={`Accept a value for ${f.target}`}
                     placeholder="value…"
                     value={draft[f.target] ?? ''}
-                    disabled={busy === f.target}
+                    disabled={busy === f.target || f.free_form}
                     onChange={(ev) => setDraft((d) => ({ ...d, [f.target]: ev.target.value }))}
                     onKeyDown={(ev) => {
                       if (ev.key === 'Enter') void change('add', f.target, draft[f.target] ?? '')
                     }}
                     style={{ width: 120 }}
                   />
-                  <button className="btn small" disabled={busy === f.target || !(draft[f.target] ?? '').trim()}
+                  <button className="btn small"
+                          disabled={busy === f.target || f.free_form || !(draft[f.target] ?? '').trim()}
                           onClick={() => void change('add', f.target, draft[f.target] ?? '')}>
                     +
                   </button>
@@ -225,12 +291,16 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
       .catch(() => { setLoaded('unset'); onConfigured?.(false) })
   }, [project.id, onConfigured])
 
-  const save = async () => {
+  // Save takes the raw text explicitly (defaulting to the textarea state) so an
+  // uploaded file's bytes save directly — a setText(...) + save() sequence would
+  // close over the PREVIOUS text (React state hasn't flushed), which would parse
+  // '' on the first upload and the prior file on later ones.
+  const save = async (raw: string = text) => {
     setErr(null)
     setStatus(null)
     let parsed: unknown
     try {
-      parsed = JSON.parse(text)
+      parsed = JSON.parse(raw)
     } catch {
       setErr('Not valid JSON')
       return
@@ -243,6 +313,19 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     }
+  }
+
+  // Upload a .json schema file: read its bytes, show them in the textarea, and
+  // save from the raw text through the SAME save path as paste (same JSON parse,
+  // same backend validation). Resetting value lets re-selecting the same file
+  // re-fire onChange.
+  const onPickSchemaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const fileText = await file.text()
+    setText(fileText)          // display only
+    await save(fileText)       // save from the raw bytes, not stale state
   }
 
   return (
@@ -267,10 +350,20 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
           style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, marginTop: 6 }}
           placeholder='{ "title": "...", "type": "object", "properties": { ... }, "required": [ ... ] }'
         />
-        <div className="row" style={{ marginTop: 6 }}>
+        <div className="row" style={{ marginTop: 6, gap: 8, alignItems: 'center' }}>
           <button className="btn small" onClick={() => void save()} disabled={!text.trim()}>
             Save golden schema
           </button>
+          <label htmlFor="golden-schema-file" className="small muted">
+            or upload a .json file:
+          </label>
+          <input
+            id="golden-schema-file"
+            type="file"
+            accept=".json"
+            aria-label="Upload schema file"
+            onChange={(e) => void onPickSchemaFile(e)}
+          />
           <div className="spacer" />
         </div>
         <div role="status" aria-live="polite">
@@ -293,6 +386,7 @@ const PATHWAY_LABELS: Record<string, string> = {
   novel_research: 'New shape — needs approval',
   review: 'Needs human review',
   reject_irrelevant: 'Quarantined (unrelated)',
+  declined: 'Declined (you rejected this shape)',
 }
 
 function BatchStatus({ summary }: { summary: BatchSummary }) {
@@ -331,6 +425,18 @@ export function ApprovalCards({ project, library, onApproved }: {
 }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [remapping, setRemapping] = useState<string | null>(null)
+  // The FULL golden-schema field list (every top-level property), used as the
+  // source for the wrong_mapping field picker so the UI never offers fewer
+  // fields than the server's validation accepts. Fetched once from the vocab.
+  const [goldenFields, setGoldenFields] = useState<string[] | null>(null)
+  // Which profile's reject form is open, plus its in-progress reason + any
+  // server error (kept open on a 422 so the reviewer can fix the reason).
+  const [rejectOpen, setRejectOpen] = useState<string | null>(null)
+  const [rejectCat, setRejectCat] = useState<RejectCategory>('not_our_data')
+  const [rejectFields, setRejectFields] = useState<string[]>([])
+  const [rejectNote, setRejectNote] = useState('')
+  const [rejectErr, setRejectErr] = useState<string | null>(null)
+  const [rejecting, setRejecting] = useState(false)
   // Per-(profile,field) draft value a reviewer is accepting into the vocabulary,
   // and which field is mid-save, so the inline "accept value" control is local.
   const [acceptDraft, setAcceptDraft] = useState<Record<string, string>>({})
@@ -348,6 +454,14 @@ export function ApprovalCards({ project, library, onApproved }: {
     conformant: number; needs_review: number
   }>>({})
   const provisional = library.entries.filter((e) => e.state === 'provisional')
+
+  // Load the full golden-field list once (for the wrong_mapping picker).
+  useEffect(() => {
+    api.getValueVocab(project.id)
+      .then((r) => setGoldenFields(r.fields.map((f) => f.target)))
+      .catch(() => setGoldenFields(null))
+  }, [project.id])
+
   if (provisional.length === 0) return null
 
   // Approve a shape: promote its mapping to approved and refresh the library.
@@ -358,6 +472,56 @@ export function ApprovalCards({ project, library, onApproved }: {
       onApproved()
     } finally {
       setBusy(null)
+    }
+  }
+
+  // Open/close the inline reject form for a shape (resets the draft reason).
+  const openReject = (pid: string) => {
+    setRejectOpen(pid)
+    setRejectCat('not_our_data')
+    setRejectFields([])
+    setRejectNote('')
+    setRejectErr(null)
+  }
+
+  // The golden fields a wrong_mapping reject may pick: the FULL schema field
+  // list when available, else the card-derived union (mapped ∪ needs_review ∪
+  // conflicts) so the picker always offers at least the fields on the card.
+  const fieldsForPicker = (e: AlignmentLibrary['entries'][number]): string[] => {
+    if (goldenFields && goldenFields.length > 0) return goldenFields
+    return Array.from(new Set([
+      ...Object.keys(e.mapped), ...e.needs_review, ...e.conflicts,
+    ]))
+  }
+
+  // Client mirror of validate_rejection (UX only; the server re-validates).
+  const rejectValid = (): boolean => {
+    if (rejectCat === 'wrong_mapping') return rejectFields.length > 0
+    if (rejectCat === 'other') return noteIsInformative(rejectNote)
+    return true
+  }
+
+  // Submit the reject; only refresh after the server confirms state==='rejected'.
+  // On 422 keep the form open and show the parsed server message.
+  const submitReject = async (pid: string) => {
+    if (!rejectValid() || rejecting) return
+    setRejecting(true)
+    setRejectErr(null)
+    try {
+      const res = await api.rejectProfile(project.id, {
+        profile_id: pid,
+        category: rejectCat,
+        fields: rejectCat === 'wrong_mapping' ? rejectFields : undefined,
+        note: rejectNote.trim() ? rejectNote : undefined,
+      })
+      if (res.state === 'rejected') {
+        setRejectOpen(null)
+        onApproved()
+      }
+    } catch (e) {
+      setRejectErr(serverDetail(e))
+    } finally {
+      setRejecting(false)
     }
   }
 
@@ -456,6 +620,12 @@ export function ApprovalCards({ project, library, onApproved }: {
         approve, every future file of this shape converts automatically, with no
         more prompts.
       </p>
+      <p className="small muted" style={{ margin: '0 0 8px' }}>
+        <b>Reject</b> is the opposite of Approve: it declines a shape with a
+        reason, and every future file of that shape is quarantined (declined)
+        instead of being prompted again. You can review and undo rejections in
+        <i> Rejected shapes</i> below.
+      </p>
       {provisional.map((e) => (
         <div key={e.profile_id} className="panel" style={{ marginBottom: 8 }}>
           <div className="row">
@@ -469,7 +639,87 @@ export function ApprovalCards({ project, library, onApproved }: {
             >
               {busy === e.profile_id ? 'Approving…' : 'Approve'}
             </button>
+            <button
+              className="btn secondary small"
+              style={{ marginLeft: 6 }}
+              aria-expanded={rejectOpen === e.profile_id}
+              onClick={() =>
+                rejectOpen === e.profile_id ? setRejectOpen(null) : openReject(e.profile_id)}
+            >
+              Reject
+            </button>
           </div>
+          {rejectOpen === e.profile_id && (
+            <div className="panel" style={{ marginTop: 6 }}>
+              <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <label htmlFor={`reject-cat-${e.profile_id}`} className="small muted">
+                  Reason
+                </label>
+                <select
+                  id={`reject-cat-${e.profile_id}`}
+                  className="small"
+                  value={rejectCat}
+                  onChange={(ev) => setRejectCat(ev.target.value as RejectCategory)}
+                >
+                  {REJECT_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{REJECT_CATEGORY_LABELS[c]}</option>
+                  ))}
+                </select>
+              </div>
+              {rejectCat === 'wrong_mapping' && (
+                <fieldset className="small" style={{ marginTop: 6, border: 'none', padding: 0 }}>
+                  <legend className="muted">Which golden field(s) are mismapped?</legend>
+                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    {fieldsForPicker(e).map((fname) => (
+                      <label key={fname} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`mismapped field ${fname}`}
+                          checked={rejectFields.includes(fname)}
+                          onChange={(ev) =>
+                            setRejectFields((prev) =>
+                              ev.target.checked
+                                ? [...prev, fname]
+                                : prev.filter((x) => x !== fname))}
+                        />
+                        <span className="mono">{fname}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+              <div style={{ marginTop: 6 }}>
+                <label htmlFor={`reject-note-${e.profile_id}`} className="small muted"
+                       style={{ display: 'block' }}>
+                  Note{rejectCat === 'other' ? ' (required — at least 10 characters)' : ' (optional)'}
+                </label>
+                <textarea
+                  id={`reject-note-${e.profile_id}`}
+                  className="small"
+                  rows={2}
+                  value={rejectNote}
+                  onChange={(ev) => setRejectNote(ev.target.value)}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              {rejectErr && (
+                <p className="small" role="alert" style={{ color: 'var(--err)' }}>{rejectErr}</p>
+              )}
+              <div className="row" style={{ gap: 6, marginTop: 6 }}>
+                <button
+                  className="btn small"
+                  disabled={!rejectValid() || rejecting}
+                  onClick={() => void submitReject(e.profile_id)}
+                >
+                  {rejecting ? 'Rejecting…' : 'Confirm reject'}
+                </button>
+                <button className="btn secondary small" disabled={rejecting}
+                        onClick={() => setRejectOpen(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {e.source_docs && e.source_docs.length > 0 && (
             <p className="small muted" style={{ margin: '2px 0 0' }}>
               Learned from: <span className="mono">{e.source_docs.join(', ')}</span>
@@ -585,6 +835,76 @@ export function ApprovalCards({ project, library, onApproved }: {
         </div>
       ))}
     </div>
+  )
+}
+
+/** A collapsed review of REJECTED shapes with per-entry restore/undo. Shown
+ *  only when the project has rejected shapes. Restore is server-confirmed: the
+ *  library only refreshes after the server returns a non-rejected state (the
+ *  shape then reappears as approved or provisional per its prev_state).
+ *  Exported for unit testing. */
+export function RejectedShapes({ project, library, onRestored }: {
+  project: Project
+  library: AlignmentLibrary
+  onRestored: () => void
+}) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const rejected = library.entries.filter((e) => e.state === 'rejected')
+  if (rejected.length === 0) return null
+
+  const restore = async (pid: string) => {
+    setBusy(pid)
+    setErr(null)
+    try {
+      const res = await api.restoreProfile(project.id, pid)
+      // Server-confirmed: refresh only after a non-rejected state comes back.
+      if (res.state === 'approved' || res.state === 'provisional') onRestored()
+    } catch (e) {
+      setErr(serverDetail(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const fmt = (iso: string): string => {
+    const d = new Date(iso)
+    return isNaN(d.getTime()) ? iso : d.toLocaleString()
+  }
+
+  return (
+    <details className="panel" style={{ marginBottom: 12 }}>
+      <summary>
+        <strong>Rejected shapes</strong>{' '}
+        <span className="muted small">· {rejected.length} declined — review or undo</span>
+      </summary>
+      {err && <p className="small" role="alert" style={{ color: 'var(--err)' }}>{err}</p>}
+      <table className="docs" style={{ marginTop: 8 }}>
+        <thead>
+          <tr><th>Shape</th><th>Reason</th><th>Why</th><th>When</th><th /></tr>
+        </thead>
+        <tbody>
+          {rejected.map((e) => {
+            const rj = e.rejection
+            const cat = rj?.category
+            return (
+              <tr key={e.profile_id}>
+                <td className="mono small">{e.profile_id}</td>
+                <td className="small">{cat ? REJECT_CATEGORY_LABELS[cat] : '—'}</td>
+                <td className="small muted">{rj?.composed_text ?? ''}</td>
+                <td className="small muted">{rj?.rejected_at ? fmt(rj.rejected_at) : ''}</td>
+                <td>
+                  <button className="btn small" disabled={busy === e.profile_id}
+                          onClick={() => void restore(e.profile_id)}>
+                    {busy === e.profile_id ? 'Restoring…' : 'Restore'}
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </details>
   )
 }
 
@@ -743,13 +1063,22 @@ export function BatchConvertPanel({ project }: { project: Project }) {
             onApproved={refreshLibrary}
           />
         ) : (
-          summary && summary.conformed_records === 0 && (
+          summary && summary.conformed_records === 0 &&
+          !(library && library.entries.some((e) => e.state === 'rejected')) && (
             <p className="small" role="status" style={{ color: 'var(--warn)' }}>
               Nothing conformed and no shapes are awaiting approval. If
               <b> Learn new shapes</b> was off, turn it on and re-upload: new
               shapes will then be learned here for you to approve.
             </p>
           )
+        )}
+
+        {library && (
+          <RejectedShapes
+            project={project}
+            library={library}
+            onRestored={refreshLibrary}
+          />
         )}
       </div>
     </div>

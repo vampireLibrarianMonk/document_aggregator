@@ -59,6 +59,7 @@ PATHWAY_DRIFT_REPAIR = "drift_repair"
 PATHWAY_NOVEL = "novel_research"
 PATHWAY_REVIEW = "review"
 PATHWAY_REJECT = "reject_irrelevant"
+PATHWAY_DECLINED = "declined"   # shape was human-rejected; quarantine, do not re-learn
 
 
 @dataclass
@@ -162,6 +163,27 @@ def decide_pathway(cluster: Cluster, target_schema: dict[str, Any],
     `research_available` reflects whether a non-deterministic recovery path
     (model tier) is enabled; when False, a deterministic reject is final."""
     target = extract_target(target_schema)
+
+    # 0. Human-rejected shape -> declined (quarantine; never re-learned). Checked
+    #    BEFORE the approved-match logic: a shape cannot be simultaneously
+    #    approved and rejected (same deterministic pid, single state), so order
+    #    only matters for a MODERATE near-miss, where a human's explicit
+    #    rejection should dominate. Same HIGH/MODERATE banding as approved shapes
+    #    so a near-identical re-upload with cosmetic drift is still caught.
+    rejected_sigs = library.rejected_signatures()
+    rpid, rmatch = best_match(cluster.signature, rejected_sigs)
+    if rpid is not None and rmatch.band in (BAND_HIGH, BAND_MODERATE):
+        rentry = library.get(rpid)
+        rcat = ""
+        if rentry is not None:
+            rcat = (rentry.meta.get("rejection", {}) or {}).get("category", "")
+        return ClusterDecision(
+            cluster_key=cluster.key, pathway=PATHWAY_DECLINED,
+            doc_ids=tuple(cluster.doc_ids), record_count=cluster.record_count,
+            matched_profile=rpid, match_band=rmatch.band,
+            reasons=(f"shape matches rejected profile '{rpid}' ({rcat}); "
+                     f"quarantined as declined, not re-learned",))
+
     approved_sigs = library.signatures(approved_only=True)
     pid, match = best_match(cluster.signature, approved_sigs)
     reasons: list[str] = []
@@ -290,6 +312,7 @@ def plan_batch(docs: list[SourceDoc], target_schema: dict[str, Any],
 
 
 __all__ = [
+    "PATHWAY_DECLINED",
     "PATHWAY_DRIFT_REPAIR",
     "PATHWAY_NOVEL",
     "PATHWAY_REJECT",

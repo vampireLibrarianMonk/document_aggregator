@@ -42,12 +42,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-VOCAB_VERSION = 1
+VOCAB_VERSION = 2
 
 # Schema keys the merge writes into (the same vendor-prefixed keys extract_target
 # already reads, so no extractor change is needed).
 _TAXONOMY_KEY = "x-pydi-taxonomy"
 _ALIASES_KEY = "x-pydi-taxonomy-aliases"
+# Audit marker written into the EFFECTIVE schema for a free-form field (never
+# persisted to the stored schema; the merge is pure).
+_FREE_FORM_KEY = "x-pydi-free-form"
 
 
 def _now_iso() -> str:
@@ -103,10 +106,30 @@ class ValueVocabulary:
     """Per-project learned values, keyed by target FIELD name.
 
     `by_field[target]` is the ordered list of VocabEntry a human accepted for
-    that golden field. Only fields with at least one learned value appear."""
+    that golden field. Only fields with at least one learned value appear.
+
+    `free_form_fields` is the set of golden fields a human marked FREE-FORM:
+    the field is treated as unconstrained (the value gate vetoes nothing for it)
+    and its built-in/learned values are overridden — retained in the vocab but
+    skipped at merge time, so turning free-form off re-folds them automatically.
+    Free-form is a property of the FIELD, not of any single learned value, and a
+    field can be free-form with zero learned values."""
     by_field: dict[str, list[VocabEntry]] = field(default_factory=dict)
+    free_form_fields: set[str] = field(default_factory=set)
     version: int = VOCAB_VERSION
     meta: dict[str, Any] = field(default_factory=dict)
+
+    # -- free-form ----------------------------------------------------------
+
+    def set_free_form(self, target: str, on: bool) -> None:
+        """Mark (or unmark) a field free-form."""
+        if on:
+            self.free_form_fields.add(target)
+        else:
+            self.free_form_fields.discard(target)
+
+    def is_free_form(self, target: str) -> bool:
+        return target in self.free_form_fields
 
     # -- CRUD ---------------------------------------------------------------
 
@@ -197,6 +220,7 @@ class ValueVocabulary:
                 tgt: [e.to_dict() for e in entries]
                 for tgt, entries in sorted(self.by_field.items())
             },
+            "free_form_fields": sorted(self.free_form_fields),
         }
 
     @classmethod
@@ -207,49 +231,117 @@ class ValueVocabulary:
         }
         return cls(
             by_field=by_field,
+            # Absent key (a v1 doc) -> empty set -> today's behavior.
+            free_form_fields=set(data.get("free_form_fields", []) or []),
             version=int(data.get("version", VOCAB_VERSION)),
             meta=dict(data.get("meta", {})),
         )
 
 
-def merge_vocab_into_schema(schema: dict[str, Any],
-                            vocab: ValueVocabulary) -> dict[str, Any]:
-    """Return a NEW schema with each field's learned values folded into its
-    taxonomy + aliases. PURE: does not mutate `schema` or `vocab`; the result is
-    a deterministic function of both.
+def _as_type_set(node: dict[str, Any]) -> set[str]:
+    """The node's declared JSON Schema types as a set (mirrors
+    target_profile._as_types; do NOT import the private helper across modules)."""
+    t = node.get("type")
+    if isinstance(t, str):
+        return {t}
+    return set(t or [])
 
-    For a target field with learned entries:
-      - each entry's `value` is appended to the field's `x-pydi-taxonomy`
-        (deduped, schema values first, then learned in stored order);
-      - each entry's `alias` (if any) is added to `x-pydi-taxonomy-aliases`
-        mapping alias -> value, WITHOUT overwriting an existing schema alias.
-    A field with no learned values is left exactly as the schema declares it.
-    Only fields that exist in the schema's `properties` are touched (a learned
-    value for an unknown field is ignored by the merge — the CRUD layer should
-    prevent that, but the merge stays safe either way)."""
-    if not vocab.by_field:
-        return schema
-    merged = copy.deepcopy(schema)
-    props = merged.get("properties")
-    if not isinstance(props, dict):
-        return merged
-    for tgt, entries in vocab.by_field.items():
-        node = props.get(tgt)
-        if not isinstance(node, dict) or not entries:
-            continue
-        tax = list(node.get(_TAXONOMY_KEY, []) or [])
+
+def _strip_field_constraints(node: dict[str, Any]) -> None:
+    """Remove every value constraint extract_target would read for this field so
+    the effective field is genuinely free-text. Covers scalar fields (top-level
+    enum/taxonomy) AND array fields whose constraint lives under `items` (e.g.
+    genres[] with items.enum). Also pops the never-read items.x-pydi-taxonomy as
+    a defensive over-strip (harmless; keeps the strip robust)."""
+    node.pop(_TAXONOMY_KEY, None)
+    node.pop("enum", None)
+    node.pop(_ALIASES_KEY, None)
+    items = node.get("items")
+    if isinstance(items, dict):
+        items.pop("enum", None)
+        items.pop(_TAXONOMY_KEY, None)
+        items.pop(_ALIASES_KEY, None)
+
+
+def _fold_values(node: dict[str, Any], entries: list[VocabEntry]) -> None:
+    """Fold learned values into the SAME constraint slot extract_target reads
+    for this field, so the value gate actually widens. A constrained array
+    (items.enum — the only array constraint extract_target reads) folds into its
+    `items.enum`. Everything else — a scalar free-text field, OR an array whose
+    only constraint was the never-read items.x-pydi-taxonomy — folds into the
+    TOP-LEVEL x-pydi-taxonomy, the slot extract_target falls through to when
+    there is no enum/items.enum. Aliases always ride the SAME node."""
+    types = _as_type_set(node)
+    items = node.get("items")
+    is_constrained_array = (
+        "array" in types
+        and isinstance(items, dict)
+        and "enum" in items          # ONLY items.enum is an array constraint extract_target reads
+    )
+    target_node = items if is_constrained_array else node
+
+    if is_constrained_array:
+        base = list(target_node.get("enum", []) or [])
+        seen = {str(v) for v in base}
+        for e in entries:
+            if e.value not in seen:
+                base.append(e.value)
+                seen.add(e.value)
+        target_node["enum"] = base
+    else:
+        tax = list(target_node.get(_TAXONOMY_KEY, []) or [])
         seen = {str(v) for v in tax}
         for e in entries:
             if e.value not in seen:
                 tax.append(e.value)
                 seen.add(e.value)
-        node[_TAXONOMY_KEY] = tax
-        aliases = dict(node.get(_ALIASES_KEY, {}) or {})
-        for e in entries:
-            if e.alias and e.alias not in aliases:
-                aliases[e.alias] = e.value
-        if aliases:
-            node[_ALIASES_KEY] = aliases
+        target_node[_TAXONOMY_KEY] = tax
+
+    aliases = dict(target_node.get(_ALIASES_KEY, {}) or {})
+    for e in entries:
+        if e.alias and e.alias not in aliases:
+            aliases[e.alias] = e.value
+    if aliases:
+        target_node[_ALIASES_KEY] = aliases
+
+
+def merge_vocab_into_schema(schema: dict[str, Any],
+                            vocab: ValueVocabulary) -> dict[str, Any]:
+    """Return a NEW schema with each field's learned values folded into the slot
+    extract_target reads for it (items-aware), and each FREE-FORM field stripped
+    of its constraints so it is unconstrained in the effective schema. PURE:
+    does not mutate `schema` or `vocab`; a deterministic function of both.
+
+    For a non-free-form target field with learned entries:
+      - each entry's `value` is folded into the field's constraint slot
+        (`items.enum` for a constrained array, else top-level `x-pydi-taxonomy`),
+        deduped, schema values first, then learned in stored order;
+      - each entry's `alias` is added to that same node's aliases, WITHOUT
+        overwriting an existing schema alias.
+    For a FREE-FORM field: all value constraints (top-level enum/taxonomy and
+    items.enum) are stripped and an audit marker `x-pydi-free-form` is set, so
+    the matcher's value gate vetoes nothing — free-form WINS over learned values
+    (which are retained in the vocab and re-fold when free-form is turned off).
+    Only fields in the schema's `properties` are touched; the stored schema on
+    disk is never mutated (reversible)."""
+    if not vocab.by_field and not vocab.free_form_fields:
+        return schema
+    merged = copy.deepcopy(schema)
+    props = merged.get("properties")
+    if not isinstance(props, dict):
+        return merged
+    for tgt, node in props.items():
+        if not isinstance(node, dict):
+            continue
+        if tgt in vocab.free_form_fields:
+            # Free-form wins: unconstrain this field in the effective schema.
+            _strip_field_constraints(node)
+            node[_FREE_FORM_KEY] = True
+            continue
+        entries = vocab.by_field.get(tgt)
+        if not entries:
+            continue
+        _fold_values(node, entries)
     return merged
 
 
