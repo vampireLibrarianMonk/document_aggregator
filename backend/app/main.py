@@ -937,12 +937,13 @@ def get_value_vocab(project_id: str) -> dict:
             "builtin": builtin,                   # read-only, from the schema (incl. items.enum)
             "learned": learned,                   # editable, human-accepted
             "free_form": vocab.is_free_form(name),  # per-field free-form marker
+            "aliases": [a.to_dict() for a in vocab.list_field_aliases(name)],  # first-class aliases
         })
     return {"project_id": project_id, "fields": fields}
 
 
 class VocabChange(BaseModel):
-    action: str                       # 'add' | 'update' | 'remove' | 'set_free_form' | 'clear_free_form'
+    action: str                       # add | update | remove | set_free_form | clear_free_form | add_alias | remove_alias
     target: str                       # the golden field the value belongs to
     value: str = ""                   # the accepted value (and the key for update/remove)
     new_value: str | None = None      # for 'update': rename the value
@@ -973,16 +974,22 @@ def change_value_vocab(project_id: str, body: VocabChange) -> dict:
         kwargs["alias"] = ... if body.alias is None else body.alias
         kwargs["note"] = ... if body.note is None else body.note
         kwargs["example"] = ... if body.example is None else body.example
+    elif body.action in ("add_alias", "remove_alias"):
+        # Alias actions use value (canonical) + alias (raw spelling) only.
+        # example / new_value are NOT forwarded; note is forwarded for add_alias.
+        kwargs["alias"] = body.alias
+        kwargs["note"] = body.note or ""
+    elif body.action in ("set_free_form", "clear_free_form"):
+        kwargs["free_form"] = bool(body.free_form)
     else:
         # Add: an omitted note/example simply defaults to empty.
         kwargs["alias"] = body.alias
         kwargs["note"] = body.note or ""
         kwargs["example"] = body.example or ""
-    if body.action in ("set_free_form", "clear_free_form"):
-        kwargs["free_form"] = bool(body.free_form)
     result = apply_vocab_change(project_id, body.action, body.target, **kwargs)
     if not result.get("ok"):
-        raise HTTPException(400, result.get("error", "value-vocab change failed"))
+        raise HTTPException(result.get("status", 400),
+                            result.get("error", "value-vocab change failed"))
     return {"project_id": project_id, "change": result,
             "vocab": get_value_vocab(project_id)["fields"]}
 

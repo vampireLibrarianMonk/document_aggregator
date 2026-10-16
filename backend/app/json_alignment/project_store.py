@@ -384,6 +384,26 @@ def _schema_field_names(project_id: str) -> set[str]:
     return set(props.keys()) if isinstance(props, dict) else set()
 
 
+def _builtin_values(schema: dict[str, Any] | None, target: str) -> list[str]:
+    """The field's BUILT-IN accepted values, mirroring get_value_vocab's
+    precedence EXACTLY: node.enum or items.enum or x-pydi-taxonomy."""
+    if not schema:
+        return []
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return []
+    node = props.get(target)
+    if not isinstance(node, dict):
+        return []
+    items = node.get("items") if isinstance(node.get("items"), dict) else {}
+    return list(
+        node.get("enum")
+        or (items.get("enum") if isinstance(items, dict) else None)
+        or node.get("x-pydi-taxonomy")
+        or []
+    )
+
+
 def apply_vocab_change(project_id: str, action: str, target: str, *,
                        value: str = "", new_value: str | None = None,
                        alias: str | None = ...,  # type: ignore[assignment]
@@ -394,15 +414,23 @@ def apply_vocab_change(project_id: str, action: str, target: str, *,
                        ) -> dict[str, Any]:
     """CRUD on the per-project learned value vocabulary, lock-guarded + atomic.
 
-    action: 'add' | 'update' | 'remove'. `target` must be a golden field the
-    project's schema actually declares (a value can only be taught for a REAL
-    field — never an invented one, mirroring the override guard). Returns a
-    small status dict; the change is persisted before returning so a subsequent
-    batch run (which loads via effective_target_schema) sees it.
+    action: 'add' | 'update' | 'remove' | 'set_free_form' | 'clear_free_form' |
+    'add_alias' | 'remove_alias'. `target` must be a golden field the project's
+    schema actually declares (a value can only be taught for a REAL field —
+    never an invented one, mirroring the override guard). Returns a small status
+    dict; the change is persisted before returning so a subsequent batch run
+    (which loads via effective_target_schema) sees it.
 
     `alias`/`note`/`example` use the Ellipsis sentinel on UPDATE: omit to leave a
     field unchanged (so a partial edit never silently wipes provenance). On ADD,
-    an omitted note/example simply defaults to empty."""
+    an omitted note/example simply defaults to empty.
+
+    For `add_alias`/`remove_alias` the alias conflict rules (design §4) run here
+    — server-authoritative, exact + case-sensitive membership — and a rejected
+    alias carries an explicit `status` (422/404) the endpoint maps to an
+    HTTPException. `add_alias` uses `value` (canonical) + `alias` (raw);
+    `remove_alias` uses `alias` (raw). Removing a learned value cascades: every
+    dependent alias on that field is dropped and reported."""
     with _lock:
         if target not in _schema_field_names(project_id):
             return {"ok": False, "error": f"unknown golden field: {target}"}
@@ -425,7 +453,60 @@ def apply_vocab_change(project_id: str, action: str, target: str, *,
                 if not removed:
                     return {"ok": False,
                             "error": f"{target} has no learned value {value!r}"}
-                result = {"removed": value}
+                # Cascade: a dangling alias would rewrite a raw spelling to a
+                # value the gate no longer admits (silent breakage), so drop
+                # every dependent alias and report it (auditable, not silent).
+                dropped = vocab.remove_aliases_for_value(target, value)
+                result = {"removed": value,
+                          "dropped_aliases": [a.alias for a in dropped]}
+            elif action == "add_alias":
+                schema = load_target_schema(project_id)
+                builtin = _builtin_values(schema, target)
+                learned = [e.value for e in vocab.list_field(target)]
+                accepted = set(builtin) | set(learned)
+                current = {a.alias: a.value for a in vocab.list_field_aliases(target)}
+                raw = (alias if isinstance(alias, str) else "").strip()
+                canonical = value.strip()
+                if not raw or not canonical:
+                    return {"ok": False,
+                            "error": "alias and canonical value are both required",
+                            "status": 422}
+                if canonical not in accepted:
+                    return {"ok": False,
+                            "error": (f"'{canonical}' is not an accepted value of "
+                                      f"'{target}'. Add it as an accepted value "
+                                      "first, or pick an existing one."),
+                            "status": 422}
+                if raw in accepted:
+                    return {"ok": False,
+                            "error": (f"'{raw}' is already an accepted value of "
+                                      f"'{target}'; an alias can't shadow a real "
+                                      "value."),
+                            "status": 422}
+                if raw in current:
+                    if current[raw] == canonical:
+                        # Idempotent same-pair: no mutation, return existing.
+                        existing = next(a for a in vocab.list_field_aliases(target)
+                                        if a.alias == raw)
+                        return {"ok": True, "action": action, "target": target,
+                                "entry": existing.to_dict()}
+                    return {"ok": False,
+                            "error": (f"'{raw}' already maps to '{current[raw]}' on "
+                                      f"'{target}'. Remove that alias before "
+                                      f"remapping it to '{canonical}'."),
+                            "status": 422}
+                entry = vocab.add_alias(
+                    target, raw, canonical,
+                    added_by=added_by,
+                    note=(note if isinstance(note, str) else ""))
+                result = entry.to_dict()
+            elif action == "remove_alias":
+                raw = (alias if isinstance(alias, str) else "").strip()
+                if not vocab.remove_alias(target, raw):
+                    return {"ok": False,
+                            "error": f"'{target}' has no alias '{raw}'",
+                            "status": 404}
+                result = {"removed": raw}
             elif action == "set_free_form":
                 vocab.set_free_form(target, bool(free_form))
                 result = {"target": target, "free_form": vocab.is_free_form(target)}

@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-VOCAB_VERSION = 2
+VOCAB_VERSION = 3
 
 # Schema keys the merge writes into (the same vendor-prefixed keys extract_target
 # already reads, so no extractor change is needed).
@@ -102,6 +102,45 @@ class VocabEntry:
 
 
 @dataclass
+class AliasEntry:
+    """One human-taught alias for a target field: raw_spelling -> canonical value.
+
+    alias     the raw/source spelling that should normalize TO `value` (stored
+              verbatim, trimmed; case-sensitive match, mirroring how the
+              matcher's apply_alias does an exact `value in tgt.aliases`).
+    value     the CANONICAL accepted value this alias maps to; must be an
+              accepted value of the field at add time (built-in OR learned).
+    added_by  provenance (free text / user id).
+    added_at  ISO-8601 UTC timestamp.
+    note      optional human justification.
+    """
+    alias: str
+    value: str
+    added_by: str = ""
+    added_at: str = field(default_factory=_now_iso)
+    note: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "alias": self.alias,
+            "value": self.value,
+            "added_by": self.added_by,
+            "added_at": self.added_at,
+            "note": self.note,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> AliasEntry:
+        return cls(
+            alias=str(d.get("alias", "")),
+            value=str(d.get("value", "")),
+            added_by=str(d.get("added_by", "")),
+            added_at=str(d.get("added_at", "")) or _now_iso(),
+            note=str(d.get("note", "")),
+        )
+
+
+@dataclass
 class ValueVocabulary:
     """Per-project learned values, keyed by target FIELD name.
 
@@ -116,6 +155,7 @@ class ValueVocabulary:
     field can be free-form with zero learned values."""
     by_field: dict[str, list[VocabEntry]] = field(default_factory=dict)
     free_form_fields: set[str] = field(default_factory=set)
+    by_field_aliases: dict[str, list[AliasEntry]] = field(default_factory=dict)
     version: int = VOCAB_VERSION
     meta: dict[str, Any] = field(default_factory=dict)
 
@@ -210,6 +250,66 @@ class ValueVocabulary:
             del self.by_field[target]
         return removed
 
+    # -- alias CRUD (store-level; conflict validation lives in project_store) --
+
+    def list_field_aliases(self, target: str) -> list[AliasEntry]:
+        """Read: the first-class aliases for one field (empty list if none)."""
+        return list(self.by_field_aliases.get(target, []))
+
+    def add_alias(self, target: str, alias: str, value: str, *,
+                  added_by: str = "", note: str = "") -> AliasEntry:
+        """Store-level append (or idempotent refresh) of a first-class alias.
+
+        No conflict validation here — that is the server layer's job
+        (project_store.apply_vocab_change). Adding an alias whose raw spelling
+        already exists on the field refreshes that entry's metadata rather than
+        duplicating it."""
+        alias = alias.strip()
+        value = value.strip()
+        entries = self.by_field_aliases.setdefault(target, [])
+        existing = next((a for a in entries if a.alias == alias), None)
+        if existing is not None:
+            existing.value = value
+            if added_by:
+                existing.added_by = added_by
+            if note:
+                existing.note = note
+            return existing
+        entry = AliasEntry(alias=alias, value=value, added_by=added_by, note=note)
+        entries.append(entry)
+        return entry
+
+    def remove_alias(self, target: str, alias: str) -> bool:
+        """Delete a first-class alias by its raw spelling. Returns True if
+        something was removed. Prunes the field key when the list empties."""
+        entries = self.by_field_aliases.get(target)
+        if not entries:
+            return False
+        kept = [a for a in entries if a.alias != alias]
+        removed = len(kept) != len(entries)
+        if kept:
+            self.by_field_aliases[target] = kept
+        else:
+            del self.by_field_aliases[target]
+        return removed
+
+    def remove_aliases_for_value(self, target: str, value: str) -> list[AliasEntry]:
+        """Drop every alias on `target` whose canonical value == `value` (the
+        cascade when a learned value is removed). Returns the dropped list and
+        prunes the field key when the list empties."""
+        entries = self.by_field_aliases.get(target)
+        if not entries:
+            return []
+        dropped = [a for a in entries if a.value == value]
+        if not dropped:
+            return []
+        kept = [a for a in entries if a.value != value]
+        if kept:
+            self.by_field_aliases[target] = kept
+        else:
+            del self.by_field_aliases[target]
+        return dropped
+
     # -- persistence --------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
@@ -221,6 +321,13 @@ class ValueVocabulary:
                 for tgt, entries in sorted(self.by_field.items())
             },
             "free_form_fields": sorted(self.free_form_fields),
+            # Outer keys sorted by field name (matching by_field); each field's
+            # alias list kept in stored append/insertion order (never reordered)
+            # so serialization is fully deterministic at both levels.
+            "by_field_aliases": {
+                tgt: [a.to_dict() for a in aliases]
+                for tgt, aliases in sorted(self.by_field_aliases.items())
+            },
         }
 
     @classmethod
@@ -229,10 +336,35 @@ class ValueVocabulary:
             str(tgt): [VocabEntry.from_dict(e) for e in entries]
             for tgt, entries in (data.get("by_field", {}) or {}).items()
         }
+        # Absent key (a v1/v2 doc) -> empty dict -> today's behavior.
+        by_field_aliases = {
+            str(tgt): [AliasEntry.from_dict(a) for a in aliases]
+            for tgt, aliases in (data.get("by_field_aliases", {}) or {}).items()
+        }
+        # Read-time idempotent migration (design §2): promote any legacy
+        # per-entry VocabEntry.alias to a first-class AliasEntry. Iterate learned
+        # entries in stored order; append only when no AliasEntry on that field
+        # already carries the same raw-spelling key (first-wins by stored order
+        # on a same-raw collision). entry.alias is left as-is (not nulled) so a
+        # rolled-back / older build still folds it. Idempotent: a doc saved after
+        # migration already has the AliasEntry, so the guard skips it.
+        for tgt, entries in by_field.items():
+            promoted = by_field_aliases.setdefault(tgt, [])
+            existing_keys = {a.alias for a in promoted}
+            for e in entries:
+                if e.alias and e.alias not in existing_keys:
+                    promoted.append(AliasEntry(
+                        alias=e.alias, value=e.value, added_by=e.added_by,
+                        added_at=e.added_at,
+                        note="(migrated from learned value alias)"))
+                    existing_keys.add(e.alias)
+            if not promoted:
+                del by_field_aliases[tgt]
         return cls(
             by_field=by_field,
             # Absent key (a v1 doc) -> empty set -> today's behavior.
             free_form_fields=set(data.get("free_form_fields", []) or []),
+            by_field_aliases=by_field_aliases,
             version=int(data.get("version", VOCAB_VERSION)),
             meta=dict(data.get("meta", {})),
         )
@@ -263,14 +395,23 @@ def _strip_field_constraints(node: dict[str, Any]) -> None:
         items.pop(_ALIASES_KEY, None)
 
 
-def _fold_values(node: dict[str, Any], entries: list[VocabEntry]) -> None:
+def _fold_values(node: dict[str, Any], entries: list[VocabEntry],
+                 field_aliases: list[AliasEntry]) -> None:
     """Fold learned values into the SAME constraint slot extract_target reads
     for this field, so the value gate actually widens. A constrained array
-    (items.enum — the only array constraint extract_target reads) folds into its
-    `items.enum`. Everything else — a scalar free-text field, OR an array whose
-    only constraint was the never-read items.x-pydi-taxonomy — folds into the
-    TOP-LEVEL x-pydi-taxonomy, the slot extract_target falls through to when
-    there is no enum/items.enum. Aliases always ride the SAME node."""
+    (items.enum — the only array constraint extract_target reads) folds VALUES
+    into its `items.enum`. Everything else — a scalar free-text field, OR an
+    array whose only constraint was the never-read items.x-pydi-taxonomy — folds
+    VALUES into the TOP-LEVEL x-pydi-taxonomy.
+
+    ALIASES, by contrast, ALWAYS fold into the TOP-LEVEL node's
+    x-pydi-taxonomy-aliases (design §3, Option A). extract_target reads aliases
+    only from the top-level node (never from `items`), so writing the alias map
+    to the item node on a constrained array would land in a slot the matcher
+    never reads — silently dropping the alias. Splitting value_node (item-aware)
+    from alias_node (always top-level) makes the alias write slot coincide with
+    the extractor's read slot for every field type, and repairs the identical
+    latent legacy-alias-on-array bug as a bonus."""
     types = _as_type_set(node)
     items = node.get("items")
     is_constrained_array = (
@@ -278,31 +419,40 @@ def _fold_values(node: dict[str, Any], entries: list[VocabEntry]) -> None:
         and isinstance(items, dict)
         and "enum" in items          # ONLY items.enum is an array constraint extract_target reads
     )
-    target_node = items if is_constrained_array else node
+    value_node = items if is_constrained_array else node   # item-aware value slot
+    alias_node = node                                      # aliases ALWAYS top-level
 
     if is_constrained_array:
-        base = list(target_node.get("enum", []) or [])
+        base = list(value_node.get("enum", []) or [])
         seen = {str(v) for v in base}
         for e in entries:
             if e.value not in seen:
                 base.append(e.value)
                 seen.add(e.value)
-        target_node["enum"] = base
+        value_node["enum"] = base
     else:
-        tax = list(target_node.get(_TAXONOMY_KEY, []) or [])
+        tax = list(value_node.get(_TAXONOMY_KEY, []) or [])
         seen = {str(v) for v in tax}
         for e in entries:
             if e.value not in seen:
                 tax.append(e.value)
                 seen.add(e.value)
-        target_node[_TAXONOMY_KEY] = tax
+        value_node[_TAXONOMY_KEY] = tax
 
-    aliases = dict(target_node.get(_ALIASES_KEY, {}) or {})
+    # Alias write order/precedence on the TOP-LEVEL node:
+    #   1. existing schema aliases already on the node (authoritative, kept);
+    #   2. legacy entry.alias from learned values (dedup on key);
+    #   3. first-class AliasEntry from by_field_aliases (dedup on key).
+    # Later sources never overwrite an earlier key.
+    aliases = dict(alias_node.get(_ALIASES_KEY, {}) or {})
     for e in entries:
         if e.alias and e.alias not in aliases:
             aliases[e.alias] = e.value
+    for a in field_aliases:
+        if a.alias and a.alias not in aliases:
+            aliases[a.alias] = a.value
     if aliases:
-        target_node[_ALIASES_KEY] = aliases
+        alias_node[_ALIASES_KEY] = aliases
 
 
 def merge_vocab_into_schema(schema: dict[str, Any],
@@ -324,7 +474,7 @@ def merge_vocab_into_schema(schema: dict[str, Any],
     (which are retained in the vocab and re-fold when free-form is turned off).
     Only fields in the schema's `properties` are touched; the stored schema on
     disk is never mutated (reversible)."""
-    if not vocab.by_field and not vocab.free_form_fields:
+    if not vocab.by_field and not vocab.free_form_fields and not vocab.by_field_aliases:
         return schema
     merged = copy.deepcopy(schema)
     props = merged.get("properties")
@@ -335,18 +485,22 @@ def merge_vocab_into_schema(schema: dict[str, Any],
             continue
         if tgt in vocab.free_form_fields:
             # Free-form wins: unconstrain this field in the effective schema.
+            # First-class aliases are retained in the vocab but skipped here
+            # (the strip + skip), so turning free-form off re-folds them.
             _strip_field_constraints(node)
             node[_FREE_FORM_KEY] = True
             continue
-        entries = vocab.by_field.get(tgt)
-        if not entries:
+        entries = vocab.by_field.get(tgt, [])
+        field_aliases = vocab.by_field_aliases.get(tgt, [])
+        if not entries and not field_aliases:
             continue
-        _fold_values(node, entries)
+        _fold_values(node, entries, field_aliases)
     return merged
 
 
 __all__ = [
     "VOCAB_VERSION",
+    "AliasEntry",
     "ValueVocabulary",
     "VocabEntry",
     "merge_vocab_into_schema",
