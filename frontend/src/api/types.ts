@@ -171,6 +171,16 @@ export interface VocabEntry {
   example: string
 }
 
+/** One human-taught alias for a golden field: a raw spelling that normalizes to
+ *  an accepted canonical value (built-in or learned). */
+export interface AliasEntry {
+  alias: string
+  value: string
+  added_by: string
+  added_at: string
+  note: string
+}
+
 /** The accepted values for one golden field: the schema's built-in taxonomy
  *  (read-only) plus the human-learned values (editable). */
 export interface VocabField {
@@ -181,6 +191,10 @@ export interface VocabField {
   /** The per-field free-form marker: when true the field is unconstrained and
    *  built-in/learned values are shown inactive. */
   free_form: boolean
+  /** The per-field alias pool (raw spelling -> canonical value). OPTIONAL: the
+   *  server always emits it, but it is optional so existing VocabField literals
+   *  that omit it still compile. */
+  aliases?: AliasEntry[]
 }
 
 /** The per-project learned value vocabulary (one entry per enumerable field). */

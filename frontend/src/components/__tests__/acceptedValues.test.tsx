@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
-import type { Project, ValueVocab } from '../../api/types'
+import { useState } from 'react'
+import type { Project, ValueVocab, VocabField } from '../../api/types'
 
 const getValueVocab = vi.fn()
 const changeValueVocab = vi.fn()
@@ -34,6 +35,14 @@ function vocab(freeForm: boolean): ValueVocab {
   }
 }
 
+/** A stateful wrapper that feeds the returned vocab back into `fields`, so the
+ *  controlled editor re-renders after a mutation (required for the free-form
+ *  disable/re-enable assertions — a bare vi.fn() would never update `fields`). */
+function Harness({ initial }: { initial: VocabField[] }) {
+  const [f, setF] = useState<VocabField[]>(initial)
+  return <AcceptedValuesEditor project={project} fields={f} onVocabChanged={setF} />
+}
+
 beforeEach(() => {
   getValueVocab.mockReset()
   changeValueVocab.mockReset()
@@ -42,17 +51,17 @@ afterEach(() => cleanup())
 
 describe('AcceptedValuesEditor', () => {
   it('renders a row for every field, including a no-builtin/no-learned one', async () => {
-    getValueVocab.mockResolvedValue(vocab(false))
-    const { findByText } = render(<AcceptedValuesEditor project={project} />)
+    const { findByText } = render(
+      <AcceptedValuesEditor project={project} fields={vocab(false).fields} onVocabChanged={vi.fn()} />,
+    )
     expect(await findByText('name')).toBeTruthy()
     expect(await findByText('platform')).toBeTruthy()
   })
 
   it('toggling free-form calls set_free_form and greys values + disables add', async () => {
-    getValueVocab.mockResolvedValue(vocab(false))
     // server confirms free-form on
     changeValueVocab.mockResolvedValue({ project_id: 'p1', change: {}, vocab: vocab(true).fields })
-    const { findByLabelText } = render(<AcceptedValuesEditor project={project} />)
+    const { findByLabelText } = render(<Harness initial={vocab(false).fields} />)
     const toggle = await findByLabelText('Mark platform free-form') as HTMLInputElement
     fireEvent.click(toggle)
     await waitFor(() => expect(changeValueVocab).toHaveBeenCalledWith('p1', expect.objectContaining({
@@ -67,9 +76,8 @@ describe('AcceptedValuesEditor', () => {
   })
 
   it('turning free-form off re-enables the add input', async () => {
-    getValueVocab.mockResolvedValue(vocab(true))
     changeValueVocab.mockResolvedValue({ project_id: 'p1', change: {}, vocab: vocab(false).fields })
-    const { findByLabelText } = render(<AcceptedValuesEditor project={project} />)
+    const { findByLabelText } = render(<Harness initial={vocab(true).fields} />)
     const toggle = await findByLabelText('Mark platform free-form') as HTMLInputElement
     expect(toggle.checked).toBe(true)
     fireEvent.click(toggle)

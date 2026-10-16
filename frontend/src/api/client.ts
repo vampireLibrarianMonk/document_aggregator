@@ -549,7 +549,14 @@ export const api = {
   changeValueVocab(
     projectId: string,
     change: {
-      action: 'add' | 'update' | 'remove' | 'set_free_form' | 'clear_free_form'
+      action:
+        | 'add'
+        | 'update'
+        | 'remove'
+        | 'set_free_form'
+        | 'clear_free_form'
+        | 'add_alias'
+        | 'remove_alias'
       target: string
       value?: string
       new_value?: string | null

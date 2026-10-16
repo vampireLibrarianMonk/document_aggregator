@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { api, serverDetail } from '../api/client'
 import type {
   AlignmentLibrary,
@@ -110,24 +111,54 @@ function RelevanceDial({ project, onProjectChange }: Props) {
  * conformed to, and set the relevance cutoff. `onConfigured` reports whether a
  * schema is now saved so the shell can gate the Convert step.
  */
+/** A small controlled disclosure section: a header button toggles the body.
+ *  Local only (no dependency); each instance holds its own open state seeded
+ *  from `defaultOpen` so sections collapse/expand independently. */
+function Section({ title, subtitle, defaultOpen = false, children }: {
+  title: string
+  subtitle?: string
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <button
+        type="button"
+        className="row"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: '100%', background: 'none', border: 'none', padding: 0,
+          cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit',
+        }}
+      >
+        <span aria-hidden="true" style={{ marginRight: 6 }}>{open ? '▾' : '▸'}</span>
+        <strong>{title}</strong>
+        {subtitle && <span className="muted small">· {subtitle}</span>}
+      </button>
+      {open && <div style={{ marginTop: 8 }}>{children}</div>}
+    </div>
+  )
+}
+
 /** Editable selection box for a golden field's ACCEPTED VALUES: the schema's
  *  built-in taxonomy (read-only) plus the human-learned values (add / remove).
  *  Teaching a value here lets a batch run accept it (e.g. platform 'Linux')
  *  without the matcher ever guessing; removing it re-vetoes the value. Built-in
- *  and learned are shown separately so the list stays auditable. */
-export function AcceptedValuesEditor({ project }: { project: Project }) {
-  const [fields, setFields] = useState<VocabField[] | null>(null)
+ *  and learned are shown separately so the list stays auditable.
+ *
+ *  Controlled: the vocab is owned by GoldenSchemaPanel and passed in via
+ *  `fields`; every change reports the refreshed view through `onVocabChanged`
+ *  so the sibling aliases editor stays in sync (one source of truth). */
+export function AcceptedValuesEditor({ project, fields, onVocabChanged }: {
+  project: Project
+  fields: VocabField[] | null
+  onVocabChanged: (fields: VocabField[]) => void
+}) {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)        // "target" being changed
   const [draft, setDraft] = useState<Record<string, string>>({}) // per-field add input
-
-  const load = useCallback(() => {
-    api.getValueVocab(project.id)
-      .then((r) => { setFields(r.fields); setErr(null) })
-      .catch(() => setFields([]))  // no schema yet
-  }, [project.id])
-
-  useEffect(() => { load() }, [load])
 
   const change = async (
     action: 'add' | 'remove', target: string, value: string,
@@ -137,7 +168,7 @@ export function AcceptedValuesEditor({ project }: { project: Project }) {
     setErr(null)
     try {
       const r = await api.changeValueVocab(project.id, { action, target, value: value.trim() })
-      setFields(r.vocab)
+      onVocabChanged(r.vocab)
       if (action === 'add') setDraft((d) => ({ ...d, [target]: '' }))
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -155,7 +186,7 @@ export function AcceptedValuesEditor({ project }: { project: Project }) {
       const r = await api.changeValueVocab(project.id, {
         action: on ? 'set_free_form' : 'clear_free_form', target, value: '', free_form: on,
       })
-      setFields(r.vocab)
+      onVocabChanged(r.vocab)
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -278,6 +309,201 @@ export function AcceptedValuesEditor({ project }: { project: Project }) {
 }
 
 
+/** Editable per-field ALIAS pool: raw spelling -> accepted canonical value.
+ *  An alias normalizes an incoming raw spelling to an already-accepted value of
+ *  the field (built-in OR learned) before the value gate runs — it never
+ *  introduces a new value. The canonical <select> only offers the field's
+ *  accepted set, and the server is authoritative on conflicts (422); the client
+ *  mirror below only disables Add when it can predict a rejection.
+ *
+ *  Controlled: the vocab is owned by GoldenSchemaPanel and shared with the
+ *  accepted-values editor, so a cascade (removing a learned value drops its
+ *  dependent aliases) refreshes both editors. */
+export function ValueAliasesEditor({ project, fields, onVocabChanged }: {
+  project: Project
+  fields: VocabField[] | null
+  onVocabChanged: (fields: VocabField[]) => void
+}) {
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)              // "target" being changed
+  const [rawDraft, setRawDraft] = useState<Record<string, string>>({})      // per-field raw spelling
+  const [canonDraft, setCanonDraft] = useState<Record<string, string>>({})  // per-field canonical pick
+
+  if (fields === null) return null
+  if (fields.length === 0) return null  // no schema set yet
+
+  const inactive = { opacity: 0.45, textDecoration: 'line-through' as const }
+
+  // The field's accepted set = built-in UNION learned values (what a canonical
+  // alias target may be), preserving built-in-first order and de-duping.
+  const acceptedValues = (f: VocabField): string[] => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const v of [...f.builtin, ...f.learned.map((e) => e.value)]) {
+      if (!seen.has(v)) { seen.add(v); out.push(v) }
+    }
+    return out
+  }
+
+  const add = async (f: VocabField) => {
+    const raw = (rawDraft[f.target] ?? '').trim()
+    const canonical = canonDraft[f.target] ?? ''
+    if (!raw || !canonical) return
+    setBusy(f.target)
+    setErr(null)
+    try {
+      const r = await api.changeValueVocab(project.id, {
+        action: 'add_alias', target: f.target, alias: raw, value: canonical,
+      })
+      onVocabChanged(r.vocab)
+      // Only clear the input on success (an inline 422 keeps it for editing).
+      setRawDraft((d) => ({ ...d, [f.target]: '' }))
+      setCanonDraft((d) => ({ ...d, [f.target]: '' }))
+    } catch (e) {
+      setErr(serverDetail(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const remove = async (target: string, alias: string) => {
+    setBusy(target)
+    setErr(null)
+    try {
+      const r = await api.changeValueVocab(project.id, {
+        action: 'remove_alias', target, alias,
+      })
+      onVocabChanged(r.vocab)
+    } catch (e) {
+      setErr(serverDetail(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="row">
+        <strong>Value aliases</strong>
+        <span className="muted small">
+          · map a raw spelling to an accepted value (built-in or learned)
+        </span>
+      </div>
+      <p className="small muted" style={{ margin: '4px 0 8px' }}>
+        An alias rewrites an incoming raw spelling to one of the field’s accepted
+        values before it is checked (e.g. <b>PS5 → PlayStation</b>). The canonical
+        value must already be accepted; add it in <i>Accepted values</i> first if
+        it isn’t. A field marked <b>free-form</b> accepts anything, so its aliases
+        are inactive (kept, and reactivated when free-form is turned off).
+      </p>
+      {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
+      {/* Bounded + scrollable with a sticky header, matching the accepted-values
+          table so a project with many fields stays scannable. */}
+      <div style={{ maxHeight: 360, overflow: 'auto' }}>
+      <table className="docs">
+        <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--panel, #1a2029)' }}>
+          <tr>
+            <th>Field</th><th>Aliases</th><th>Add alias</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map((f) => {
+            const aliases = f.aliases ?? []
+            const accepted = acceptedValues(f)
+            const raw = rawDraft[f.target] ?? ''
+            const canonical = canonDraft[f.target] ?? ''
+            // Client mirror of the server conflict rules (advisory): a raw that
+            // already maps on this field would be a remap (422); a raw that
+            // equals an accepted value would shadow a real value (422).
+            const aliasMap = new Map(aliases.map((a) => [a.alias, a.value]))
+            const trimmedRaw = raw.trim()
+            const wouldRemap = trimmedRaw !== '' && aliasMap.has(trimmedRaw)
+            const shadowsValue = trimmedRaw !== '' && accepted.includes(trimmedRaw)
+            const addDisabled =
+              busy === f.target || f.free_form || trimmedRaw === '' ||
+              canonical === '' || wouldRemap || shadowsValue
+            return (
+              <tr key={f.target}>
+                <td className="mono small" title={f.description}>
+                  {f.target}
+                  {f.free_form && (
+                    <span className="chip" style={{ marginLeft: 6 }}
+                          aria-label="free-form — accepts anything">
+                      free-form — accepts anything
+                    </span>
+                  )}
+                </td>
+                <td className="small">
+                  {aliases.length === 0
+                    ? <span className="muted">none</span>
+                    : aliases.map((a) => (
+                        <span key={a.alias} className="chip"
+                              title={`added by ${a.added_by || 'unknown'}${a.note ? ' — ' + a.note : ''}`}
+                              aria-label={f.free_form ? 'inactive while free-form is on' : undefined}
+                              style={{ marginRight: 4, ...(f.free_form ? inactive : {}) }}>
+                          {a.alias} → {a.value}
+                          <button className="chip-x" aria-label={`Remove alias ${a.alias}`}
+                                  disabled={busy === f.target || f.free_form}
+                                  onClick={() => void remove(f.target, a.alias)}>
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                </td>
+                <td>
+                  <div className="row" style={{ gap: 4 }}>
+                    <input
+                      className="small"
+                      aria-label={`Alias raw spelling for ${f.target}`}
+                      placeholder="raw spelling…"
+                      value={raw}
+                      disabled={busy === f.target || f.free_form}
+                      onChange={(ev) => setRawDraft((d) => ({ ...d, [f.target]: ev.target.value }))}
+                      onKeyDown={(ev) => { if (ev.key === 'Enter') void add(f) }}
+                      style={{ width: 120 }}
+                    />
+                    <select
+                      className="small"
+                      aria-label={`Canonical value for ${f.target}`}
+                      value={canonical}
+                      disabled={busy === f.target || f.free_form}
+                      onChange={(ev) => setCanonDraft((d) => ({ ...d, [f.target]: ev.target.value }))}
+                    >
+                      <option value="">canonical value…</option>
+                      {accepted.map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                    <button className="btn small"
+                            disabled={addDisabled}
+                            onClick={() => void add(f)}>
+                      +
+                    </button>
+                  </div>
+                  {wouldRemap && !f.free_form && (
+                    <p className="small muted" style={{ margin: '2px 0 0' }}>
+                      “{trimmedRaw}” already maps to “{aliasMap.get(trimmedRaw)}” —
+                      remove it first to remap.
+                    </p>
+                  )}
+                  {shadowsValue && !f.free_form && (
+                    <p className="small muted" style={{ margin: '2px 0 0' }}>
+                      “{trimmedRaw}” is already an accepted value — an alias can’t
+                      shadow a real value.
+                    </p>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  )
+}
+
+
 export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Props & {
   onConfigured?: (configured: boolean) => void
 }) {
@@ -285,6 +511,16 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
   const [status, setStatus] = useState<string | null>(null)
   const [loaded, setLoaded] = useState<'set' | 'unset' | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  // The vocab is LIFTED here (one source of truth) and shared by both the
+  // accepted-values and value-aliases editors, so a cascade in one (e.g.
+  // removing a learned value drops its dependent aliases) re-renders the other.
+  const [vocab, setVocab] = useState<VocabField[] | null>(null)
+
+  const loadVocab = useCallback(() => {
+    api.getValueVocab(project.id)
+      .then((r) => setVocab(r.fields))
+      .catch(() => setVocab([]))  // no schema yet
+  }, [project.id])
 
   useEffect(() => {
     api
@@ -296,6 +532,8 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
       })
       .catch(() => { setLoaded('unset'); onConfigured?.(false) })
   }, [project.id, onConfigured])
+
+  useEffect(() => { if (loaded === 'set') loadVocab() }, [loaded, loadVocab])
 
   // Save takes the raw text explicitly (defaulting to the textarea state) so an
   // uploaded file's bytes save directly — a setText(...) + save() sequence would
@@ -336,13 +574,11 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
 
   return (
     <>
-      <div className="panel" style={{ marginBottom: 12 }}>
-        <div className="row">
-          <strong>Golden target schema</strong>
-          <span className="muted small">
-            · {loaded === 'set' ? 'configured' : 'not set'}
-          </span>
-        </div>
+      <Section
+        title="Golden target schema"
+        subtitle={loaded === 'set' ? 'configured' : 'not set'}
+        defaultOpen
+      >
         <label htmlFor="golden-schema" className="small muted" style={{ display: 'block', marginTop: 6 }}>
           The JSON Schema every file in this project is converted to. Paste it and
           save before converting a batch.
@@ -376,9 +612,25 @@ export function GoldenSchemaPanel({ project, onProjectChange, onConfigured }: Pr
           {status && <p className="small" style={{ color: 'var(--ok)' }}>{status}</p>}
           {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
         </div>
-      </div>
+      </Section>
 
-      {loaded === 'set' && <AcceptedValuesEditor project={project} />}
+      {loaded === 'set' && (
+        <Section
+          title="Accepted values"
+          subtitle="per field: built-in (from the schema) + values you accept, or mark free-form"
+        >
+          <AcceptedValuesEditor project={project} fields={vocab} onVocabChanged={setVocab} />
+        </Section>
+      )}
+
+      {loaded === 'set' && (
+        <Section
+          title="Value aliases"
+          subtitle="map a raw spelling to an accepted value (e.g. PS5 → PlayStation)"
+        >
+          <ValueAliasesEditor project={project} fields={vocab} onVocabChanged={setVocab} />
+        </Section>
+      )}
 
       <RelevanceDial project={project} onProjectChange={onProjectChange} />
     </>
