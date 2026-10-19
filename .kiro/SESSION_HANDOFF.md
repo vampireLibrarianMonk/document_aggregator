@@ -253,3 +253,35 @@ pip-installed into the local venv only for this measurement.
 
 Files: perf/fuzzy_candidates.py (rapidfuzz_plain, rapidfuzz_cascade),
 perf/infer_batched.py (cdist prototype), optbench.py (the gate+speed harness).
+
+## Chase cycles 2 (more optimization) — DONE
+
+Re-profiled after rapidfuzz: the top cost moved from Levenshtein to the sheer
+NUMBER of _score_candidate calls (417k @ w400), driven by the fuzzy length-
+window index pulling ~160 of ~210 candidates/target (same-length but token-
+disjoint fields that can only match via fuzzy).
+
+BREAKTHROUGH: _SourceIndexTight + infer_mapping_indexed_tight
+(backend/alpha_loop/perf/infer_indexed.py). Moves the SOUND bigram lower-bound
+AHEAD of the scoring loop: a length-window candidate is admitted only if its
+bigram overlap with the target could allow dist<=budget. Cuts _score_candidate
+calls directly. Gate PASS over 164 cases (frontier+wide+realistic).
+
+Results (9-rep medians, tight index + pure-Python cascade_cached fuzzy):
+  SYNTHETIC worst-case: 4.6x -> 67.8x  (the length-window bloat was its whole problem)
+  REALISTIC w400:       12x  -> 25.2x
+With rapidfuzz on top: ~28x realistic, ~67x synthetic (rapidfuzz now barely
+helps / sometimes hurts, because the tight index prunes so hard few pairs reach
+the DP). => pure-Python tight index essentially REACHES the ceiling alone.
+
+REJECTED this round:
+  - cascade_joincache with id(tgt) cache: UNSOUND (object-id reuse after GC
+    returned stale target entries) — gate caught a wrong result. Fixed to key by
+    the target token-tuple; now PASS but NO speed benefit atop the tight index,
+    so not adopted.
+  - batched cdist: still slower (lost the index).
+
+CURRENT CHAMPION: infer_mapping_indexed_tight + cascade_cached fuzzy
+  = ~25x realistic / ~68x synthetic, ZERO dependency, correctness-gate PASS.
+Promotion-to-production candidate (mapping.py infer_mapping + _fuzzy_score +
+the tight candidate index). Still prototype-only; gate on full pytest+frontier.

@@ -244,3 +244,100 @@ def infer_mapping_indexed(source: SourceProfile, target: TargetSchema) -> Mappin
             confidence=top_score, status=STATUS_MAPPED, candidates=candidates,
         ))
     return Mapping(fields=out)
+
+
+# --------------------------------------------------------------------------
+# Cycle 2: tighten the candidate set BEFORE _score_candidate is called. The
+# profiler shows the length-window (fuzzy) index pulls ~160 of ~210 candidates
+# per target on realistic data, but a length-window-only candidate can match
+# ONLY via the fuzzy tier (<=budget edits). Pre-filter those by the SAME sound
+# bigram lower bound the fuzzy scorer uses, moving the cheap prune ahead of the
+# expensive per-pair scoring loop. Behavior-identical: a candidate dropped here
+# would have scored 0.0 in _score_candidate anyway.
+# --------------------------------------------------------------------------
+
+class _SourceIndexTight(_SourceIndex):
+    def __init__(self, source: SourceProfile) -> None:
+        super().__init__(source)
+        # Per-source joined string + bigram set + presence mask, once.
+        self.joined: dict[str, str] = {}
+        self.bg: dict[str, frozenset] = {}
+        self.mask: dict[str, int] = {}
+        self.by_len_bg: dict[int, list[str]] = defaultdict(list)
+        for sf in source.fields:
+            j = _joined(sf.tokens)
+            self.joined[sf.path] = j
+            b = frozenset(j[i:i + 2] for i in range(len(j) - 1)) if len(j) > 1 else frozenset((j,))
+            self.bg[sf.path] = b
+            self.by_len_bg[len(j)].append(sf.path)
+
+    def candidates_for(self, tgt: TargetField) -> list[str]:
+        from app.json_alignment.mapping import _SYNONYMS
+        from app.json_alignment.source_profile import name_tokens
+
+        paths: set[str] = set()
+        # exact/normalized/alias/synonym: token-set equality (unchanged)
+        paths.update(self.token_set.get(frozenset(tgt.tokens), []))
+        for alias in tgt.aliases:
+            paths.update(self.token_set.get(frozenset(name_tokens(str(alias))), []))
+        for syn in _SYNONYMS.get(tgt.name, ()):
+            paths.update(self.token_set.get(frozenset((syn,)), []))
+        # overlap/description: shared token (unchanged)
+        for tok in set(tgt.tokens) | set(tgt.desc_tokens):
+            paths.update(self.by_token.get(tok, set()))
+        # fuzzy window: length +-2 AND bigram-bound pre-filtered. A source in the
+        # window survives only if its bigram overlap with the target could allow
+        # dist <= budget (sound lower bound). This drops the many same-length but
+        # token/bigram-disjoint fields that would score 0 in the fuzzy tier.
+        tj = _joined(tgt.tokens)
+        tbg = frozenset(tj[i:i + 2] for i in range(len(tj) - 1)) if len(tj) > 1 else frozenset((tj,))
+        budget = max(1, len(tj) // 4)
+        for L in range(len(tj) - 2, len(tj) + 3):
+            for p in self.by_len_bg.get(L, ()):
+                if p in paths:
+                    continue
+                sbg = self.bg[p]
+                max_bg = len(sbg) if len(sbg) > len(tbg) else len(tbg)
+                if len(sbg & tbg) >= max_bg - 2 * budget:
+                    paths.add(p)
+        return [p for p in paths if p in self.by_path]
+
+
+def infer_mapping_indexed_tight(source: SourceProfile, target: TargetSchema) -> Mapping:
+    """Like infer_mapping_indexed but with the bigram-tightened candidate index,
+    cutting the number of _score_candidate calls. Same grounding/tie logic."""
+    idx = _SourceIndexTight(source)
+    sf_by_path = idx.by_path
+    out: list[FieldMapping] = []
+    for tgt in target.fields:
+        scored = []
+        for path in idx.candidates_for(tgt):
+            sf = sf_by_path[path]
+            score, method = _score_candidate(sf, tgt)
+            if score > 0.0:
+                scored.append((score, method, sf.path))
+        scored.sort(key=lambda x: (-x[0], x[2]))
+        if not scored:
+            out.append(FieldMapping(target=tgt.name, source_path=None,
+                       method="abstain", confidence=0.0,
+                       status=STATUS_NEEDS_REVIEW, candidates=(),
+                       note="no source field cleared the match floor"))
+            continue
+        top_score, top_method, top_path = scored[0]
+        cand_order = scored
+        if len(scored) > 1:
+            cos = {p: _cosine_to_target(sf_by_path[p], tgt)
+                   for _s, _m, p in scored if p in sf_by_path}
+            cand_order = sorted(scored, key=lambda x: (-x[0], -cos.get(x[2], 0.0), x[2]))
+        candidates = tuple((p, s) for s, _m, p in cand_order)
+        tied = [c for c in scored if c[0] == top_score and c[2] != top_path]
+        if tied and top_method not in ("exact", "normalized"):
+            out.append(FieldMapping(target=tgt.name, source_path=None,
+                       method=top_method, confidence=top_score,
+                       status=STATUS_CONFLICT, candidates=candidates,
+                       note=f"ambiguous: {1 + len(tied)} source fields tie at {top_score:.2f}"))
+            continue
+        out.append(FieldMapping(target=tgt.name, source_path=top_path,
+                   method=top_method, confidence=top_score,
+                   status=STATUS_MAPPED, candidates=candidates))
+    return Mapping(fields=out)

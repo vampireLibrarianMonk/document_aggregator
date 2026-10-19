@@ -292,3 +292,76 @@ def rapidfuzz_cascade(mapping_mod) -> Callable:
         return FMIN + (1.0 - (d - 1) / budget) * (FMAX - FMIN)
 
     return f
+
+
+# --------------------------------------------------------------------------
+# Cycle 1: eliminate the repeated "".join(sorted(tokens)). The target joined
+# string is invariant per target; the source joined per source. Both are
+# recomputed on every pair in the baseline. Cache both (target cached by id on a
+# side dict; source memoized by token tuple), so the width^2 loop does lookups.
+# --------------------------------------------------------------------------
+
+def cascade_joincache(mapping_mod) -> Callable:
+    FMIN, FMAX, BLOCK = _preamble(mapping_mod)
+    sig: dict[str, tuple[int, frozenset]] = {}
+    joined_cache: dict[tuple, str] = {}
+    tgt_cache: dict[int, tuple] = {}   # id(tgt) -> (t_joined, lt, budget, tbg, tm, tok_set)
+
+    def _sig(s: str):
+        hit = sig.get(s)
+        if hit is None:
+            bg = frozenset(s[i:i + 2] for i in range(len(s) - 1)) if len(s) > 1 else frozenset((s,))
+            hit = (_mask(s), bg)
+            sig[s] = hit
+        return hit
+
+    def _src_joined(s_name_frozen):
+        j = joined_cache.get(s_name_frozen)
+        if j is None:
+            j = "".join(sorted(s_name_frozen))
+            joined_cache[s_name_frozen] = j
+        return j
+
+    def _tgt(tgt):
+        # Key by the target's token TUPLE (value-based), NOT id(tgt): object ids
+        # are reused after GC, so an id() key can return a stale entry for a
+        # different target (an unsound bug the correctness gate caught). The
+        # token tuple uniquely and stably identifies the target's match-relevant
+        # state.
+        k = tuple(tgt.tokens)
+        v = tgt_cache.get(k)
+        if v is None:
+            t = "".join(sorted(tgt.tokens))
+            lt = len(t)
+            budget = max(1, lt // 4)
+            tm, tbg = _sig(t)
+            v = (t, lt, budget, tbg, tm, set(tgt.tokens))
+            tgt_cache[k] = v
+        return v
+
+    def f(s_name, tgt):
+        if not s_name or not tgt.tokens:
+            return 0.0
+        t, lt, budget, tbg, tm, ttok = _tgt(tgt)
+        if lt < 3:
+            return 0.0
+        if len(s_name) == 1:
+            (only,) = tuple(s_name)
+            if only in BLOCK and only not in ttok:
+                return 0.0
+        s = _src_joined(frozenset(s_name))
+        if abs(len(s) - lt) > 2:
+            return 0.0
+        sm, sbg = _sig(s)
+        xor = sm ^ tm
+        if xor and (bin(xor).count("1") + 1) // 2 > budget:
+            return 0.0
+        max_bg = len(sbg) if len(sbg) > len(tbg) else len(tbg)
+        if len(sbg & tbg) < max_bg - 2 * budget:
+            return 0.0
+        d = _bounded_levenshtein(s, t, budget)
+        if d == 0 or d > budget:
+            return 0.0
+        return FMIN + (1.0 - (d - 1) / budget) * (FMAX - FMIN)
+
+    return f
