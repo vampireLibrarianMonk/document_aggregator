@@ -230,3 +230,26 @@ bigger JSONs are the per-cluster inference cost (untested). They are orthogonal.
   `embed:sentence-transformers` variant works, but on easy stages both backends
   produce identical outcomes (contrast only appears on hard stages 7/9).
 - Pre-commit tools (ruff/mypy) not in venv; code byte-compiles + tests pass.
+
+## Ceiling chase (rapidfuzz C++/SIMD) — DONE
+
+Added rapidfuzz 3.10.1 (MIT) variants + a cdist-batched (SIMD+multithread)
+prototype. All gate-PASS (identical mappings). Definitive numbers (9 reps):
+
+  profile            py-champ(zero-dep)   rf-champ(C++)   batched-cdist
+  synthetic worst    4.6x                 4.8x            (n/a)
+  REALISTIC w400     11.9x                14.2x           8.3x (lost the index)
+
+Verdict: the CEILING is ~14.2x (index + rapidfuzz Levenshtein). Pure-Python
+index+cascade hits 11.9x = ~84% of ceiling with ZERO dependencies. rapidfuzz
+adds only ~20% and only on realistic data; batched cdist UNDERPERFORMED because
+it dropped the index (fuzzy was no longer the bottleneck — per-pair
+_score_candidate overhead is).
+
+RECOMMENDATION (not yet implemented): keep pure-Python cascade as the production
+path (air-gap/zero-dep posture); make rapidfuzz an OPTIONAL accelerator used if
+importable, clean fallback if not. rapidfuzz is NOT yet in requirements; it was
+pip-installed into the local venv only for this measurement.
+
+Files: perf/fuzzy_candidates.py (rapidfuzz_plain, rapidfuzz_cascade),
+perf/infer_batched.py (cdist prototype), optbench.py (the gate+speed harness).

@@ -215,3 +215,80 @@ def cascade_cached(mapping_mod) -> Callable:
         return FMIN + (1.0 - (d - 1) / budget) * (FMAX - FMIN)
 
     return f
+
+
+# --------------------------------------------------------------------------
+# Chasing the ceiling: rapidfuzz (C++/SIMD edit distance, MIT). Its
+# Levenshtein.distance matches our ins/del/sub=1 semantics exactly, and
+# score_cutoff gives a built-in early-exit equivalent to our budget question.
+# Two variants: plain (C++ DP every pair) and cascade (our cheap Python
+# prefilters, then rapidfuzz only for survivors).
+# --------------------------------------------------------------------------
+
+def rapidfuzz_plain(mapping_mod) -> Callable:
+    """Swap the DP for rapidfuzz's C++ Levenshtein with score_cutoff=budget."""
+    FMIN, FMAX, BLOCK = _preamble(mapping_mod)
+    from rapidfuzz.distance import Levenshtein
+
+    def f(s_name, tgt):
+        if not s_name or not tgt.tokens:
+            return 0.0
+        if len(s_name) == 1:
+            (only,) = tuple(s_name)
+            if only in BLOCK and only not in set(tgt.tokens):
+                return 0.0
+        s = "".join(sorted(s_name))
+        t = "".join(sorted(tgt.tokens))
+        if len(t) < 3 or abs(len(s) - len(t)) > 2:
+            return 0.0
+        budget = max(1, len(t) // 4)
+        d = Levenshtein.distance(s, t, score_cutoff=budget)
+        if d == 0 or d > budget:
+            return 0.0
+        return FMIN + (1.0 - (d - 1) / budget) * (FMAX - FMIN)
+
+    return f
+
+
+def rapidfuzz_cascade(mapping_mod) -> Callable:
+    """Our cheap memoized prefilters (len -> presence popcount -> bigram) then
+    rapidfuzz's C++ DP only for survivors. Best of both worlds."""
+    FMIN, FMAX, BLOCK = _preamble(mapping_mod)
+    from rapidfuzz.distance import Levenshtein
+    sig: dict[str, tuple[int, frozenset]] = {}
+
+    def _sig(s: str):
+        hit = sig.get(s)
+        if hit is None:
+            bg = frozenset(s[i:i + 2] for i in range(len(s) - 1)) if len(s) > 1 else frozenset((s,))
+            hit = (_mask(s), bg)
+            sig[s] = hit
+        return hit
+
+    def f(s_name, tgt):
+        if not s_name or not tgt.tokens:
+            return 0.0
+        if len(s_name) == 1:
+            (only,) = tuple(s_name)
+            if only in BLOCK and only not in set(tgt.tokens):
+                return 0.0
+        s = "".join(sorted(s_name))
+        t = "".join(sorted(tgt.tokens))
+        lt = len(t)
+        if lt < 3 or abs(len(s) - lt) > 2:
+            return 0.0
+        budget = max(1, lt // 4)
+        sm, sbg = _sig(s)
+        tm, tbg = _sig(t)
+        xor = sm ^ tm
+        if xor and (bin(xor).count("1") + 1) // 2 > budget:
+            return 0.0
+        max_bg = len(sbg) if len(sbg) > len(tbg) else len(tbg)
+        if len(sbg & tbg) < max_bg - 2 * budget:
+            return 0.0
+        d = Levenshtein.distance(s, t, score_cutoff=budget)
+        if d == 0 or d > budget:
+            return 0.0
+        return FMIN + (1.0 - (d - 1) / budget) * (FMAX - FMIN)
+
+    return f
