@@ -157,12 +157,36 @@ variants `infer:baseline` vs `infer:hash-indexed`):
   frontier cases + wide sweep + game schema). This answers the user's "string
   hashing method" question: YES, a bigram hash-set lower bound on edit distance.
 
+**Perf optimization prototyped + proven** (`backend/alpha_loop/perf/`,
+`optbench.py` is the reusable correctness-gate + speed harness):
+
+Obsessive iteration (transcript-driven; every variant gate-verified IDENTICAL
+mappings on frontier + wide + game + realistic schemas):
+- banded Levenshtein alone: 0.8x SLOWER (per-call overhead on short strings) — REJECTED
+- count-L1 lower bound: 1.7x — superseded
+- bigram set lower bound: 2.6x — superseded
+- **CHAMPION = index + cascade fuzzy** (`infer_indexed.py` +
+  `fuzzy_candidates.py::cascade_cached`): cheapest-first SOUND lower-bound
+  cascade len -> 26-bit char-presence bitmask popcount(XOR)/2 -> bigram-set
+  bound -> banded Levenshtein, with per-string signatures MEMOIZED, plus a
+  candidate-shortlist index in infer_mapping. Speedups:
+    synthetic uniform-length (index's WORST case): ~4.6x @ w400
+    realistic varied-length/diverse-token names:   ~14x  @ all widths
+  (synthetic understates because uniform lengths defeat the length filter; real
+  field names prune hard — candidate set 360 -> ~47-187.)
+- enum-vocab memo layered on top: noise/negative — REJECTED.
+
+Exhausted transcript techniques: short-circuit, bitmask+popcount, precompute-once,
+fewer-ops index. NOT pursued (pure-Python ceiling): SIMD/compiler unroll and
+in-infer parallelization. A C-ext / rapidfuzz variant could break past the
+ceiling but is a dependency decision (air-gap posture) — left for user.
+
 ### NOT YET DONE (next steps)
 
-1. **Promote the bigram prefilter to production** `_fuzzy_score` in
-   `backend/app/json_alignment/mapping.py` (currently only in the apparatus
-   prototype). MUST re-run full `pytest` + frontier suites after. This is a real
-   engine change — get user go-ahead.
+1. **Promote the index+cascade fuzzy optimization to production** `mapping.py`
+   (`infer_mapping` + `_fuzzy_score`). Prototype lives in
+   `backend/alpha_loop/perf/infer_indexed.py` + `fuzzy_candidates.py::cascade_cached`.
+   MUST re-run full `pytest` + frontier after. Get user go-ahead.
 2. Resume the stage ladder at **stage 5** (typecoerce) if going back to the loop.
 3. Still NO `new_spec` dataset found; synthetic wide generator fills the gap.
 
