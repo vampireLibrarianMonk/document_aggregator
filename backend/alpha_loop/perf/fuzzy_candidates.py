@@ -365,3 +365,76 @@ def cascade_joincache(mapping_mod) -> Callable:
         return FMIN + (1.0 - (d - 1) / budget) * (FMAX - FMIN)
 
     return f
+
+
+# --------------------------------------------------------------------------
+# Cycle 3: _score_candidate rebuilds SOURCE-invariant data on every pair:
+#   set(sf.tokens), set(sf.desc_tokens), " ".join(sf.tokens)
+# all pure functions of the source field, recomputed once per target. Cache
+# them per source (value-keyed by the token tuple, never id()), so the width^2
+# loop reuses them. Behavior-identical: same values, just computed once.
+#
+# This is a faithful re-implementation of the production _score_candidate with
+# a source-signature cache; it calls the SAME tier helpers (value gate, synonym,
+# fuzzy, jaccard, type-compat) so results are byte-identical. The correctness
+# gate verifies it over frontier + wide + realistic.
+# --------------------------------------------------------------------------
+
+def make_score_candidate_cached(mapping_mod, fuzzy=None):
+    """Return a drop-in _score_candidate with a per-source signature cache.
+    `fuzzy` optionally overrides the fuzzy scorer (e.g. the cascade)."""
+    M = mapping_mod
+    _EXACT, _NORMALIZED, _ALIAS = M._EXACT, M._NORMALIZED, M._ALIAS
+    _SYNONYM, _DESC_FLOOR, _VALUE_BOOST = M._SYNONYM, M._DESC_FLOOR, M._VALUE_BOOST
+    name_tokens = M.name_tokens
+    _value_contradicts = M._value_contradicts
+    _value_corroborates = M._value_corroborates
+    _synonym_match = M._synonym_match
+    _type_compatible = M._type_compatible
+    _jaccard = M._jaccard
+    _weak_generic_overlap = M._weak_generic_overlap
+    _fuzzy = fuzzy if fuzzy is not None else M._fuzzy_score
+
+    # source token tuple -> (s_name:set, s_desc:set, leaf_norm:str, s_bag:set)
+    scache: dict[tuple, tuple] = {}
+
+    def _ssig(sf):
+        k = sf.tokens  # tuple, hashable, value-based
+        v = scache.get(k)
+        if v is None:
+            s_name = set(sf.tokens)
+            s_desc = set(sf.desc_tokens)
+            v = (s_name, s_desc, " ".join(sf.tokens), s_name | s_desc)
+            scache[k] = v
+        return v
+
+    def score(sf, tgt):
+        s_name, s_desc, leaf_norm, s_bag = _ssig(sf)
+        t_name = set(tgt.tokens)
+        tgt_norm = " ".join(tgt.tokens)
+        if leaf_norm and leaf_norm == tgt_norm:
+            return _EXACT, "exact"
+        if s_name and s_name == t_name:
+            return _NORMALIZED, "normalized"
+        for alias in tgt.aliases:
+            if name_tokens(str(alias)) and set(name_tokens(str(alias))) == s_name:
+                return _ALIAS, "alias"
+        if _value_contradicts(sf, tgt):
+            return 0.0, "abstain"
+        boost = _VALUE_BOOST if _value_corroborates(sf, tgt) else 0.0
+        if _synonym_match(s_name, tgt) and _type_compatible(sf.primary_type, tgt):
+            return min(_SYNONYM + boost, _ALIAS - 0.01), "synonym"
+        fscore = _fuzzy(s_name, tgt)
+        if fscore > 0.0 and _type_compatible(sf.primary_type, tgt):
+            return min(fscore + boost, _SYNONYM - 0.01), "fuzzy"
+        t_desc = set(tgt.desc_tokens)
+        t_bag = t_name | t_desc
+        overlap = _jaccard(s_bag, t_bag)
+        overlap = max(overlap, _jaccard(s_name, t_bag), _jaccard(s_bag, t_name))
+        if overlap >= _DESC_FLOOR and _type_compatible(sf.primary_type, tgt):
+            if _weak_generic_overlap(sf, tgt):
+                return 0.0, "abstain"
+            return min(0.85 + boost, _ALIAS - 0.01, 0.5 + overlap / 2 + boost), "description"
+        return 0.0, "abstain"
+
+    return score

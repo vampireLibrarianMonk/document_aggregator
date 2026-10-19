@@ -341,3 +341,45 @@ def infer_mapping_indexed_tight(source: SourceProfile, target: TargetSchema) -> 
                    method=top_method, confidence=top_score,
                    status=STATUS_MAPPED, candidates=candidates))
     return Mapping(fields=out)
+
+
+def infer_mapping_tight_scored(source: SourceProfile, target: TargetSchema,
+                               score_fn=None) -> Mapping:
+    """infer_mapping_indexed_tight but with an INJECTABLE per-pair scorer
+    (defaults to production _score_candidate). Lets the bench plug in a cached
+    _score_candidate without monkey-patching the module."""
+    sc = score_fn if score_fn is not None else _score_candidate
+    idx = _SourceIndexTight(source)
+    sf_by_path = idx.by_path
+    out: list[FieldMapping] = []
+    for tgt in target.fields:
+        scored = []
+        for path in idx.candidates_for(tgt):
+            s, method = sc(sf_by_path[path], tgt)
+            if s > 0.0:
+                scored.append((s, method, path))
+        scored.sort(key=lambda x: (-x[0], x[2]))
+        if not scored:
+            out.append(FieldMapping(target=tgt.name, source_path=None,
+                       method="abstain", confidence=0.0,
+                       status=STATUS_NEEDS_REVIEW, candidates=(),
+                       note="no source field cleared the match floor"))
+            continue
+        top_score, top_method, top_path = scored[0]
+        cand_order = scored
+        if len(scored) > 1:
+            cos = {p: _cosine_to_target(sf_by_path[p], tgt)
+                   for _s, _m, p in scored if p in sf_by_path}
+            cand_order = sorted(scored, key=lambda x: (-x[0], -cos.get(x[2], 0.0), x[2]))
+        candidates = tuple((p, s) for s, _m, p in cand_order)
+        tied = [c for c in scored if c[0] == top_score and c[2] != top_path]
+        if tied and top_method not in ("exact", "normalized"):
+            out.append(FieldMapping(target=tgt.name, source_path=None,
+                       method=top_method, confidence=top_score,
+                       status=STATUS_CONFLICT, candidates=candidates,
+                       note=f"ambiguous: {1 + len(tied)} source fields tie at {top_score:.2f}"))
+            continue
+        out.append(FieldMapping(target=tgt.name, source_path=top_path,
+                   method=top_method, confidence=top_score,
+                   status=STATUS_MAPPED, candidates=candidates))
+    return Mapping(fields=out)

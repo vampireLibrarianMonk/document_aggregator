@@ -285,3 +285,26 @@ CURRENT CHAMPION: infer_mapping_indexed_tight + cascade_cached fuzzy
   = ~25x realistic / ~68x synthetic, ZERO dependency, correctness-gate PASS.
 Promotion-to-production candidate (mapping.py infer_mapping + _fuzzy_score +
 the tight candidate index). Still prototype-only; gate on full pytest+frontier.
+
+## Chase cycle 3 (final) — REJECTED, champion confirmed
+
+Cycle 3 tried caching _score_candidate's per-source-invariant rebuilds
+(set(tokens), join, bag) keyed by token tuple. Gate PASS but speed was NOISE
+(19x vs 18x @w100; slightly WORSE @w400): the tight index already prunes so hard
+that few _score_candidate calls remain, so per-call micro-caching cancels out.
+REJECTED (fast-but-not-faster). Prototype kept as make_score_candidate_cached /
+infer_mapping_tight_scored for reference but not adopted.
+
+FINAL definitive numbers (11-rep medians):
+  SYNTHETIC w400: CHAMPION 66.4x | +rapidfuzz 67.0x (rapidfuzz adds nothing)
+  REALISTIC w400: CHAMPION 25.9x | +rapidfuzz 27.8x (rapidfuzz adds ~7%)
+
+FINAL CHAMPION = infer_mapping_indexed_tight + cascade_cached fuzzy, ZERO
+dependency, correctness-gate PASS on 164 cases. rapidfuzz is NOT worth the
+dependency (the tight index prunes so aggressively the C++ DP rarely runs).
+
+Optimization chase CLOSED at diminishing returns. Remaining profile cost is
+inside production mapping.py internals (per-call set rebuild, cosine genexpr,
+_jaccard) — lower return, higher risk; a deliberate production change, not more
+apparatus prototyping. Next payoff = promote the tight index to production
+(full pytest+frontier gated).
