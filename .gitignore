@@ -12,6 +12,8 @@ __pycache__/
 
 # ---- Runtime data (immutable originals, indexes, canonical docs) ----
 data/
+# local dev throwaway store (API/worker DATA_DIR for local runs)
+.local_data/
 
 # ---- Node / frontend ----
 node_modules/
@@ -58,3 +60,6 @@ madi_bench_data/
 **/.agents/
 semantic-review/
 new_spec/
+
+# ---- Kiro session operation logs (tooling-generated; not source) ----
+.kiro/operations-*

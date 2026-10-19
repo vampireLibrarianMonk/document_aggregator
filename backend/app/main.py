@@ -645,6 +645,7 @@ def job_status(job_id: str) -> dict:
         "op": job.op,
         "state": job.state.value,
         "attempts": job.attempts,
+        "worker_id": job.worker_id,
         "error": job.error,
         "result": job.result,
     }

@@ -14,6 +14,7 @@ import type {
   GovernorEvent,
   GovernorSummary,
   JobStatus,
+  JobCounts,
   Project,
   ProjectKind,
   RawDoc,
@@ -591,5 +592,11 @@ export const api = {
 
   getJob(jobId: string): Promise<JobStatus> {
     return fetch(`${BASE}/jobs/${jobId}`).then((r) => json<JobStatus>(r))
+  },
+
+  /** Live queue tallies by job state (GET /jobs). Drives the worker/queue
+   *  visibility panel; absent keys mean a zero count for that state. */
+  getJobCounts(): Promise<{ counts: JobCounts }> {
+    return fetch(`${BASE}/jobs`).then((r) => json<{ counts: JobCounts }>(r))
   },
 }

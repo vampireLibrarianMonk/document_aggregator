@@ -72,20 +72,28 @@ def run_alignment(records: list[dict[str, Any]], target_schema: dict[str, Any],
     deterministic abstentions (needs_review/conflict) with re-verified model
     picks. It is a no-op offline or when a profile is replayed (a frozen mapping
     is never re-opened), so default behavior stays fully deterministic."""
-    src = profile_source(records, source_descriptions)
-    target = extract_target(target_schema)
+    from .perf_spans import span
+
+    with span("profile_source"):
+        src = profile_source(records, source_descriptions)
+    with span("extract_target"):
+        target = extract_target(target_schema)
     if profile is not None:
         mapping = profile.mapping          # replay: frozen, never re-opened
     else:
-        mapping = infer_mapping(src, target)
+        with span("infer_mapping"):
+            mapping = infer_mapping(src, target)
         if use_semantic:
             from .semantic import apply_semantic_tier
-            mapping = apply_semantic_tier(mapping, src, target)
+            with span("apply_semantic_tier"):
+                mapping = apply_semantic_tier(mapping, src, target)
 
-    produced, prov = execute_mapping(records, mapping, target)
-    validation = [
-        validate_record(rec, prov[i], target) for i, rec in enumerate(produced)
-    ]
+    with span("execute_mapping"):
+        produced, prov = execute_mapping(records, mapping, target)
+    with span("validate"):
+        validation = [
+            validate_record(rec, prov[i], target) for i, rec in enumerate(produced)
+        ]
     return AlignmentResult(
         source_profile=src, target=target, mapping=mapping,
         records=produced, provenance=prov, validation=validation,

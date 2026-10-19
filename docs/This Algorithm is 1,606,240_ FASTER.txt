@@ -1,0 +1,341 @@
+00:00 1.6 million percent faster it's hard to
+00:04 even display visually because it shows
+00:06 up as nothing today I'm going to show
+00:08 you the seven steps taken to improve the
+00:10 running time of an algorithm but here's
+00:12 the kicker the slowest one was O of N
+00:14 and the fastest one is still o of N and
+00:18 along the way I'm going to use common
+00:19 optimization techniques that you can use
+00:21 in any application and then we're gonna
+00:24 get a little bit exotic and go into the
+00:26 bit manipulation world to really speed
+00:28 things up then of course compiler
+00:30 optimizations and symmet and everything
+00:32 to go blazingly fast but first the
+00:35 problem of course right so the problem
+00:37 is simple it was from Advent of code
+00:39 2022 which is find 14 distinct
+00:42 characters in a long string once you
+00:45 find 14 distinct characters you just
+00:47 report the position directly after those
+00:49 if you're not familiar with Advent of
+00:51 code it's kind of like a fun Santa
+00:53 themed holiday Adventure in which you're
+00:55 solving problems to bring Christmas tree
+00:59 solution possible would just be to use a
+01:01 hash set right grab the first 14
+01:03 characters throw them all in the hash
+01:05 set and then check the length of the
+01:07 hash that at the end if it's 14 we got
+01:09 ourselves a go if it's not we need to
+01:12 move forward everything and try again we
+01:14 need to try again try again try again
+01:17 try again oh my goodness look at that we
+01:19 have found 14 distinct characters now
+01:22 all we need to do is report that little
+01:23 J right here that jth position and we've
+01:26 solved Advent of code so here's the code
+01:28 very very simple we simply go over 14
+01:31 characters at a time collect it all into
+01:33 a hash set check the length of 14 boom
+01:35 we're done now there's a very simple
+01:37 optimization that could be made and this
+01:40 is the first optimization which will
+01:41 lead us to a 92 faster run time and of
+01:45 course that is to insert characters one
+01:47 at a time the moment you detect a
+01:49 duplicate you do not process any further
+01:51 and we go to the next set of 14. I know
+01:54 it's shocking right 92 percent faster
+01:56 for such a simple if statement let's go
+01:59 to the next level of optimization this
+02:02 is going to improve the running time 8.9
+02:04 fold practically an order of magnitude
+02:07 faster and it's going to surprise you
+02:09 how we do that that of course is to use
+02:11 a vector instead of a hash set it might
+02:14 be a bit counter-intuitive you're
+02:16 thinking well why would checking every
+02:18 position somehow be faster than a hash
+02:22 set lookup aren't those constant time
+02:25 yes but so is a single Vector lookup
+02:28 it's also a constant time but I want you
+02:30 to think about something when you see
+02:31 Big O of one constant time it's kind of
+02:35 a lie in the sense that it's actually
+02:37 Big O of a constant multiplied by one
+02:40 now what is that constant when it comes
+02:43 to a hash set that constant is
+02:46 significantly larger than a vector
+02:49 constant and that should make sense
+02:51 right because when you're talking about
+02:52 a hash set you have to compute a hash
+02:55 and an index into a large table inside
+02:58 that table you then have to go to that
+03:00 entry and potentially scan through some
+03:03 couple item list if there are any
+03:05 collisions and check for equality
+03:07 whereas with the victory you're still
+03:09 allocating on the Heap like a hash set
+03:11 but you just simply have to follow a
+03:13 reference and calculate an offset into a
+03:15 memory region that's just gonna be super
+03:18 fast in comparison and the code's not
+03:21 that much more complex we create a
+03:23 vector instead of a hash set and we
+03:25 simply have to call contains instead of
+03:27 checking the return value of insert it's
+03:30 really not that much different but it is
+03:32 significantly faster and the same code
+03:35 but in JavaScript is 6.7 times faster it
+03:39 is it works in both languages because
+03:41 adding and checking a list in general is
+03:45 significantly faster than a hash set on
+03:47 a small scale small scale meaning a few
+03:50 items like 14. alright the next one
+03:52 should be obvious what we're going to do
+03:54 here and this one will be 26 times
+03:57 faster which of course is to use an
+03:59 array instead of a vector it's stack
+04:01 allocated and we get like some cash
+04:03 locality kind of benefits here much much
+04:07 faster but obviously this one's a bit
+04:09 more work because now I have to keep
+04:10 track of the index as well because I
+04:13 don't want to keep checking all 14
+04:14 elements every single time but just a
+04:16 subset of them but still not much more
+04:19 complicated than our previous solution
+04:20 now I know at this point this has all
+04:23 been a bit surprising especially if you
+04:24 have not used a real language real
+04:26 language meaning a language that has
+04:28 static arrays hey sorry JavaScript what
+04:31 about a ray buffer okay calm down I I
+04:34 mean they kind of do but real talk these
+04:36 next couple of optimizations are gonna
+04:38 be a bit wild we're gonna go from 26x to
+04:43 233 times faster we're starting to get
+04:47 into the blazingly faster category all
+04:50 right before we can go blazingly faster
+04:52 which is technically a word you first
+04:55 need to hit the Subscribe button and I'm
+04:56 going to explain to you about bits
+04:58 because from here on out all the
+05:00 solution involves some bit manipulation
+05:02 to gain some super speeds because we no
+05:04 longer need to use an array we can use a
+05:07 singular 32-bit number to store the
+05:10 state of our search one thing you have
+05:12 to understand about ASCII characters is
+05:13 that there is a numeric value Associated
+05:15 for each one of them and they happen to
+05:17 be contiguous from 97 to 122. Second Au
+05:20 32 is an unsigned number that has 32
+05:23 bits you can think of that as an array
+05:25 that has the ability to store a true or
+05:28 a false in 32 positions a true being a
+05:32 one a false being a zero that means any
+05:35 character that's moduloed by 32 will
+05:37 result in a number between 0 to 31 which
+05:41 is how many bits are stored in a u32
+05:43 let's go over a quick example let's say
+05:45 our search state is zero we have not
+05:47 seen any characters yet and we want to
+05:50 insert the character d d or 100 modulo
+05:53 32 is 4. a left shift operator is the
+05:57 equivalent of multiplying by 10. that
+05:59 means we're going to shift this one over
+06:00 by four positions thus equaling the
+06:02 binary representation of one zero zero
+06:05 zero zero or binary ten thousand so if
+06:08 our state is equal to zero and we or it
+06:11 with our new binary value that we just
+06:12 created the resulting value will be
+06:15 binary 10 000. let's say our next
+06:17 character is an a following this
+06:19 equation it will yield a value of binary
+06:22 10. if we or in binary 10 we will get
+06:25 out the value binary ten thousand and
+06:27 ten but how do we check to see if that
+06:30 binary has already been set before we
+06:32 set it in well we just simply use the
+06:33 logical and operator using our previous
+06:36 example we would run the and operator on
+06:38 it and we'd get out a value of zero
+06:41 therefore these two values do not share
+06:43 any common ones now I know that was a
+06:46 very abbreviated version of binary if
+06:48 you want to learn more about it I'll
+06:49 throw a link in the description go check
+06:52 it out it's directly below the like
+06:53 button so here is Benny's algorithm and
+06:56 it's actually quite clever so we do the
+06:58 state thing that we talked about earlier
+07:00 and we grabbed the first 13 characters
+07:03 in the sequence and here's the secret
+07:06 sauce it uses an xor and exor think of
+07:09 it like a toggle if there is a zero in
+07:11 that bit position it will flip it to a
+07:13 one if there's a one in that bit
+07:15 position it will flip it to a zero
+07:17 exclusive or or xor so we do the same
+07:20 operations that I showed earlier except
+07:22 for using xor that means we have toggled
+07:25 on 13 characters at this point from here
+07:28 we just go over the input 14 at a time
+07:31 if you're not familiar with the windows
+07:32 operation it literally goes from 0 to 13
+07:35 1 to 14 2 to 15 it just does a nice
+07:39 window for you and the position iterator
+07:41 will return the index of the first True
+07:44 Result meaning when I return true right
+07:47 here it will return the index not the
+07:50 value that that happened at all right so
+07:52 we grab the first and last character in
+07:54 our window now remember our state has
+07:56 the first 13 characters we toggle on the
+07:60 14th character so now we have a
+08:02 possibility of having 14 ones within our
+08:05 state if we do have 14 ones then we have
+08:08 found the position we're looking for
+08:10 then we remove the first character that
+08:12 we saw that means we go from 14 toggles
+08:15 down to 13 toggles from 1 to 13. then we
+08:18 do the loop again adding in the next
+08:21 last item in the window which is now the
+08:24 14th position so now we have from 1 to
+08:26 14 we do the distinct count again then
+08:28 we remove the first and go to the second
+08:30 and we keep doing that little window
+08:32 crawl motion over this clever algorithm
+08:35 earned Benny
+08:37 233 times faster than the hash set or 23
+08:43 000 faster it is incredibly clever
+08:46 algorithm hats off to Benny damn it
+08:49 Benny what a smart man and to think my
+08:51 solution was only like 100x faster than
+08:53 the hash that one I feel so stupid
+08:55 looking at Benny's super clever window
+08:57 crawling solution let's kind of get into
+08:59 our final form here we're going to look
+09:01 at the algorithm that sped up Benny's by
+09:03 over four-fold it was approximately a
+09:06 thousand X faster so instead of walking
+09:09 through the idea let's just walk through
+09:11 the code on this last one because it's
+09:13 just mind-blowing so the first thing we
+09:15 do is just start by going through a
+09:17 fixed size windowing right here you'll
+09:20 notice that we do a input git from index
+09:23 to index plus 14. so that is a constant
+09:26 size window it's very important to
+09:28 remember that next we create a state
+09:30 variable 32 bits just like Benny's
+09:32 solution next we're going to go through
+09:33 that slice and we're going to iterate in
+09:36 Reverse now for me personally when I saw
+09:38 this that means we had to take an
+09:40 iterator get all the elements collect
+09:43 them all up and then walk backwards
+09:45 through them I thought there's no way
+09:47 this is faster than Benny's we do the
+09:48 same operation we take the modulo 32 of
+09:51 the bit we test to see is that bit
+09:54 already set to one if it is set to one
+09:57 then we found a place of a duplicate we
+09:59 then shift on that bit using the or
+10:01 operator then we return whether or not
+10:03 we've seen this byte already so here's
+10:05 one of the two mind-blowing
+10:07 optimizations if we have seen this bite
+10:09 since we're going backwards through the
+10:12 list we can actually jump all the way to
+10:14 this position plus one that is a huge
+10:17 optimization we're going to cut out
+10:18 several characters we don't have to look
+10:20 over and over again for if we do not
+10:22 find a repeat character or the false
+10:24 condition we actually return this index
+10:27 which is correct this is the position of
+10:30 the 14 contiguous characters now you're
+10:32 probably asking yourself how how show me
+10:35 show me how this was so fast because I
+10:37 don't understand why going backwards
+10:39 through a list was faster other than
+10:41 that little jump but you still have to
+10:42 iterate over everything right
+10:44 right so check this out this is the
+10:46 compiler Explorer this is godbolt.org so
+10:49 first I put in Benny's solution right
+10:50 here so we can look at it first now the
+10:53 first thing that you'll notice is that
+10:54 the input right here since it was a
+10:56 fixed size what did the compiler do over
+10:59 here during optimization it actually
+11:00 unrolled the loop it just made it all in
+11:03 line so there's no jumping back and
+11:05 doing this a whole bunch and then
+11:06 jumping out at the end then we get to
+11:08 this our Windows 14. now this is kind of
+11:11 interesting because this is pretty much
+11:12 the primary Loop right here we just go
+11:13 over this code over and over and over
+11:15 again so it's it's pretty fast right but
+11:18 now let's look at David's solution so we
+11:20 have the same thing happens to David's
+11:22 solution right here it actually gets
+11:24 Unwound so that reverse iterator happens
+11:26 in Reverse right here you can see it
+11:28 right there look that 11 10 9 8 7 5 3 2
+11:32 1 and then whatever this means I don't
+11:33 even know what it means and I have been
+11:35 told that what's happening up here is
+11:37 all the Sim D stuff that's happening
+11:39 that means single instruction is
+11:41 multiple data calculations in a single
+11:43 go with the compiler that means you can
+11:45 massively speed up what you're doing so
+11:48 not only is the inner loop being
+11:50 unrolled unlike Benny's it's also
+11:52 getting simd optimization and that my
+11:55 friends is blazingly fast but you're
+11:57 probably asking yourself wait wait that
+11:59 one was 16 000 times faster no that was
+12:03 just shy of three orders of magnitude
+12:06 faster a thousand X faster was
+12:08 983 X faster so how did we make it that
+12:13 much much more faster of course they
+12:15 just used by 64 threads that are just
+12:17 doing nothing of come on of course I'm
+12:19 gonna do that and that allowed us to go
+12:21 blazingly fast in fact 16 000 times
+12:25 faster than the original solution I know
+12:27 someone's probably like well that's kind
+12:28 of cheating us now I mean it's a little
+12:29 cheating I mean it's part of an
+12:31 algorithm right we're just improving
+12:32 upon the algorithm it's a very simple
+12:35 set of work to parallelize in fact it's
+12:37 so fast that Google charts I can't even
+12:40 get a blue line to show up here that's
+12:43 how much faster it is it is so fast that
+12:46 the original solution would process
+12:49 3.84 megabytes of data per second
+12:51 whereas the multi-threaded final
+12:54 solution did 617 gigabytes per second of
+12:59 course it only did it for about 11.9
+13:01 milliseconds because that's all it took
+13:03 to cover about 800 megabytes worth of
+13:05 data of course the 980 three times
+13:08 faster solution is brought to you by
+13:10 David A Perez go give them a follow on
+13:12 GitHub now that's blazingly fast I hope
+13:16 you enjoyed this hey hit the like button
+13:18 let me know down below it was a lot of
+13:20 fun to do this this was all obviously
+13:22 done on Twitch we went through all the
+13:24 optimizations and everything ma glorious
+13:26 times on there thank you for watching
+13:28 the name is the primagen

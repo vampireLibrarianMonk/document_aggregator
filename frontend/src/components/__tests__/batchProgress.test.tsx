@@ -5,24 +5,24 @@ import { batchProgressLabel } from '../JsonAlignment'
 afterEach(() => cleanup())
 
 describe('batchProgressLabel', () => {
-  it('renders "N of M files · P%" with rounded percent', () => {
-    expect(batchProgressLabel({ done: 1, total: 3 })).toBe('1 of 3 files · 33%')
-    expect(batchProgressLabel({ done: 2, total: 3 })).toBe('2 of 3 files · 67%')
-    expect(batchProgressLabel({ done: 3, total: 3 })).toBe('3 of 3 files · 100%')
+  it('renders "N of M files completed · P%" with rounded percent', () => {
+    expect(batchProgressLabel({ done: 1, total: 3 })).toBe('1 of 3 files completed · 33%')
+    expect(batchProgressLabel({ done: 2, total: 3 })).toBe('2 of 3 files completed · 67%')
+    expect(batchProgressLabel({ done: 3, total: 3 })).toBe('3 of 3 files completed · 100%')
   })
 
-  it('falls back to "processing…" when progress is absent or total is 0', () => {
-    expect(batchProgressLabel(null)).toBe('processing…')
-    expect(batchProgressLabel({ done: 0, total: 0 })).toBe('processing…')
+  it('falls back to "waiting for a worker…" when progress is absent or total is 0', () => {
+    expect(batchProgressLabel(null)).toBe('waiting for a worker…')
+    expect(batchProgressLabel({ done: 0, total: 0 })).toBe('waiting for a worker…')
   })
 
   it('renders distinct intermediate frames for a 4-file run', () => {
     // File-granular progress: each file completion is its own visible frame,
     // not a single 0->100% jump.
-    expect(batchProgressLabel({ done: 1, total: 4 })).toBe('1 of 4 files · 25%')
-    expect(batchProgressLabel({ done: 2, total: 4 })).toBe('2 of 4 files · 50%')
-    expect(batchProgressLabel({ done: 3, total: 4 })).toBe('3 of 4 files · 75%')
-    expect(batchProgressLabel({ done: 4, total: 4 })).toBe('4 of 4 files · 100%')
+    expect(batchProgressLabel({ done: 1, total: 4 })).toBe('1 of 4 files completed · 25%')
+    expect(batchProgressLabel({ done: 2, total: 4 })).toBe('2 of 4 files completed · 50%')
+    expect(batchProgressLabel({ done: 3, total: 4 })).toBe('3 of 4 files completed · 75%')
+    expect(batchProgressLabel({ done: 4, total: 4 })).toBe('4 of 4 files completed · 100%')
   })
 })
 
@@ -41,7 +41,7 @@ describe('batch progress indicator slot', () => {
     const { container, getByRole } = render(<Indicator progress={{ done: 1, total: 3 }} />)
     const status = getByRole('status')
     expect(status.getAttribute('aria-live')).toBe('polite')
-    expect(status.textContent).toBe('1 of 3 files · 33%')
+    expect(status.textContent).toBe('1 of 3 files completed · 33%')
     // Text-only: no <progress>, no role="progressbar", no spinner element.
     expect(container.querySelector('progress')).toBeNull()
     expect(container.querySelector('[role="progressbar"]')).toBeNull()

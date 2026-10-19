@@ -1,0 +1,208 @@
+# Session Handoff — Document Aggregator / Alpha Loop
+
+Last worked: 2026-10-19. Pick up from here.
+
+## How to resume the running stack
+
+Local run (NOT docker). Port 8000 is taken by the user's other app, so:
+
+- **Frontend (Vite dev):** http://localhost:5173
+- **API (uvicorn):** http://localhost:8001
+- **DATA_DIR:** `./.local_data` (throwaway local store)
+
+Start commands (run from repo root `/home/flaniganp/PycharmProjects/document_aggregator`):
+
+```bash
+# API on 8001
+DATA_DIR="$PWD/.local_data" nohup .venv/bin/python -m uvicorn app.main:app \
+  --host 0.0.0.0 --port 8001 --app-dir backend > /tmp/docagg_api.log 2>&1 &
+
+# Worker (REQUIRED for batch/async jobs; concurrency 2)
+DATA_DIR="$PWD/.local_data" WORKER_CONCURRENCY=2 EMBEDDING_BACKEND=hashing \
+  nohup .venv/bin/python backend/worker_main.py > /tmp/docagg_worker.log 2>&1 &
+
+# Frontend (proxies /api -> :8001)
+cd frontend && VITE_API_TARGET="http://localhost:8001" nohup npm run dev \
+  > /tmp/docagg_fe.log 2>&1 &
+```
+
+Health checks: `curl -s http://localhost:8001/health`, `curl -s http://localhost:8001/jobs`,
+`pgrep -af worker_main`.
+
+NOTE: background processes started inside a tool shell can die; if the API/worker
+is gone on resume, just re-run the commands above. The venv already has
+`requirements-api.txt` + pytest installed.
+
+## What we changed in the app (committed to disk, verified)
+
+1. **Worker-visibility + "processing…" fix** (the original bug: batch stuck at
+   "processing…" because no worker was running).
+   - `backend/app/main.py`: `/jobs/{id}` now returns `worker_id`.
+   - `frontend/src/api/types.ts`: added `worker_id` to `JobStatus`, added
+     `JobCounts`.
+   - `frontend/src/api/client.ts`: added `getJobCounts()` (GET /jobs).
+   - `frontend/src/components/JsonAlignment.tsx`:
+     - `batchProgressLabel` now reads "N of M files completed · P%" (fallback
+       "waiting for a worker…").
+     - New `WorkerQueuePanel` dropdown below the batch pane (live queue counts,
+       active job detail, worker id, stalled-queue warning).
+   - Tests updated: `frontend/src/components/__tests__/batchProgress.test.tsx`.
+
+2. **Approval-card UX fixes** (JsonAlignment.tsx):
+   - Reject form: contained focus ring (styles.css), consistent spacing,
+     scrollable labeled region, scrollable mismapped-fields checklist.
+   - Approval mapping table: scrollable (maxHeight 360, sticky header) + a
+     "N mapped, M need review" summary.
+   - Whole provisional-shapes list: scrollable (maxHeight 640).
+   - Added an explicit note: "Each shape is approved independently — approving
+     one does NOT cascade." (Confirmed in code: approve/override are per-profile.)
+   - `frontend/src/styles.css`: `input/textarea/select:focus-visible` ring with
+     `outline-offset: -1px`.
+
+3. **White-box perf instrument** (behavior-neutral, zero-overhead when off):
+   - NEW `backend/app/json_alignment/perf_spans.py` — contextvar span timer.
+   - `backend/app/json_alignment/pipeline.py`: `run_alignment` stages wrapped in
+     `span(...)` (profile_source / extract_target / infer_mapping /
+     apply_semantic_tier / execute_mapping / validate). No behavior change.
+   - Verified: 55 alignment/batch tests still pass.
+
+Frontend: `npx tsc -b` clean, 30/30 vitest pass, oxlint 0 errors.
+
+## The Adversarial Alpha Loop apparatus (NEW)
+
+Location: `backend/alpha_loop/` — fully documented in `backend/alpha_loop/README.md`.
+
+Purpose: fire JSON at the LIVE API, red-team the JSON->golden approve/reject
+pipeline, expand until break, then learn. Reuses the proven
+`backend/tests/alpha_frontier/` mutation axes + threshold-independent truth model
+as the correctness oracle (do NOT reinvent that).
+
+Modules:
+- `client.py`     thin live-API client (fires at :8001, times queue/worker)
+- `generator.py`  Protagonist — 12-stage benign->hostile ladder over alpha_frontier axes
+- `agents.py`     red team: A correctness, B invariants/cascade, C performance
+- `decider.py`    spiral-out policy (approve >=90% conformity & no needs_review; remap; reject; hold)
+- `controller.py` orchestrator: `run_stage` (mode a), `run_to_break` (mode b), `run_scale`
+- `__main__.py`   CLI
+- `perf/`         A/B bench: probes.py (instrument), variants.py (swappables), experiment.py (correctness-gated A/B)
+
+Run from `backend/` with API+worker up:
+```bash
+cd backend
+../.venv/bin/python -m alpha_loop stages
+../.venv/bin/python -m alpha_loop step --stage N --n 3          # mode a (one rung)
+../.venv/bin/python -m alpha_loop scale --shapes 0,1,2 --files-per-shape 5 --records 50
+../.venv/bin/python -m alpha_loop perf --stage 7 --semantic     # A/B hashing vs MiniLM
+```
+
+Agreed operating mode: **(a) step/confirm now**, graduate to **(b) run-to-break**
+at convergence. User is deliberately slow-walking the rungs.
+
+## Progress through the ladder (all live fires)
+
+- stage 0 benign_clean      → 8/8 recovered, auto-approved, no cascade, clean replay. PASS
+- stage 1 rename_shared     → 7/8, remapped genres<-genre_list[]. PASS
+- stage 2 rename_synonym    → 7/8, remapped publisher<-label. PASS
+- stage 3 nesting           → 7/8, remapped publisher<-level1.level0.label. PASS
+- stage 4 misspell@s3       → FIRST BREAK: keys too corrupted, zero required fields
+                              grounded, routed to `review` with NO profile (safe refusal,
+                              no fabrication). Decider correctly `hold`.
+- stages 5-11               → NOT YET FIRED.
+
+## Key findings
+
+- **Cascade is per-shape** (verified in code AND live): approving one shape never
+  touches others; same shape re-fired replays clean, zero re-prompt.
+- **No-fabrication holds**: zero false_matches across all rungs; matcher abstains
+  rather than guess. Value evidence can veto/corroborate/re-rank a mapping but
+  NEVER grounds a pair or rewrites a value (confirmed in `mapping.py`
+  `_score_candidate` / `infer_mapping`).
+- **Scaling cost model** (from `scale` sweeps): time ≈ fixed ~0.21s batch/job/
+  worker overhead + k·(distinct clusters). Records/file = FLAT (3→500 same).
+  Many files same shape = FLAT (clustering collapses to 1 inference). The only
+  real driver is DISTINCT SHAPE count, and even 11 clusters stayed under the
+  0.21s overhead floor. The live path is overhead-bound, not compute-bound.
+- **Hot stage** (white-box spans, in-process): `infer_mapping` ≈ 73% of pipeline
+  time (~1.8ms). That's the optimization target, only visible in-process (the
+  `perf` bench), not on the live path (hidden under the 0.21s job overhead).
+
+## USER DECISIONS / BOUNDARIES (honor these)
+
+- Do NOT build a value-first proposer / let input values inform field mapping
+  when KEYS are malformed — user does not expect garbled-key inputs; don't
+  engineer for errors we don't expect. (Parked permanently unless user revives.)
+- Correctness is the HARD GATE for perf; speed only counts if the mapping outcome
+  is identical (`experiment.py` enforces this).
+- Fire against the LIVE API always (the whole point).
+
+## OPEN THREAD — where we stopped (next session starts here)
+
+### DONE this session: size-factor + perf optimization
+
+**Size factor fully measured** (via new `backend/alpha_loop/wide.py` + `widesweep`
+CLI, in-process to isolate from the 0.21s job overhead):
+- records/file, #files (same shape), nesting depth → ALL FLAT.
+- **field WIDTH is the only cost driver: O(width²).** 8 flds≈1ms, 100≈190ms,
+  400≈4.5s. Width×depth are orthogonal (no interaction).
+
+**Profiler found the real hotspot:** `_levenshtein` in the fuzzy tier = 72% of
+infer_mapping time (432k calls at width 400). NOT the candidate scan.
+
+**Perf optimization prototyped + proven** (`backend/alpha_loop/perf/infer_indexed.py`,
+variants `infer:baseline` vs `infer:hash-indexed`):
+- Attempt 1 candidate hash-index: 1.1x (length window couldn't prune).
+- Attempt 2 banded Levenshtein: 0.8x SLOWER (cost is call COUNT not length).
+- Attempt 3 **character-bigram lower-bound prefilter on fuzzy tier: ~3x faster**
+  (2.4x@w50 → 2.95x@w400), CORRECTNESS-GATE PASS (identical mappings on 150
+  frontier cases + wide sweep + game schema). This answers the user's "string
+  hashing method" question: YES, a bigram hash-set lower bound on edit distance.
+
+### NOT YET DONE (next steps)
+
+1. **Promote the bigram prefilter to production** `_fuzzy_score` in
+   `backend/app/json_alignment/mapping.py` (currently only in the apparatus
+   prototype). MUST re-run full `pytest` + frontier suites after. This is a real
+   engine change — get user go-ahead.
+2. Resume the stage ladder at **stage 5** (typecoerce) if going back to the loop.
+3. Still NO `new_spec` dataset found; synthetic wide generator fills the gap.
+
+### Prior open items (still relevant)
+
+- User ruled OUT a value-first proposer for malformed KEYS (don't engineer for
+  unexpected errors). Honor this.
+- Correctness is the HARD GATE for all perf work.
+
+## Older notes (size-factor investigation, superseded by DONE above)
+
+User asked about the **"file length factor" for BIGGER JSONs** and mentioned a
+`new_spec` directory with datasets.
+
+- **Searched: there is NO `new_spec` dir and NO project-owned large JSON dataset.**
+  Only venv library JSON exists. The dataset the user remembers is not in this
+  repo (maybe a sibling project under ~/PycharmProjects, or a different context).
+  ASK THE USER where it is, or synthesize.
+- The real "length factor" is NOT records-per-file (proven flat). It is
+  **record WIDTH + DEPTH**: field count and nesting. `infer_mapping` is
+  O(source_fields × target_fields), so a 200-field record vs a 200-field schema
+  = 40k candidate scorings/cluster. Our 8-field game schema CANNOT reveal this.
+
+### Proposed next step (not yet built, awaiting go-ahead)
+
+Add a wide/deep synthetic generator: a `--width` (field count) / `--depth`
+(nesting) knob producing a large golden schema + matching mutated records, then
+sweep JSON SIZE while holding file-count fixed, measuring the `infer_mapping`
+span. This answers "how does it scale with JSON size" — deterministic, offline,
+no dataset download needed. Alternatively: point the generator at a REAL large
+JSON if the user supplies a path.
+
+5000-files is a throughput sample (we showed throughput is cheap/clustered);
+bigger JSONs are the per-cluster inference cost (untested). They are orthogonal.
+
+## Environment notes
+
+- No network/fetch tool available; stack is offline by design. Can't download
+  datasets — synthesize or user-provides.
+- sentence-transformers MiniLM DOES load locally (384-dim); the perf A/B
+  `embed:sentence-transformers` variant works, but on easy stages both backends
+  produce identical outcomes (contrast only appears on hard stages 7/9).
+- Pre-commit tools (ruff/mypy) not in venv; code byte-compiles + tests pass.

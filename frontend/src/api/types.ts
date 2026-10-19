@@ -219,9 +219,20 @@ export interface JobStatus {
   op: string
   state: 'pending' | 'processing' | 'completed' | 'failed' | 'retryable'
   attempts: number
+  worker_id?: string | null
   error: string | null
   result: unknown
   progress?: { done: number; total: number }
+}
+
+/** Live queue tallies by job state, from GET /jobs. Any state key may be
+ *  absent when its count is zero (the backend only reports non-zero groups). */
+export interface JobCounts {
+  pending?: number
+  processing?: number
+  completed?: number
+  failed?: number
+  retryable?: number
 }
 
 export interface SearchHit {

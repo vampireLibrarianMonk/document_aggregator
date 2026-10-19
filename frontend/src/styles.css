@@ -149,6 +149,13 @@ input, textarea, select {
   font-size: 13px;
   font-family: inherit;
 }
+/* Contained focus ring for form controls. A negative offset keeps the ring
+   inside the control's own box so it never visually bleeds into an adjacent
+   field below it (e.g. the reject form's Reason select over the Note). */
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
 textarea { width: 100%; min-height: 70px; resize: vertical; }
 
 table.docs { width: 100%; border-collapse: collapse; font-size: 13px; }

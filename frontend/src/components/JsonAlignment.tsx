@@ -5,6 +5,7 @@ import type {
   AlignmentLibrary,
   AlignmentOutput,
   BatchSummary,
+  JobCounts,
   JobStatus,
   Project,
   RejectCategory,
@@ -884,6 +885,16 @@ export function ApprovalCards({ project, library, onApproved }: {
         instead of being prompted again. You can review and undo rejections in
         <i> Rejected shapes</i> below.
       </p>
+      <p className="small" style={{ margin: '0 0 8px', color: 'var(--warn)' }}>
+        Each shape is approved <b>independently</b> — approving one does{' '}
+        <b>not</b> cascade to the others.
+        {provisional.length > 1 &&
+          ` ${provisional.length} shapes are awaiting approval; approve or reject each one below.`}
+      </p>
+      {/* Scrollable list of shape cards: with many distinct shapes awaiting
+          approval the stack gets tall, so cap it and scroll the cards while the
+          header + guidance above stay fixed. */}
+      <div style={{ maxHeight: 640, overflowY: 'auto', overscrollBehavior: 'contain', paddingRight: 4 }}>
       {provisional.map((e) => (
         <div key={e.profile_id} className="panel" style={{ marginBottom: 8 }}>
           <div className="row">
@@ -908,7 +919,28 @@ export function ApprovalCards({ project, library, onApproved }: {
             </button>
           </div>
           {rejectOpen === e.profile_id && (
-            <div className="panel" style={{ marginTop: 6 }}>
+            <div
+              className="panel"
+              role="region"
+              aria-label={`Reject ${e.profile_id}`}
+              style={{
+                marginTop: 6,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                // Scrollable expander: the reject form (reason + the possibly
+                // long mismapped-field checklist + note) is capped so a shape
+                // with many golden fields scrolls inside this box instead of
+                // pushing the card — the whole form stays reachable by scroll.
+                maxHeight: 320,
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+              }}
+            >
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <strong className="small">Reject this shape</strong>
+                <span className="muted small mono">{e.profile_id}</span>
+              </div>
               <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                 <label htmlFor={`reject-cat-${e.profile_id}`} className="small muted">
                   Reason
@@ -925,9 +957,21 @@ export function ApprovalCards({ project, library, onApproved }: {
                 </select>
               </div>
               {rejectCat === 'wrong_mapping' && (
-                <fieldset className="small" style={{ marginTop: 6, border: 'none', padding: 0 }}>
+                <fieldset className="small" style={{ border: 'none', padding: 0, margin: 0 }}>
                   <legend className="muted">Which golden field(s) are mismapped?</legend>
-                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <div
+                    className="row"
+                    style={{
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      marginTop: 6,
+                      // The field checklist can be long on a wide schema; cap
+                      // and scroll it so it never blows out the reject form.
+                      maxHeight: 140,
+                      overflowY: 'auto',
+                      overscrollBehavior: 'contain',
+                    }}
+                  >
                     {fieldsForPicker(e).map((fname) => (
                       <label key={fname} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <input
@@ -946,9 +990,9 @@ export function ApprovalCards({ project, library, onApproved }: {
                   </div>
                 </fieldset>
               )}
-              <div style={{ marginTop: 6 }}>
+              <div>
                 <label htmlFor={`reject-note-${e.profile_id}`} className="small muted"
-                       style={{ display: 'block' }}>
+                       style={{ display: 'block', marginBottom: 4 }}>
                   Note{rejectCat === 'other' ? ' (required — at least 10 characters)' : ' (optional)'}
                 </label>
                 <textarea
@@ -961,9 +1005,9 @@ export function ApprovalCards({ project, library, onApproved }: {
                 />
               </div>
               {rejectErr && (
-                <p className="small" role="alert" style={{ color: 'var(--err)' }}>{rejectErr}</p>
+                <p className="small" role="alert" style={{ color: 'var(--err)', margin: 0 }}>{rejectErr}</p>
               )}
-              <div className="row" style={{ gap: 6, marginTop: 6 }}>
+              <div className="row" style={{ gap: 6 }}>
                 <button
                   className="btn small"
                   disabled={!rejectValid() || rejecting}
@@ -997,8 +1041,21 @@ export function ApprovalCards({ project, library, onApproved }: {
               .
             </p>
           )}
-          <table className="docs" style={{ marginTop: 6 }}>
-            <thead><tr><th>Golden field</th><th>← Source path</th></tr></thead>
+          <div className="row" style={{ marginTop: 6, justifyContent: 'space-between' }}>
+            <span className="small muted">
+              Field mapping · {Object.keys(e.mapped).length} mapped
+              {e.needs_review.length > 0 && `, ${e.needs_review.length} need review`}
+            </span>
+          </div>
+          {/* Scrollable mapping table: a wide golden schema produces many rows
+              (mapped + needs-review), so cap the height and let it scroll with a
+              sticky header rather than growing the card off-screen. Matches the
+              accepted-values / value-aliases editors' scroll pattern. */}
+          <div style={{ maxHeight: 360, overflow: 'auto', marginTop: 4 }}>
+          <table className="docs">
+            <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--panel, #1a2029)' }}>
+              <tr><th>Golden field</th><th>← Source path</th></tr>
+            </thead>
             <tbody>
               {Object.entries(e.mapped).map(([tgt, src]) => (
                 <tr key={tgt}><td>{tgt}</td><td className="mono small">{src}</td></tr>
@@ -1090,8 +1147,10 @@ export function ApprovalCards({ project, library, onApproved }: {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       ))}
+      </div>
     </div>
   )
 }
@@ -1167,12 +1226,163 @@ export function RejectedShapes({ project, library, onRestored }: {
 }
 
 /** Render the live batch progress text for the "Upload & convert" header slot.
- *  Falls back to the static "processing…" when progress is absent or the total
- *  is not yet known, so no "0 of 0 files" or "NaN%" can ever appear. */
+ *  Shows "# of # files · %" once the worker has emitted its first tick. Before
+ *  any tick (total not yet known) it reads "waiting for a worker…" so a stalled
+ *  queue (no worker running) is distinguishable from active work, rather than a
+ *  bare "processing…" that never changes. Never shows "0 of 0 files" or "NaN%".
+ */
 export function batchProgressLabel(p: { done: number; total: number } | null): string {
-  if (!p || p.total <= 0) return 'processing…'
+  if (!p || p.total <= 0) return 'waiting for a worker…'
   const pct = Math.round((p.done / p.total) * 100)
-  return `${p.done} of ${p.total} files · ${pct}%`
+  return `${p.done} of ${p.total} files completed · ${pct}%`
+}
+
+/** Human-readable labels for job states shown in the worker/queue panel. */
+const JOB_STATE_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  processing: 'Processing',
+  completed: 'Completed',
+  failed: 'Failed',
+  retryable: 'Retrying',
+}
+
+/** Live worker + queue visibility. A collapsible dropdown (<details>) that polls
+ *  the shared job queue's tallies (GET /jobs) while open, and shows the active
+ *  batch job's detail (id, op, state, attempts, worker, progress) when one is
+ *  running. This is how the UI reveals whether async workers are actually in
+ *  play: a job stuck "pending" with no "processing" and no worker id means no
+ *  worker is draining the queue. Exported for unit testing. */
+export function WorkerQueuePanel({ activeJob }: { activeJob: JobStatus | null }) {
+  const [counts, setCounts] = useState<JobCounts | null>(null)
+  const [open, setOpen] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const timer = useRef<number | null>(null)
+
+  // Poll the queue tallies only while the dropdown is open OR a job is active,
+  // so a collapsed idle panel costs nothing. A 1s cadence is plenty for counts
+  // (the per-file progress bar above updates faster during a run).
+  useEffect(() => {
+    const shouldPoll = open || activeJob != null
+    if (!shouldPoll) {
+      if (timer.current) window.clearTimeout(timer.current)
+      return
+    }
+    let cancelled = false
+    const tick = () => {
+      api.getJobCounts()
+        .then((r) => { if (!cancelled) { setCounts(r.counts); setErr(null) } })
+        .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : String(e)) })
+        .finally(() => { if (!cancelled) timer.current = window.setTimeout(tick, 1000) })
+    }
+    tick()
+    return () => {
+      cancelled = true
+      if (timer.current) window.clearTimeout(timer.current)
+    }
+  }, [open, activeJob])
+
+  // Order the state chips deterministically; only non-zero states are shown.
+  const order: (keyof JobCounts)[] = ['pending', 'processing', 'retryable', 'completed', 'failed']
+  const chips = counts
+    ? order.filter((k) => (counts[k] ?? 0) > 0).map((k) => ({ k, n: counts[k] as number }))
+    : []
+  const noWork = counts != null && chips.length === 0
+  // A worker is demonstrably present when something is processing or has a
+  // worker id; a job sitting pending with nothing processing is the "no worker"
+  // tell, surfaced explicitly so a stalled queue is never a mystery.
+  const workerSeen = (counts?.processing ?? 0) > 0 || !!activeJob?.worker_id
+  const stalled =
+    !!activeJob &&
+    (activeJob.state === 'pending' || activeJob.state === 'processing') &&
+    !workerSeen &&
+    (counts?.processing ?? 0) === 0
+
+  const prog = activeJob?.progress ?? null
+
+  return (
+    <details
+      className="panel"
+      style={{ marginBottom: 12 }}
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary>
+        <strong>Workers &amp; queue</strong>{' '}
+        <span className="muted small">
+          ·{' '}
+          {activeJob
+            ? `active job ${JOB_STATE_LABELS[activeJob.state] ?? activeJob.state}`
+            : workerSeen
+              ? 'idle'
+              : 'queue status'}
+        </span>
+      </summary>
+
+      <div style={{ marginTop: 8 }} role="status" aria-live="polite">
+        {err && <p className="small" style={{ color: 'var(--err)' }}>{err}</p>}
+
+        {/* Queue tallies by state. */}
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span className="small muted">Queue:</span>
+          {chips.length === 0 && (
+            <span className="small muted">{counts == null ? 'loading…' : 'empty'}</span>
+          )}
+          {chips.map(({ k, n }) => (
+            <span key={k} className="chip" aria-label={`${JOB_STATE_LABELS[k] ?? k}: ${n}`}>
+              {JOB_STATE_LABELS[k] ?? k}: <b>{n}</b>
+            </span>
+          ))}
+        </div>
+
+        {/* Whether an async worker is actually draining the queue. */}
+        <p className="small" style={{ margin: '8px 0 0' }}>
+          {stalled ? (
+            <span style={{ color: 'var(--warn)' }}>
+              A job is queued but nothing is processing and no worker has claimed
+              it — the async worker may not be running. Start the worker process
+              (the <span className="mono">worker</span> container, or{' '}
+              <span className="mono">worker_main.py</span> locally) to drain the
+              queue.
+            </span>
+          ) : workerSeen ? (
+            <span style={{ color: 'var(--ok)' }}>A worker is processing the queue.</span>
+          ) : noWork ? (
+            <span className="muted">No jobs in the queue.</span>
+          ) : (
+            <span className="muted">Waiting for worker status…</span>
+          )}
+        </p>
+
+        {/* The active job's detail. */}
+        {activeJob && (
+          <table className="docs" style={{ marginTop: 8 }}>
+            <tbody>
+              <tr><td className="small muted">Job</td><td className="mono small">{activeJob.job_id}</td></tr>
+              <tr><td className="small muted">Operation</td><td className="mono small">{activeJob.op}</td></tr>
+              <tr>
+                <td className="small muted">State</td>
+                <td className="small">{JOB_STATE_LABELS[activeJob.state] ?? activeJob.state}</td>
+              </tr>
+              <tr><td className="small muted">Attempts</td><td className="small">{activeJob.attempts}</td></tr>
+              <tr>
+                <td className="small muted">Worker</td>
+                <td className="mono small">{activeJob.worker_id ?? <span className="muted">unclaimed</span>}</td>
+              </tr>
+              {prog && prog.total > 0 && (
+                <tr>
+                  <td className="small muted">Progress</td>
+                  <td className="small">{prog.done} of {prog.total} files · {Math.round((prog.done / prog.total) * 100)}%</td>
+                </tr>
+              )}
+              {activeJob.error && (
+                <tr><td className="small muted">Error</td><td className="small" style={{ color: 'var(--err)' }}>{activeJob.error}</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </details>
+  )
 }
 
 /**
@@ -1192,6 +1402,10 @@ export function BatchConvertPanel({ project }: { project: Project }) {
   const [schemaSet, setSchemaSet] = useState<boolean | null>(null)
   const [summary, setSummary] = useState<BatchSummary | null>(null)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  // The full status of the batch job currently being polled (or the last one
+  // this view submitted), so the Workers & queue dropdown can show its id, op,
+  // state, attempts, worker id, and live progress. Null until a batch is run.
+  const [activeJob, setActiveJob] = useState<JobStatus | null>(null)
   const [library, setLibrary] = useState<AlignmentLibrary | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const pollRef = useRef<number | null>(null)
@@ -1210,6 +1424,7 @@ export function BatchConvertPanel({ project }: { project: Project }) {
   const poll = useCallback((jobId: string) => {
     const tick = () => {
       api.getJob(jobId).then((job: JobStatus) => {
+        setActiveJob(job)  // feed the Workers & queue dropdown every tick
         if (job.state === 'completed') {
           const result = job.result as { summary?: BatchSummary } | null
           if (result?.summary) setSummary(result.summary)
@@ -1234,6 +1449,7 @@ export function BatchConvertPanel({ project }: { project: Project }) {
     setErr(null)
     setSummary(null)
     setProgress(null)
+    setActiveJob(null)
     setBusy(true)
     try {
       const { docs, errors } = await filesToDocs(files)
@@ -1338,6 +1554,11 @@ export function BatchConvertPanel({ project }: { project: Project }) {
             onRestored={refreshLibrary}
           />
         )}
+
+        {/* Fuller worker/queue visibility: a dropdown below the batch pane that
+            polls the shared job queue and shows the active batch job's detail,
+            including which worker claimed it (or that none has). */}
+        <WorkerQueuePanel activeJob={activeJob} />
       </div>
     </div>
   )
