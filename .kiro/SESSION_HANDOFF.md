@@ -308,3 +308,18 @@ inside production mapping.py internals (per-call set rebuild, cosine genexpr,
 _jaccard) — lower return, higher risk; a deliberate production change, not more
 apparatus prototyping. Next payoff = promote the tight index to production
 (full pytest+frontier gated).
+
+## Ladder slow-walk: stages 5-7 — DONE (all PASS)
+
+- stage 5 typecoerce:   8/8 recovered, 0 false, auto-approved, cascade+replay OK.
+                        (type coercion didn't hurt: keys stayed recognizable.)
+- stage 6 noise_decoys: 8/8 recovered, 0 false, auto-approved. Decoys
+                        (internal_id/_scraped_at) correctly NOT mapped (no-fab).
+- stage 7 rename_abbrev: 1/8 recovered, 7 missed, 0 FALSE. Abbreviations (nm/yr/
+                        dvlpr/pub/hw/gnr/cs) are too token-sparse to ground
+                        confidently; matcher ABSTAINED (no fabrication), Decider
+                        remapped 7 from gold truth. Honest matcher limit, correct.
+
+Red team confirmed RUNNING CLEAN (does not crash). Tight-index optimization
+confirmed identical + 2.5-5x faster even on the 8-field game schema (end-to-end).
+Stages 8-11 remaining.
