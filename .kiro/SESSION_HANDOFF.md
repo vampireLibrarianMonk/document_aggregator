@@ -323,3 +323,27 @@ apparatus prototyping. Next payoff = promote the tight index to production
 Red team confirmed RUNNING CLEAN (does not crash). Tight-index optimization
 confirmed identical + 2.5-5x faster even on the 8-field game schema (end-to-end).
 Stages 8-11 remaining.
+
+## Ladder COMPLETE: stages 8-11 — all safe (no false matches anywhere)
+
+- stage 8 conflict: name has 3 decoy competitors (game_title/title_game/
+  named_game, all truth=None) -> tie -> abstain; required 'name' unmapped ->
+  review (50% required coverage). Correct: preserves candidates, defers to human.
+- stage 9 opaque (f1..f8): zero semantic signal -> zero required grounded ->
+  review. Safe refusal (no fabrication from meaningless keys).
+- stage 10 split_merge: name split into titlePart/subtitlePart (neither IS the
+  name; split/merge is out of 1:1 scope) -> name unmapped -> review.
+- stage 11 junk_leak (PRECISION TRAP): golden-adjacent junk (station_name,
+  developer_contact, platform_vendor) -> ZERO grounded. The hardest precision
+  trap; weak-generic-overlap veto + value gate held. Zero false matches.
+
+LADDER EXHAUSTED. Summary across all 12 stages:
+  0-3: clean/rename/synonym/nesting  -> 7-8/8 recovered, auto-approve/remap
+  4:   misspell                      -> safe refusal (required ungroundable)
+  5-6: typecoerce/noise_decoys       -> 8/8, auto-approve, decoys unmapped
+  7:   abbrev                        -> 1/8 recovered, 7 abstained, remapped
+  8-11: conflict/opaque/split/junk   -> safe refusal / human-defer, ZERO false
+THE INVARIANT THAT HELD EVERYWHERE: zero false_matches across all 12 stages.
+The matcher never fabricated a mapping; it abstained/deferred whenever unsure.
+Cascade (per-shape approval) + replay (zero re-prompt) verified wherever a shape
+was approved.
