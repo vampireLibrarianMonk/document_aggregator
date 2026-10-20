@@ -874,10 +874,12 @@ export function ApprovalCards({ project, library, onApproved }: {
       <strong>Shapes awaiting your approval</strong>
       <p className="small muted" style={{ margin: '4px 0 8px' }}>
         This source shape is new, so the system learned it and proposed the
-        field mapping below. Confirm the mapping is right by approving it once —
-        this one-time check is why a brand-new shape always stops here. After you
-        approve, every future file of this shape converts automatically, with no
-        more prompts.
+        field mapping below. Confirm the mapping is right by approving it once.
+        After you approve, future files with these same fields convert
+        automatically, as long as their data still fits. If a later file&apos;s
+        data drifts (for example, a field that used to have valid values stops
+        matching the schema), that shape comes back here for a quick re-check on
+        just the changed field.
       </p>
       <p className="small muted" style={{ margin: '0 0 8px' }}>
         <b>Reject</b> is the opposite of Approve: it declines a shape with a
@@ -886,10 +888,11 @@ export function ApprovalCards({ project, library, onApproved }: {
         <i> Rejected shapes</i> below.
       </p>
       <p className="small" style={{ margin: '0 0 8px', color: 'var(--warn)' }}>
-        Each shape has its own set of fields, and you approve or reject each one
-        on its own. Approving or rejecting one shape never changes another. When
-        you fix a field inside a shape, that fix applies to all of that
-        shape&apos;s records, but it does not touch any other shape.
+        A shape is a set of fields. Two files with the same fields are the same
+        shape, so one approval covers both and every future file like them.
+        Different shapes are approved on their own: approving one does not
+        approve a different one. When you fix a field inside a shape, that fix
+        applies to all of that shape&apos;s records.
         {provisional.length > 1 &&
           ` ${provisional.length} shapes are waiting for you. Approve or reject each one below.`}
       </p>

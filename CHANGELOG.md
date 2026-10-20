@@ -7,6 +7,18 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Fixed
+- **Approval-card copy now matches the verified replay/drift model.** The
+  in-app text claimed an approved shape&apos;s future files "convert
+  automatically, with no more prompts" and that shapes are approved
+  independently with no cross-effect. Testing against the project-7 workflow
+  showed the accurate model (already documented in the json-batch user guide but
+  not reflected in the UI): a later file with the **same fields** replays
+  cleanly against the approved profile, **unless its data drifts** (e.g. a field
+  that used to hold valid values stops matching the schema), in which case the
+  shape returns for a quick re-check on just the changed field. Reworded the
+  card copy to state this plainly (same fields = same shape = one approval
+  covers all such files; a drifted file comes back), replacing the misleading
+  "no more prompts" / "never changes another" framing.
 - **Array→scalar arity mismatch no longer silently approvable (JSON alignment).**
   A source field like `platform[]` (array) mapping to a scalar golden `platform`
   (string) used to ground as a confident `exact` match — the source profiler
