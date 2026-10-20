@@ -336,6 +336,24 @@ def _fuzzy_score(s_name: set[str], tgt: TargetField) -> float:
     return _FUZZY_MIN + cleanliness * (_FUZZY_MAX - _FUZZY_MIN)
 
 
+def _arity_mismatch(sf: FieldStat, tgt: TargetField) -> bool:
+    """True when the SOURCE field is an array (its path carries the '[]' marker)
+    but the TARGET is scalar-only (no 'array' in its declared types).
+
+    This is a list->scalar conversion the engine must NOT perform silently: the
+    executor correctly refuses to coerce a list into a string, so the value
+    would be dropped. Rather than present such a pair as a confident map (and
+    then silently drop the value at execution), we treat it as an arity mismatch
+    that abstains -> the field surfaces as needs_review, forcing a human
+    decision (fix the golden schema to an array, or handle the flatten).
+
+    The reverse (scalar source -> array target) is fine: split_list promotes it.
+    An array source -> array target (e.g. genres[] -> genres) is also fine."""
+    src_is_array = sf.path.endswith("[]")
+    tgt_is_array = "array" in tgt.types
+    return src_is_array and not tgt_is_array
+
+
 def _type_compatible(src_type: str, tgt: TargetField) -> bool:
     """Soft compatibility: strings cast to many targets, so this is permissive;
     used only to break near-ties, never to create a match."""
@@ -792,6 +810,14 @@ def _score_candidate(sf: FieldStat, tgt: TargetField) -> tuple[float, str]:
     t_desc = set(tgt.desc_tokens)
     leaf_norm = " ".join(sf.tokens)
     tgt_norm = " ".join(tgt.tokens)
+
+    # ARITY GATE (before any name tier): a list source into a scalar target is a
+    # conversion the executor refuses (no silent list->string), so even a
+    # name-identical pair like platform[] -> platform(string) must NOT ground as
+    # a confident map. Abstain so it surfaces as needs_review and a human decides
+    # (make the golden field an array, or handle the flatten explicitly).
+    if _arity_mismatch(sf, tgt):
+        return 0.0, "abstain"
 
     # 1. exact normalized name
     if leaf_norm and leaf_norm == tgt_norm:

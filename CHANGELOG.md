@@ -6,6 +6,22 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Array→scalar arity mismatch no longer silently approvable (JSON alignment).**
+  A source field like `platform[]` (array) mapping to a scalar golden `platform`
+  (string) used to ground as a confident `exact` match — the source profiler
+  reports the element type and drops the `[]` marker, so the arity mismatch was
+  invisible at inference. At execution the list→string coercion is correctly
+  refused and the value dropped, but the approval card showed a clean "mapped"
+  and the record still counted conformant (platform being optional) — so the
+  shape was silently approvable with `platform` vanishing. Added an arity gate
+  (`_arity_mismatch` in `mapping.py`, checked first in `_score_candidate`): an
+  array source into a scalar-only target now **abstains → `needs_review`**,
+  forcing a human decision (make the golden field an array, or handle the
+  flatten). Array→array (`genres[]`→`genres`) and scalar→array (split) are
+  unchanged. Regression tests in `test_arity_mismatch.py`; full suite unchanged
+  (670 passed).
+
 ### Changed
 - **No silently-swallowed exceptions (project standard).** Every
   `except …: pass` / `continue` / `return None` in `backend/app` that previously
