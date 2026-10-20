@@ -6,7 +6,74 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-20
+
 ### Added
+- **Adversarial Alpha Loop apparatus (`backend/alpha_loop/`).** A research +
+  regression harness that fires JSON at the **live** API and red-teams the
+  JSON→golden approve/reject pipeline with three adversarial agents —
+  **A** (mapping correctness + no-fabrication, reusing the `tests/alpha_frontier`
+  threshold-independent truth model), **B** (cascade / replay invariants), and
+  **C** (file-processing performance). Includes a 12-stage benign→hostile shape
+  **ladder** (`generator.py`), a spiral-out decision policy (`decider.py`), a
+  live-API client, a step/run-to-break controller, a wide/deep synthetic
+  generator (`wide.py`) for the JSON-size dimension, and a decoupled, correctness-
+  gated A/B performance bench (`perf/`: probes, variants, experiment). All 12
+  ladder stages were exercised against the live stack with **zero false matches**
+  at every stage (the matcher abstains/defers rather than fabricate).
+- **Process-based worker scaling for CPU-bound ops.** `worker_main.py` gains a
+  `WORKER_PROCESSES` axis (int or `auto` for the cgroup-aware cores−1 budget):
+  CPU-bound ops (reconcile/align) now scale ~linearly across cores with worker
+  **processes** (Python threads are GIL-bound and measured flat for CPU work).
+  `WORKER_CONCURRENCY` threads remain for I/O-bound ops. A supervisor restarts a
+  child that exits unexpectedly; `SIGTERM`/`SIGINT` shut the pool down cleanly.
+  Single-process behavior is unchanged by default.
+- **White-box pipeline span timing** (`app/json_alignment/perf_spans.py`): a
+  zero-overhead-when-inactive context-var span timer wrapping `run_alignment`'s
+  stages, used by the performance bench to locate hot stages. Inert in production.
+- **Worker/queue visibility in the UI.** A collapsible **Workers & queue**
+  dropdown below the Batch Convert pane shows live queue counts, the active
+  job's detail (id/op/state/attempts/**worker id**/progress), and an explicit
+  warning when a job is queued but no worker is draining it. `GET /jobs/{id}`
+  now returns `worker_id`. Batch progress reads "N of M files completed · P%".
+- **Opt-in test gates** (`pytest -m opt_in`, deselected by default): the full
+  12-stage adversarial ladder (`test_alpha_ladder.py`, modular — stages from the
+  single `STAGES` source, a declarative per-stage expectation table, and a
+  drift-catching coverage guard) and the async/worker regimes
+  (`test_opt_in_gates.py`).
+- **Optional performance dependency** `backend/requirements-bench.txt`
+  (`rapidfuzz`) for the bench's C++/SIMD comparison variants — **not** required
+  by production (the matcher is pure-Python / zero-dependency).
+- **Software Bill of Materials**: an authoritative manual SBOM (`SBOM.md`,
+  CycloneDX-aligned) plus an on-request generator (`scripts/generate_sbom.py`).
+- **Split deployment guides**: `deploy/LOCAL.md` (venv + uvicorn, worker modes,
+  port guidance) and `deploy/DOCKER.md` (Compose, the three images), with
+  `deploy/AIRGAP_RHEL.md` retained as the enclave specialization.
+
+### Changed
+- **JSON-alignment matcher is ~21× faster at scale, with identical results.**
+  `_fuzzy_score` gained a character-bigram sound lower bound + banded early-exit
+  Levenshtein before the full DP, and `infer_mapping` now scores only
+  index-selected candidates (`_CandidateIndex`) instead of the full
+  source×target scan. Every pruned pair would have scored 0, so mappings are
+  byte-identical (proven by `test_matcher_index_equivalence.py` across all
+  difficulty levels + wide schemas, and by the full suite). `infer_mapping` at
+  width 400: ~10,000 ms → ~470 ms; 2.5–5× even on the 8-field game schema. Zero
+  new dependencies.
+- **Adaptive worker idle backoff.** The worker polls fast right after work
+  (min 5 ms) and backs off exponentially to a 50 ms cap when the queue is idle,
+  cutting single-job pickup latency from ~50 ms to ~5 ms without busy-spinning.
+
+### Fixed
+- **SQLite WAL cold-start lock race (multi-process workers).** Several worker
+  processes opening a fresh queue DB concurrently could race on the WAL
+  journal-mode switch (`database is locked`). Fixed two ways: set
+  `PRAGMA busy_timeout` **before** the WAL switch so a concurrent opener waits,
+  and have the parent initialize the queue (schema + WAL) once before spawning
+  children. Guarded signal registration to the main thread.
+- **E2E walkthrough scenario 08** (`walkthrough.spec.ts`): the "Accepted values"
+  editor lives in a collapsed-by-default section; the test now expands it before
+  locating rows. The full Playwright suite is 26/26 green against the live stack.
 - **Human field-by-field remap for JSON-alignment shapes (the "fix-it" flow).**
   When a learned shape leaves a golden field unmapped (`needs_review`), the
   approval card now offers a per-field **selection box** of real source paths —
@@ -25,8 +92,6 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   API also now surfaces, per shape, the ranked `candidates` for each unmapped
   field and the full `source_paths` list, plus the source files a shape was
   learned from. Regression tests in `test_batch_api.py`.
-
-### Fixed
 - **Strict golden-schema conformance for JSON-alignment output.** The batch
   validator previously treated a record that *abstained* on a required golden
   field as "conformed" (a deferral is not a fabrication *error*, so
@@ -47,6 +112,10 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   profile records its origin files (`meta.source_docs` + `source_doc_count`),
   surfaced by `GET …/alignment/library` and shown on the card ("Learned from:
   …"), so an opaque shape id is no longer the only identifier.
+- **Approval-card UX**: contained focus ring (no bleed into the Note field),
+  scrollable reject form + mismapped-field checklist, scrollable mapping table
+  with a sticky header and a "N mapped, M need review" summary, and a note that
+  approval is per-shape and never cascades.
 - **Project kind radio keeps its selection across tab navigation** (the New
   Project draft state is owned by the shell, not the unmounting form), and every
   tab panel is gated on membership in the active project's kind-specific tab set
@@ -620,6 +689,7 @@ frontend, and an air-gapped RHEL/UBI container stack.
   Cloud pieces (e.g. a Bedrock feedback interpreter) are optional adapters behind
   the same interfaces and are disabled by default.
 
+[0.6.0]: https://example.com/releases/0.6.0
 [0.5.0]: https://example.com/releases/0.5.0
 [0.4.0]: https://example.com/releases/0.4.0
 [0.3.0]: https://example.com/releases/0.3.0

@@ -24,7 +24,12 @@ required. Cloud pieces would slot in as adapters behind the same interfaces.
   measured through the Correction Orchestrator.
 - [JSON-alignment benchmark](docs/testing/json-alignment-benchmark.md) - how the
   schema-alignment slice is scored (and the MaDI-Bench assessment).
-- [Air-gapped RHEL deployment](deploy/AIRGAP_RHEL.md) - the enclave checklist.
+- **Deployment:** [Local (no Docker)](deploy/LOCAL.md) ·
+  [Docker Compose](deploy/DOCKER.md) ·
+  [Air-gapped RHEL/enclave](deploy/AIRGAP_RHEL.md).
+- [Software Bill of Materials](SBOM.md) - authoritative dependency SBOM
+  (CycloneDX 1.5); regenerate the machine-readable form with
+  `python scripts/generate_sbom.py`.
 - [Accessibility toolkit](frontend/a11y/ACCESSIBILITY.md) - the transferable
   axe-core + keyboard/focus audit.
 - [End-to-end UI suite](frontend/e2e/README.md) - Playwright flows that drive the
