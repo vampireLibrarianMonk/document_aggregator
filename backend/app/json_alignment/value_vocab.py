@@ -419,7 +419,15 @@ def _fold_values(node: dict[str, Any], entries: list[VocabEntry],
         and isinstance(items, dict)
         and "enum" in items          # ONLY items.enum is an array constraint extract_target reads
     )
-    value_node = items if is_constrained_array else node   # item-aware value slot
+    # value_node is a dict in both branches: `items` is dict-typed exactly when
+    # is_constrained_array (the isinstance check above), else it is `node` (a
+    # dict param). Narrow explicitly so mypy tracks the indexed writes below.
+    value_node: dict[str, Any]
+    if is_constrained_array:
+        assert isinstance(items, dict)
+        value_node = items   # item-aware value slot
+    else:
+        value_node = node
     alias_node = node                                      # aliases ALWAYS top-level
 
     if is_constrained_array:

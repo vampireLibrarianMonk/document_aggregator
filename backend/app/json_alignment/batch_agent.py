@@ -368,6 +368,9 @@ def run_batch(docs: list[SourceDoc], target_schema: dict[str, Any],
         with _lock:
             _done += 1
             cb = _done
+        # _on_doc_done is only wired when on_cluster_done is not None (see below),
+        # but assert it so mypy knows the call is safe.
+        assert on_cluster_done is not None
         on_cluster_done(cb)
 
     # Only wire per-doc ticking when a callback is present; otherwise execute

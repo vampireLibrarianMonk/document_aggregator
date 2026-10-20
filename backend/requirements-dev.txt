@@ -1,0 +1,18 @@
+# Developer toolchain (linting, typing, tests). NOT shipped in any container
+# image — the api/worker runtime sets are requirements-api.txt /
+# requirements-worker.txt. Install into your local venv for mypy/ruff/pytest:
+#
+#   .venv/bin/python -m pip install -r backend/requirements-dev.txt
+#
+# Versions are pinned to match pyproject.toml [project.optional-dependencies].dev
+# and the .pre-commit-config.yaml hook revs so manual runs and the hooks agree.
+-r requirements.txt
+
+mypy==1.15.0
+ruff==0.11.12
+pytest==8.3.5
+python-dotenv==1.1.0
+
+# mypy needs pydantic's bundled plugin/types to check the models cleanly
+# (mirrors the mypy hook's additional_dependencies in .pre-commit-config.yaml).
+pydantic>=2.0

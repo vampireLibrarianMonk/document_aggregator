@@ -6,6 +6,20 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **mypy type-checking is green and reproducible locally.** mypy was configured
+  (pinned in `pyproject.toml`, wired as a pre-commit hook) but not installable
+  into the dev venv, so a manual `mypy backend/app` had no mypy to run. Added
+  `backend/requirements-dev.txt` (pins mypy/ruff/pytest to the hook revs, with
+  pydantic for the model plugin) and fixed the 16 type errors it surfaced across
+  6 files — mostly `None`-safety guards (`logging_config` LOG_LEVEL fallback,
+  `main.py` post-override profile lookup, `value_vocab` constrained-array value
+  node), a couple of variable-type-reuse clashes (`project_store` alias entry,
+  `corpus_generator` title loop var), and one **real bug**: `corpus_generator`
+  indexed a `CorpusDoc` dataclass as `corpus[0]["name"]` instead of
+  `corpus[0].name`. `mypy backend/app/` now reports zero errors over 100 files;
+  documented the dev-toolchain install in the Developer Guide.
+
 ### Added
 - **Download all (ZIP) on Report & Export.** A new
   `GET /projects/{id}/export-all` endpoint bundles every offered export format

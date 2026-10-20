@@ -248,12 +248,26 @@ same numbers survive the trip to the screen.
 
 ### Level 3 — Lint, types, and secret scanning (pre-commit)
 
+The dev toolchain (mypy / ruff / pytest) is not part of the shipped api/worker
+requirement sets. Install it into your venv once:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt
+```
+
 ```powershell
 .\.venv\Scripts\ruff.exe check backend          # lint (E,F,I,N,W,UP)
 .\.venv\Scripts\ruff.exe format backend          # formatter
-.\.venv\Scripts\mypy.exe backend/app             # types
+.\.venv\Scripts\mypy.exe backend/app             # types (clean: 0 errors)
 pre-commit run --all-files                        # everything below in one shot
 ```
+
+`backend/requirements-dev.txt` pins mypy/ruff/pytest to the same versions as the
+`.pre-commit-config.yaml` hook revs, so a manual `mypy backend/app` and the
+commit-time hook agree (the hook runs mypy in its own isolated env with
+`pydantic` as an additional dependency; the dev file mirrors that so a local run
+matches). `mypy backend/app/` is expected to pass with **zero errors** — keep it
+that way.
 
 `.pre-commit-config.yaml` wires the automated gates that run on every commit:
 `ruff` (+ `ruff-format`), `mypy` over `backend/app/`, **gitleaks** secret

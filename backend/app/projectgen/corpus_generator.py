@@ -410,9 +410,11 @@ class CorpusProjectGenerator:
             if not name or name in seen_fig:
                 continue
             seen_fig.add(name)
-            src = hint.get("source_doc") or (corpus[0]["name"] if corpus else primary.name)
-            if isinstance(src, dict):
-                src = src.get("name", primary.name)
+            raw_src = hint.get("source_doc")
+            if isinstance(raw_src, dict):
+                src = raw_src.get("name", primary.name)
+            else:
+                src = raw_src or (corpus[0].name if corpus else primary.name)
             fig_entries.append((name, (hint.get("caption") or "").strip(), str(src)))
 
         # Section-reference index: lowercased body text per section, for finding
@@ -573,9 +575,9 @@ def _choose_title(corpus: list[CorpusDoc], primary_heads: list[str]) -> str:
         h = _headings(d.text)
         if h:
             candidates.append(h[0])
-    for h in candidates:
-        if _strip_leading_number(h).lower() not in _GENERIC_TITLE_WORDS:
-            return _strip_leading_number(h)
+    for cand in candidates:
+        if _strip_leading_number(cand).lower() not in _GENERIC_TITLE_WORDS:
+            return _strip_leading_number(cand)
     if primary_heads:
         return _strip_leading_number(primary_heads[0])
     return _derive_title(corpus)

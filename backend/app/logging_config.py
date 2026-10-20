@@ -33,7 +33,7 @@ def configure_logging(level: str | None = None) -> None:
     `level` overrides the `LOG_LEVEL` env var (default INFO). Call once at
     process start (API startup, worker main)."""
     global _CONFIGURED
-    lvl_name = (level or os.getenv("LOG_LEVEL", "INFO")).upper()
+    lvl_name = (level or os.getenv("LOG_LEVEL") or "INFO").upper()
     lvl = getattr(logging, lvl_name, logging.INFO)
     root = logging.getLogger()
     if not _CONFIGURED:

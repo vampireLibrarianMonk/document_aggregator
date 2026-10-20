@@ -985,6 +985,8 @@ def override_field_mapping(project_id: str, body: OverrideField) -> dict:
     # Return the refreshed mapping view for this profile.
     lib = load_project_library(project_id)
     e = lib.get(body.profile_id)
+    if e is None:
+        raise HTTPException(404, f"profile {body.profile_id} not found after override")
     return {
         "project_id": project_id,
         "profile_id": body.profile_id,

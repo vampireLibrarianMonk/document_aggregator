@@ -217,7 +217,7 @@ def _merge_batch_outputs_locked(project_id: str,
     manifest = load_batch_manifest(project_id) or {"outputs": [], "doc_count": 0}
     entries: list[dict[str, Any]] = list(manifest.get("outputs", []))
     by_doc = {e.get("doc_id"): e for e in entries}
-    used_stems = {e.get("stem") for e in entries if e.get("stem")}
+    used_stems: set[str] = {e["stem"] for e in entries if e.get("stem")}
 
     for doc_id, records in conformed_by_doc.items():
         existing = by_doc.get(doc_id)
@@ -502,11 +502,11 @@ def apply_vocab_change(project_id: str, action: str, target: str, *,
                                       f"'{target}'. Remove that alias before "
                                       f"remapping it to '{canonical}'."),
                             "status": 422}
-                entry = vocab.add_alias(
+                alias_entry = vocab.add_alias(
                     target, raw, canonical,
                     added_by=added_by,
                     note=(note if isinstance(note, str) else ""))
-                result = entry.to_dict()
+                result = alias_entry.to_dict()
             elif action == "remove_alias":
                 raw = (alias if isinstance(alias, str) else "").strip()
                 if not vocab.remove_alias(target, raw):
