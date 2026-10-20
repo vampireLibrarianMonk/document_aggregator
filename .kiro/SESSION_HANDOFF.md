@@ -404,3 +404,33 @@ Apparatus (alpha_loop/) retained as the research + regression bench.
 STATUS: alpha-loop ladder exhausted (12 stages, zero false matches), async deep
 dive complete, all optimizations promoted to production and gated. Clean stopping
 point. Stack (API/worker) is NOT running — restart per the top of this file.
+
+## Remaining testing #5-#7 — DONE
+
+#7 rapidfuzz optional-dep cleanup (4803a1e): lazy import + clear message if
+   missing; infer_batched falls back to production infer_mapping; documented in
+   backend/requirements-bench.txt (opt-in, NOT a production dep).
+
+#6 opt-in gates (1795fb6): 'opt_in' pytest marker, deselected by default
+   (addopts -m 'not opt_in'). backend/tests/test_opt_in_gates.py wraps the
+   bounded async + alpha-loop regimes (claim safety, process scaling, fault
+   isolation, matcher oracle). Run with `pytest -m opt_in` (4 pass); normal
+   suite unaffected (4 deselected).
+
+#5 full-stack live run (Docker + Playwright e2e):
+   - Built all 3 images (api/worker 3.14GB, frontend 476MB), brought the stack
+     up with DIAGNOSTICS_ENABLED=true (api :8000 healthy, frontend :8080, worker).
+   - Installed the matching Playwright chromium (v1243; cache had only 1193/1217
+     — that was the initial 26/26 'failure', a browser issue not an app issue).
+   - e2e result: **25 passed, 1 failed**. Passing: app, batch (all 5 pathways),
+     correction (all 6 cases), diagnostics, ingestion. This exercises the live
+     Docker stack end-to-end through a real browser, including the
+     batch/approval UI my session changed.
+   - The 1 failure (walkthrough.spec.ts:314 '08 accepted-values CRUD') is a
+     PRE-EXISTING shared-state dependency in that spec: it relies on `projectId`
+     seeded by earlier walkthrough tests; it fails in isolation too. NOT a
+     regression from this session (the accepted-values cell + its scroll wrapper
+     were last changed in pre-session commit aa65853; the live API serves the
+     'platform' field correctly). Left as-is (fixing means restructuring that
+     spec — out of scope unless requested).
+   - Stack torn down (docker compose down); ports released.
