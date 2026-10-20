@@ -19,6 +19,7 @@ match. Everything here is pure and reproducible.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -26,6 +27,8 @@ from typing import Any
 from .evidence import evidence_string
 from .source_profile import FieldStat, SourceProfile, name_tokens
 from .target_profile import TargetField, TargetSchema
+
+_log = logging.getLogger(__name__)
 
 # Confidence floors per tier. A match below EXACT/NORMALIZED is "proposed".
 _EXACT = 1.0
@@ -473,6 +476,9 @@ def _coerce_number(v: Any) -> float | None:
         try:
             return float(s)
         except ValueError:
+            # Not a whole-string number (e.g. prose containing a digit); the
+            # caller treats "unparsable" as "no numeric value". Expected skip.
+            _log.debug("value %r is not a whole-string number", v)
             return None
     return None
 
@@ -559,7 +565,11 @@ def _value_contradicts(sf: FieldStat, tgt: TargetField) -> bool:
     if tgt.pattern:
         try:
             pat = re.compile(tgt.pattern)
-        except re.error:
+        except re.error as exc:
+            # Target schema carries an invalid regex pattern; skip the pattern
+            # check rather than crash. Unexpected (a bad schema), but non-fatal.
+            _log.debug("invalid target pattern %r for %s: %s",
+                       tgt.pattern, tgt.name, exc)
             pat = None
         if pat is not None and not any(
                 _satisfies_pattern(e, pat) for e in examples):
@@ -622,7 +632,11 @@ def _value_corroborates(sf: FieldStat, tgt: TargetField) -> bool:
     if tgt.pattern:
         try:
             pat = re.compile(tgt.pattern)
-        except re.error:
+        except re.error as exc:
+            # Target schema carries an invalid regex pattern; skip the pattern
+            # check rather than crash. Unexpected (a bad schema), but non-fatal.
+            _log.debug("invalid target pattern %r for %s: %s",
+                       tgt.pattern, tgt.name, exc)
             pat = None
         if pat is not None and any(_satisfies_pattern(e, pat) for e in examples):
             return True
@@ -712,6 +726,11 @@ def _semantic_available() -> bool:
         from ..embeddings import embedder
         _SEMANTIC_ENABLED = "minilm" in str(embedder.model).lower()
     except Exception:
+        # No real embedding model available (import/init failed, offline, or the
+        # hashing fallback is active): the semantic tier simply no-ops. Expected
+        # offline; exc_info kept for the rare genuine init failure at DEBUG.
+        _log.debug("semantic tier unavailable; staying deterministic",
+                   exc_info=True)
         _SEMANTIC_ENABLED = False
     return _SEMANTIC_ENABLED
 
@@ -727,6 +746,11 @@ def _embed(text: str) -> list[float] | None:
         from ..embeddings import embedder
         vec = embedder.embed(text)
     except Exception:
+        # Embedding failed (model absent/offline or a transient embed error);
+        # the booster tier no-ops and the deterministic result stands. Expected
+        # offline, so DEBUG — with exc_info for the rare genuine failure.
+        _log.debug("embed failed; semantic booster no-op for this text",
+                   exc_info=True)
         return None
     _embed_cache[text] = vec
     return vec

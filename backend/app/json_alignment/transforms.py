@@ -16,11 +16,14 @@ No locale guessing, no fuzzy parsing: ambiguous input fails closed.
 """
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime
 from typing import Any
 
 from .target_profile import TargetField
+
+_log = logging.getLogger(__name__)
 
 TransformResult = tuple[Any, str, bool]
 
@@ -49,6 +52,9 @@ def cast_number(value: Any, want_int: bool) -> TransformResult:
                 return value, "cast_number", False
             return float(s), "cast_number", True
         except ValueError:
+            # Non-numeric string: fail closed (ok=False) so the executor leaves
+            # the field needs_review. Expected skip (not every value is a number).
+            _log.debug("cast_number: %r is not numeric; failing closed", value)
             return value, "cast_number", False
     return value, "cast_number", False
 
@@ -70,6 +76,9 @@ def parse_date(value: Any, year_only: bool) -> TransformResult:
         try:
             dt: date = datetime.strptime(s, fmt).date()
         except ValueError:
+            # This candidate format did not match; try the next one. Expected
+            # while probing the format list, so DEBUG.
+            _log.debug("parse_date: %r did not match format %r", s, fmt)
             continue
         return (str(dt.year) if year_only else dt.isoformat()), "parse_date", True
     return value, "parse_date", False

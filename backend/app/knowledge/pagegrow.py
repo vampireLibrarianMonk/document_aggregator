@@ -14,10 +14,13 @@ pipeline stays correct and converges as complexity increases.
 from __future__ import annotations
 
 import copy
+import logging
 import random
 from typing import Any
 
 from .catalog import DEFECTS, Defect
+
+_log = logging.getLogger(__name__)
 
 
 def _suffix(key: str, page: int) -> str:
@@ -123,6 +126,8 @@ def _apply(defect: Defect, section: dict) -> None:
     except Exception:
         # A defect that does not apply to this section shape is a no-op; the
         # loop still exercises the rest. (e.g. table defect on a non-table section)
+        _log.debug("pagegrow: defect %s not applicable to this section shape; "
+                   "skipping (no-op)", getattr(defect, "id", defect), exc_info=True)
         pass
 
 

@@ -10,6 +10,7 @@ path, and its output is validated before anything is persisted.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 
@@ -21,6 +22,8 @@ from .model_profiles import profile_for
 from .prompts import get_prompt_strategy
 from .rule_generator import RuleProjectGenerator
 from .schema import ProjectSpec, salvage_spec, validate_spec
+
+_log = logging.getLogger(__name__)
 
 
 class ModelNotApprovedError(RuntimeError):
@@ -221,6 +224,8 @@ def _extract_json(text: str) -> dict:
     try:
         return json.loads(t)
     except json.JSONDecodeError:
+        _log.debug("model output not parseable as bare JSON; trying brace scan",
+                   exc_info=True)
         pass
     # Find the outermost {...}.
     start = t.find("{")
@@ -317,6 +322,8 @@ class BedrockProjectGenerator:
                 m.est_usd = estimate_usd(self.model_id, m.input_tokens, m.output_tokens)
                 return GenerationResult(spec=spec, metrics=m)
         except Exception:
+            _log.warning("Bedrock model generation failed for %r; falling back to "
+                         "the deterministic generator", self.model_id, exc_info=True)
             pass
         # Never break: fall back to the deterministic generator.
         m.fell_back = True

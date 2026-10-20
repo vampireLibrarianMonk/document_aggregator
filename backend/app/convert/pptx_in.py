@@ -8,7 +8,11 @@ subtitle is treated as a classification marking if it matches a known marker.
 """
 from __future__ import annotations
 
+import logging
+
 from .base import RawBlock, RawDocument, RawTable
+
+_log = logging.getLogger(__name__)
 
 _CLASS_MARKERS = ("unclassified", "confidential", "secret", "internal use",
                   "proprietary", "public", "restricted")
@@ -62,7 +66,8 @@ def extract_pptx(data: bytes) -> tuple[RawDocument, list[str]]:
 def _title_shape(slide):
     try:
         return slide.shapes.title
-    except (AttributeError, KeyError):
+    except (AttributeError, KeyError) as exc:
+        _log.debug("skipping slide title shape lookup: %s", exc)
         return None
 
 
@@ -85,8 +90,8 @@ def _picture_name(shape) -> str:
         img = shape.image
         if img and img.filename:
             return img.filename.rsplit("/", 1)[-1]
-    except (AttributeError, ValueError):
-        pass
+    except (AttributeError, ValueError) as exc:
+        _log.debug("skipping picture image filename lookup (falling back to shape name): %s", exc)
     return name
 
 

@@ -10,12 +10,15 @@ File-type routing is by MIME/extension; a real build would sniff content.
 from __future__ import annotations
 
 import io
+import logging
 import re
 import uuid
 from dataclasses import dataclass, field
 
 from .models import Artifact, Block, Provenance
 from .ocr import ocr_available, ocr_image_bytes, ocr_pdf_bytes
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -225,6 +228,9 @@ def parse_pptx(data: bytes, doc_id: str) -> ParseResult:
                     name = f"slide{sidx}_figure_{img_seq}.{ext}"
                     images[name] = blob
                 except Exception:
+                    _log.warning("PPTX parse: failed to extract image %s on slide %s "
+                                 "(best-effort; anchoring caption only)", name, sidx,
+                                 exc_info=True)
                     pass
                 # Anchor the image to the most recent text block on this slide
                 # (its title/caption), so it travels with the right text.

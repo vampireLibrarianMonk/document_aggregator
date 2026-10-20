@@ -12,8 +12,11 @@ OpenAI GPT-OSS. The allowlist is enforced in bedrock_gen.get_project_model().
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Protocol
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -99,6 +102,8 @@ class InvokeModelAdapter:
             try:
                 return path(payload)
             except (KeyError, IndexError, TypeError):
+                _log.debug("invoke_model response shape probe did not match; "
+                           "trying next", exc_info=True)
                 continue
         return json.dumps(payload)  # last resort: hand back raw for debugging
 

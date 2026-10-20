@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import logging
 
 from .config import settings
+
+_log = logging.getLogger(__name__)
 
 
 def _has(mod: str) -> bool:
@@ -105,6 +108,8 @@ def _render_pdf_pages(data: bytes, max_pages: int):
                 pix = page.get_pixmap(matrix=fitz.Matrix(2.78, 2.78))
                 yield Image.open(io.BytesIO(pix.tobytes("png")))
         except Exception:
+            _log.warning("PyMuPDF PDF rasterization failed; OCR yields no pages",
+                         exc_info=True)
             return
     elif r == "pdf2image":
         try:
@@ -112,6 +117,8 @@ def _render_pdf_pages(data: bytes, max_pages: int):
             yield from convert_from_bytes(data, dpi=200, first_page=1,
                                           last_page=max_pages)
         except Exception:
+            _log.warning("pdf2image/poppler PDF rasterization failed; OCR yields "
+                         "no pages", exc_info=True)
             return
 
 

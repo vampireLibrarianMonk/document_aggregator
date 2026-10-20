@@ -26,9 +26,12 @@ the single seam to adjust when that review happens.
 """
 from __future__ import annotations
 
+import logging
 import math
 import os
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 # Explicit override wins over any detection (set from Helm values if desired).
 _ENV_OVERRIDE = "JSON_ALIGNMENT_MAX_WORKERS"
@@ -41,7 +44,10 @@ _CGROUP_V1_PERIOD = Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
 def _read_int(path: Path) -> int | None:
     try:
         return int(path.read_text().strip())
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        # Normal 'no cgroup limit present' fallback (file absent, or contents not
+        # an int) -> caller falls back to os.cpu_count(). Expected, so DEBUG.
+        _log.debug("cgroup read %s unavailable/unparsable: %s", path, exc)
         return None
 
 
@@ -53,7 +59,9 @@ def _cores_from_cgroup_v2() -> float | None:
     monkeypatch the path."""
     try:
         raw = _CGROUP_V2.read_text().strip()
-    except OSError:
+    except OSError as exc:
+        # No cgroup v2 cpu.max on this host (bare metal / dev laptop); normal.
+        _log.debug("cgroup v2 cpu.max unavailable: %s", exc)
         return None
     parts = raw.split()
     if not parts or parts[0] == "max":
@@ -61,7 +69,9 @@ def _cores_from_cgroup_v2() -> float | None:
     try:
         quota = int(parts[0])
         period = int(parts[1]) if len(parts) > 1 else 100000
-    except ValueError:
+    except ValueError as exc:
+        # Malformed cpu.max contents; treat as 'no limit' and fall back. DEBUG.
+        _log.debug("cgroup v2 cpu.max unparsable (%r): %s", raw, exc)
         return None
     if quota <= 0 or period <= 0:
         return None
@@ -107,7 +117,10 @@ def worker_count(reserve: int = 1, *, maximum: int | None = None) -> int:
             if n >= 1:
                 return min(n, maximum) if maximum else n
         except ValueError:
-            pass
+            # A non-integer override is ignored in favor of detection. DEBUG:
+            # misconfiguration worth surfacing at LOG_LEVEL=DEBUG, not a failure.
+            _log.debug("ignoring non-integer %s=%r; using detection",
+                       _ENV_OVERRIDE, override)
     n = max(1, available_cores() - max(0, reserve))
     if maximum is not None:
         n = min(n, max(1, maximum))

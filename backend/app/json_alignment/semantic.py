@@ -27,6 +27,7 @@ The model call lives behind a tiny Protocol so tests inject a fake proposer
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -50,6 +51,8 @@ _MODEL_METHOD = "semantic_model"
 
 # Sentinel the model returns to decline a target.
 _ABSTAIN = "abstain"
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -160,6 +163,11 @@ def get_proposer() -> SemanticProposer | None:
     try:
         return BedrockSemanticProposer()
     except Exception:  # boto3 missing / no creds -> stay deterministic
+        # Expected when offline / unconfigured (the optional model tier simply
+        # no-ops and the deterministic mapping stands). DEBUG with the trace so
+        # a genuine misconfiguration is diagnosable at LOG_LEVEL=DEBUG.
+        _log.debug("Bedrock semantic proposer unavailable; staying deterministic",
+                   exc_info=True)
         return None
 
 
@@ -217,6 +225,11 @@ def apply_semantic_tier(mapping: Mapping, source: SourceProfile,
     try:
         proposals = proposer.propose(requests)
     except Exception:  # model unreachable mid-flight -> deterministic stands
+        # The proposer was live enough to be built but failed during the call;
+        # that is unexpected (vs. the offline no-op above), so WARNING with the
+        # trace. Control flow is unchanged: the deterministic mapping stands.
+        _log.warning("semantic proposer.propose failed; keeping deterministic "
+                     "mapping", exc_info=True)
         return mapping
 
     by_target = {p.target: p for p in proposals}

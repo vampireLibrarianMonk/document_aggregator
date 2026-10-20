@@ -10,10 +10,13 @@ geometric inspector can be exercised deterministically.
 """
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 
 def soffice_available() -> bool:
@@ -35,6 +38,8 @@ def docx_to_pdf_bytes(docx_bytes: bytes) -> bytes | None:
                 check=True, capture_output=True, timeout=120,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            _log.warning("LibreOffice DOCX->PDF conversion failed; degrading to "
+                         "structural inspection", exc_info=True)
             return None
         pdf = Path(tmp) / "in.pdf"
         return pdf.read_bytes() if pdf.exists() else None

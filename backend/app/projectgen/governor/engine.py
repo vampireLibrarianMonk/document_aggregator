@@ -17,6 +17,7 @@ into per-section decisions, adjudicates each against the corpus, and reconciles.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from ..schema import ProjectSpec, salvage_spec, validate_spec
@@ -32,6 +33,8 @@ from .core import (
     GovernorResult,
     VerdictKind,
 )
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -122,6 +125,8 @@ class Governor:
             try:
                 self.on_event(ev)
             except Exception:
+                _log.warning("governor on_event sink raised; continuing without "
+                             "streaming this event", exc_info=True)
                 pass
 
     # -- decision helper: ask adjudicator, record decision-quality ----------

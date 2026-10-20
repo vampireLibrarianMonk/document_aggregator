@@ -16,8 +16,12 @@ has uploaded so far. The write is atomic (persist_spec stages + swaps).
 """
 from __future__ import annotations
 
+import logging
+
 from .config import settings
 from .store import store
+
+_log = logging.getLogger(__name__)
 
 # Kinds whose uploaded documents carry ground-truth source TEXT the generator
 # reads. A user drops the corpus notes under "corpus"; a flawed report under
@@ -60,6 +64,8 @@ def gather_corpus(project_id: str) -> list[dict]:
         try:
             docs = corpus_from_upload(rec.filename or "upload", data)
         except ValueError:
+            _log.debug("ingest-generate: no extractable text from %s; skipping "
+                       "(e.g. image-only PDF)", rec.filename)
             continue  # no extractable text (e.g. an image-only PDF)
         bucket = text_corpus if suffix in (".txt", ".md") else deliverable_corpus
         for doc in docs:
@@ -136,6 +142,8 @@ def gather_deliverable_figures(project_id: str) -> tuple[list[dict], dict[str, b
         try:
             result = route_and_parse(name, guess_mime(name), data, doc_id="deliverable")
         except Exception:  # noqa: BLE001
+            _log.warning("ingest-generate: failed to parse deliverable %s for image "
+                         "extraction (best-effort; skipping)", name, exc_info=True)
             continue
         blocks_by_id = {b.id: b for b in result.blocks}
         for art in result.artifacts:
@@ -217,6 +225,8 @@ def _write_deliverable_images(project_id: str, images: dict[str, bytes]) -> None
         try:
             (dest_dir / name).write_bytes(blob)
         except Exception:  # noqa: BLE001
+            _log.warning("ingest-generate: failed to write deliverable image %s "
+                         "(best-effort; skipping)", name, exc_info=True)
             continue
 
 

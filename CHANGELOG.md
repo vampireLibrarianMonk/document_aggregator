@@ -6,6 +6,21 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **No silently-swallowed exceptions (project standard).** Every
+  `except …: pass` / `continue` / `return None` in `backend/app` that previously
+  discarded its exception now logs it through a module logger
+  (`logging.getLogger(__name__)`) at a level chosen by intent — `debug` for an
+  expected narrow skip (parse/coercion/cgroup probes), `warning`/`exception`
+  with `exc_info=True` for a genuinely recoverable or degraded path (optional
+  OCR/LibreOffice/Bedrock capabilities failing). Control flow is unchanged; a
+  degraded feature is now visible instead of invisible. 40+ handlers across 22
+  files; `backend/app` has **zero** silent handlers (verified by an AST scan).
+- **Centralized logging config** (`app/logging_config.py`): a single
+  `configure_logging()` wired at both entry points (API startup, worker main),
+  with a consistent format and a `LOG_LEVEL` env knob (default `INFO`). Module
+  code only does `getLogger(__name__)` and emits; it never configures logging.
+
 ### Security
 - **Dependency CVE remediation (upload/HTTP attack surface).** Upgraded
   `python-multipart` 0.0.12 → 0.0.32 (clears a path-traversal arbitrary-file-write,

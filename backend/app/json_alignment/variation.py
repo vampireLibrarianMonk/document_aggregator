@@ -31,10 +31,13 @@ global RNG), so fixtures and tests are reproducible.
 """
 from __future__ import annotations
 
+import logging
 import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 # Declared synonyms per golden field name, used by the `rename`/`opaque` knobs.
 # Only the generator knows these; the matcher must rediscover them (that's the
@@ -131,6 +134,10 @@ def _reformat_date(value: Any, rng: random.Random) -> Any:
         try:
             dt = datetime.strptime(value, fmt)
         except ValueError:
+            # Value is not in this candidate date format; try the next one
+            # (and if none match, the original value is returned unchanged).
+            # Expected while probing, so DEBUG.
+            _log.debug("_reformat_date: %r did not match format %r", value, fmt)
             continue
         out_fmt = rng.choice(("%d/%m/%Y", "%m/%d/%Y", "%B %d, %Y", "%d-%m-%Y"))
         if fmt == "%Y":

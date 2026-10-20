@@ -27,9 +27,12 @@ unchanged when no refinement applies.
 
 from __future__ import annotations
 
+import logging
 import re
 
 from ..config import settings
+
+_log = logging.getLogger(__name__)
 
 # Figure-relabel intent detection + grounding vocabulary (from the bake-off).
 _RELABEL_INTENT = ("figure", "chart", "image", "graphic", "diagram", "plot")
@@ -266,6 +269,11 @@ def refine_corrections(
         try:
             result = interpret_feedback(text, ctx, round_index=0, author="interpreter")
         except Exception:
+            _log.warning(
+                "feedback interpreter failed mid-flight; skipping this feedback text "
+                "(deterministic result stands)",
+                exc_info=True,
+            )
             continue  # model unavailable mid-flight -> deterministic result stands
         for op in result.get("accepted", []):
             eng = to_engine_correction(op)

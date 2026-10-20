@@ -33,6 +33,10 @@ def _read_version() -> str:
 class Settings:
     APP_ENV: str = os.getenv("APP_ENV", "development")
 
+    # Logging level for the centralized config (app.logging_config). One knob;
+    # DEBUG surfaces the expected-skip / degraded-path diagnostics.
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
     # Data root: immutable originals, canonical docs, artifacts, indexes.
     DATA_DIR: Path = Path(os.getenv("DATA_DIR", str(Path(__file__).resolve().parents[2] / "data")))
 

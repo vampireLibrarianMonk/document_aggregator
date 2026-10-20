@@ -36,6 +36,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app.jobs import Worker, registered_ops  # noqa: E402
 from app.jobs import ops as _ops  # noqa: E402,F401  (registers ops on import)
 from app.jobs.runtime import get_queue  # noqa: E402
+from app.logging_config import configure_logging  # noqa: E402
+
+configure_logging()
 
 
 def _resolve_processes() -> int:

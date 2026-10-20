@@ -7,8 +7,11 @@ and detected table bounding boxes. This is offline and deterministic.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
+
+_log = logging.getLogger(__name__)
 
 _FIG_CAPTION = re.compile(r"^\s*(figure|fig\.?)\s*\d+", re.IGNORECASE)
 _TABLE_TITLE = re.compile(r"^\s*table\s*\d+", re.IGNORECASE)
@@ -74,6 +77,8 @@ def extract_layout(pdf_bytes: bytes) -> list[PageLayout]:
                     table_boxes.append((float(x0), float(top), float(x1), float(bottom)))
                     pl.boxes.append(Box(float(x0), float(top), float(x1), float(bottom), role="table"))
             except Exception:
+                _log.debug("pdfplumber find_tables failed on page %d; "
+                           "skipping table boxes", i, exc_info=True)
                 pass
             # A large standalone rectangle (not a table, not tiny) is a figure
             # candidate — real figures render as either an image or a framed box.

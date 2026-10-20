@@ -17,6 +17,7 @@ already learned (the library we replay / grow).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 from pathlib import Path
@@ -31,6 +32,8 @@ from .profile_store import (
     validate_rejection,
 )
 from .value_vocab import ValueVocabulary
+
+_log = logging.getLogger(__name__)
 
 _lock = threading.RLock()
 
@@ -156,7 +159,11 @@ def save_batch_outputs(project_id: str, conformed_by_doc: dict[str, list[dict[st
                 try:
                     old.unlink()
                 except OSError:
-                    pass
+                    # Stale prior-batch file we could not remove (locked /
+                    # permission). Non-fatal — the new batch still writes — but
+                    # unexpected, so WARNING with the trace.
+                    _log.warning("could not remove prior batch output %s", old,
+                                 exc_info=True)
         d.mkdir(parents=True, exist_ok=True)
         entries: list[dict[str, Any]] = []
         used: set[str] = set()

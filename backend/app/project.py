@@ -14,12 +14,15 @@ Layout per project:
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from .config import settings
 from .corrections.refine import refine_corrections
 from .reconcile import reconcile
+
+_log = logging.getLogger(__name__)
 
 # Single source of truth lives in config; re-exported here for existing callers.
 BUNDLED_PROJECT_ROOT = settings.BUNDLED_PROJECT_ROOT
@@ -158,6 +161,8 @@ def load_correction_feedback(project_id: str) -> list[str]:
         try:
             out.append(p.read_text(encoding="utf-8"))
         except Exception:
+            _log.warning("could not read reviewer feedback file %s; skipping",
+                         p, exc_info=True)
             continue
     return out
 
@@ -226,6 +231,8 @@ def load_template_evidence(project_id: str) -> dict | None:
     try:
         result = convert_document(gen.read_bytes(), gen.name, template, manifest, "template")
     except Exception:
+        _log.warning("template DOCX evidence extraction failed for project %r; "
+                     "falling back to JSON/profile rubric", project_id, exc_info=True)
         return None
     return result.first_attempt.get("_evidence")
 

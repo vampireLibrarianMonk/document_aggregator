@@ -21,12 +21,15 @@ Preview kinds (what the frontend renders):
 from __future__ import annotations
 
 import hashlib
+import logging
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 from .config import settings
+
+_log = logging.getLogger(__name__)
 
 # Browser-native image types we stream as-is.
 _IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
@@ -95,6 +98,8 @@ def office_to_pdf(data: bytes, ext: str) -> bytes | None:
                 check=True, capture_output=True, timeout=_CONVERT_TIMEOUT_S,
             )
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+            _log.warning("LibreOffice Office->PDF conversion failed for %r; "
+                         "preview unavailable", safe_ext, exc_info=True)
             return None
         pdf = Path(tmp) / "in.pdf"
         return pdf.read_bytes() if pdf.exists() else None
@@ -112,6 +117,8 @@ def cached_office_pdf(project_id: str, document_id: str, data: bytes, ext: str) 
         try:
             return cache_file.read_bytes()
         except OSError:
+            _log.debug("preview cache read failed for %s; re-converting",
+                       cache_file, exc_info=True)
             pass
     pdf = office_to_pdf(data, ext)
     if pdf is None:
@@ -122,6 +129,8 @@ def cached_office_pdf(project_id: str, document_id: str, data: bytes, ext: str) 
         tmp.write_bytes(pdf)
         tmp.replace(cache_file)
     except OSError:
+        _log.debug("preview cache write failed for %s; returning PDF uncached",
+                   cache_file, exc_info=True)
         pass  # caching is best-effort; still return the PDF
     return pdf
 

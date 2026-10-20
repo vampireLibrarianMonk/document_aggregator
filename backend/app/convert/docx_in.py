@@ -6,9 +6,12 @@ including page-number fields and any classification marking.
 """
 from __future__ import annotations
 
+import logging
 import re
 
 from .base import RawBlock, RawDocument, RawTable
+
+_log = logging.getLogger(__name__)
 
 
 def extract_docx(data: bytes) -> tuple[RawDocument, list[str]]:
@@ -69,6 +72,7 @@ def extract_docx(data: bytes) -> tuple[RawDocument, list[str]]:
             try:
                 tbl = next(tbl_iter)
             except StopIteration:
+                _log.debug("skipping w:tbl element: table iterator exhausted (no matching docx.tables entry)")
                 continue
             raw.blocks.append(_table_block(tbl))
 
@@ -115,8 +119,8 @@ def _para_format(para) -> tuple[str, int | None, str]:
             if size_pt is None and run.font.size is not None:
                 try:
                     size_pt = int(run.font.size.pt)
-                except (AttributeError, ValueError):
-                    pass
+                except (AttributeError, ValueError) as exc:
+                    _log.debug("skipping run font size (direct run props): %s", exc)
             if weight is None and run.font.bold is not None:
                 weight = "bold" if run.font.bold else "normal"
         if font and size_pt is not None and weight:
@@ -134,8 +138,8 @@ def _para_format(para) -> tuple[str, int | None, str]:
             if size_pt is None and sf.size is not None:
                 try:
                     size_pt = int(sf.size.pt)
-                except (AttributeError, ValueError):
-                    pass
+                except (AttributeError, ValueError) as exc:
+                    _log.debug("skipping style font size (paragraph style chain): %s", exc)
             if weight is None and sf.bold is not None:
                 weight = "bold" if sf.bold else "normal"
         style = getattr(style, "base_style", None)
@@ -169,8 +173,8 @@ def _doc_default_font(document) -> tuple[str | None, int | None]:
             if sz is not None and sz.get(qn("w:val")):
                 try:
                     size_pt = int(int(sz.get(qn("w:val"))) / 2)  # half-points
-                except ValueError:
-                    pass
+                except ValueError as exc:
+                    _log.debug("skipping docDefaults size value %r: %s", sz.get(qn("w:val")), exc)
     # Theme minor font if docDefaults referenced a theme token or was absent.
     if not font_name or "minorHAnsi" in str(font_name) or "Theme" in str(font_name):
         theme_font = _theme_minor_font(document)
@@ -193,8 +197,8 @@ def _theme_minor_font(document) -> str | None:
                     f"{ns_a}themeElements/{ns_a}fontScheme/{ns_a}minorFont/{ns_a}latin")
                 if latin is not None and latin.get("typeface"):
                     return latin.get("typeface")
-    except (AttributeError, KeyError, etree.XMLSyntaxError):
-        pass
+    except (AttributeError, KeyError, etree.XMLSyntaxError) as exc:
+        _log.debug("skipping theme minor font resolution: %s", exc)
     return None
 
 
@@ -283,7 +287,8 @@ def _image_size_px(paragraph) -> tuple[int | None, int | None]:
             try:
                 # 914400 EMUs per inch; 96 px per inch.
                 return int(int(cx) / 914400 * 96), int(int(cy) / 914400 * 96)
-            except ValueError:
+            except ValueError as exc:
+                _log.debug("skipping image extent (cx=%r cy=%r): %s", cx, cy, exc)
                 return None, None
     return None, None
 
@@ -292,7 +297,8 @@ def _para_align(paragraph) -> str:
     """Paragraph horizontal alignment, normalized to left|center|right."""
     try:
         a = paragraph.alignment
-    except (AttributeError, ValueError):
+    except (AttributeError, ValueError) as exc:
+        _log.debug("skipping paragraph alignment lookup: %s", exc)
         return ""
     if a is None:
         return ""

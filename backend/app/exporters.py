@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import io
 import json
+import logging
+
+_log = logging.getLogger(__name__)
 
 
 def export_json(report: dict) -> tuple[bytes, str, str]:
@@ -346,6 +349,8 @@ def export_corrected_docx(report: dict, figures_dir=None) -> tuple[bytes, str, s
                 try:
                     d.add_picture(str(fp), width=Inches(5.5))
                 except Exception:
+                    _log.warning("DOCX export: failed to embed figure %s (best-effort; "
+                                 "caption-only fallback)", fp, exc_info=True)
                     pass
             cap = d.add_paragraph(caption)
             if cap.runs:
@@ -399,6 +404,8 @@ def export_corrected_pptx(report: dict, figures_dir=None) -> tuple[bytes, str, s
                 try:
                     fig_slide.shapes.add_picture(str(fp), Inches(1), Inches(1.8), width=Inches(8))
                 except Exception:
+                    _log.warning("PPTX export: failed to embed figure %s (best-effort; "
+                                 "caption-only fallback)", fp, exc_info=True)
                     pass
     buf = io.BytesIO()
     prs.save(buf)
@@ -449,6 +456,8 @@ def export_corrected_pdf(report: dict, figures_dir=None) -> tuple[bytes, str, st
                 try:
                     flow.append(Image(str(fp), width=400, height=225))
                 except Exception:
+                    _log.warning("PDF export: failed to embed figure %s (best-effort; "
+                                 "caption-only fallback)", fp, exc_info=True)
                     pass
             flow.append(Paragraph(esc(caption), styles["Italic"]))
         flow.append(Spacer(1, 10))

@@ -10,12 +10,15 @@ project never appears on disk.
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 from pathlib import Path
 from typing import Any
 
 from ..config import settings
 from .schema import ProjectSpec, validate_spec
+
+_log = logging.getLogger(__name__)
 
 # Single source of truth lives in config (previously duplicated here).
 BUNDLED_PROJECT_ROOT = settings.BUNDLED_PROJECT_ROOT
@@ -242,7 +245,8 @@ def _ensure_project_record(project_id: str, spec: ProjectSpec) -> None:
         if store.get_project(project_id) is None:
             store.create_project(Project(id=project_id, name=spec.title or project_id))
     except Exception:
-        pass
+        _log.warning("store registration failed for project %s (payload is "
+                     "authoritative; continuing)", project_id, exc_info=True)
 
 
 def _build_assets(project_id: str) -> None:
@@ -258,7 +262,9 @@ def _build_assets(project_id: str) -> None:
         import build_project_graphics as bpg
         bpg.build_project(project_id)
     except Exception:
-        pass  # figures are best-effort; project still reconciles in JSON mode
+        _log.warning("figure generation failed for project %s (best-effort; "
+                     "project still reconciles in JSON mode)", project_id,
+                     exc_info=True)
     try:
         import json as _json
 
@@ -277,4 +283,6 @@ def _build_assets(project_id: str) -> None:
             bsd.build_pptx(src, scn, out / f"{kind}.pptx")
             bsd.build_pdf(src, scn, out / f"{kind}.pdf")
     except Exception:
-        pass  # docx generation best-effort; JSON baseline always works
+        _log.warning("document (docx/pptx/pdf) generation failed for project %s "
+                     "(best-effort; JSON baseline always works)", project_id,
+                     exc_info=True)

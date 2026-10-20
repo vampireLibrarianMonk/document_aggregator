@@ -8,6 +8,7 @@ report, and export to json/markdown/docx/pptx/pdf.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections.abc import Iterator
 
@@ -20,10 +21,14 @@ from . import ingest_generate
 from .aggregate import _sentiment, build_report
 from .config import settings
 from .exporters import export_report
+from .logging_config import configure_logging
 from .models import Project, ProjectKind, Supplemental, SupplementalKind
 from .pipeline import ingest_document
 from .search import search as run_search
 from .store import store
+
+configure_logging(settings.LOG_LEVEL)
+_log = logging.getLogger(__name__)
 
 app = FastAPI(title="Document Aggregation Platform", version=settings.PIPELINE_VERSION)
 
@@ -113,6 +118,8 @@ def _resolve_project(project_id: str) -> Project:
         try:
             title = project.load_manifest(project_id).get("title", project_id)
         except Exception:
+            _log.warning("could not load manifest title for adopted project %r; "
+                         "using id as name", project_id, exc_info=True)
             pass
         return store.create_project(Project(id=project_id, name=title))
     raise HTTPException(404, "project not found")

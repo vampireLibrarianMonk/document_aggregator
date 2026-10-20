@@ -81,7 +81,9 @@ class AlphaClient:
             detail = e.read().decode("utf-8", "replace")
             try:
                 detail = json.loads(detail).get("detail", detail)
-            except Exception:
+            except (json.JSONDecodeError, AttributeError):
+                # Error body wasn't JSON (or not an object) — keep the raw text.
+                # Not silent: the ApiError below always propagates the detail.
                 pass
             raise ApiError(e.code, str(detail), path) from None
 
