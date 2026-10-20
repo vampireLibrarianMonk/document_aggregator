@@ -37,18 +37,32 @@ The `frontend` image is small (built React app on nginx).
 
 ## Run
 
+Start detached (`-d`) so the containers are owned by the Docker daemon and
+survive your shell/session — the recommended way to run the stack:
+
 ```bash
-docker compose up
+docker compose up -d
 ```
 
 - Frontend: `http://localhost:8080` (proxies `/api` → the `api` service)
 - API: `http://localhost:8000` (`/health`, `/projects`)
 - The `worker` has no published port; it claims jobs from the shared volume.
 
+Observe and manage the detached stack:
+
+```bash
+docker compose ps                 # status of the three services
+docker compose logs -f            # follow logs (Ctrl-C just stops following)
+docker compose logs -f worker     # one service
+```
+
+(Running `docker compose up` in the foreground also works, but the containers
+then stop when you Ctrl-C or the terminal closes; use `-d` for a persistent run.)
+
 To enable the in-app diagnostics page (and the diagnostics e2e spec):
 
 ```bash
-DIAGNOSTICS_ENABLED=true docker compose up
+DIAGNOSTICS_ENABLED=true docker compose up -d
 ```
 
 Tear down (and remove the network); add `-v` to also drop the data volume:

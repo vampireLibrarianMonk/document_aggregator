@@ -336,7 +336,8 @@ BuildKit (parallel stages, better caching):
 
 ```bash
 DOCKER_BUILDKIT=1 docker compose build
-docker compose up
+docker compose up -d          # detached: survives the shell; see deploy/DOCKER.md
+docker compose ps             # status · docker compose logs -f  to follow
 ```
 
 - Frontend on `http://localhost:8080` (proxies `/api` → the `api` service).
