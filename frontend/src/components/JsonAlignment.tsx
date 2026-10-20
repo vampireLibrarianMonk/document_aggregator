@@ -1154,6 +1154,38 @@ export function ApprovalCards({ project, library, onApproved }: {
             </tbody>
           </table>
           </div>
+          {(() => {
+            // Source fields present in this shape that are NOT used by any
+            // mapping and are not already shown as needs-review/conflict rows.
+            // These extra fields are often the ONLY thing distinguishing two
+            // shapes whose mapped tables look identical (e.g. L8 carries an
+            // extra `title` + `metascore` that make it a different shape than
+            // clean_catalog). Showing them is what makes two look-alike cards
+            // visibly different, so a separate approval makes sense.
+            const used = new Set(Object.values(e.mapped))
+            const shown = new Set([...e.needs_review, ...e.conflicts])
+            const unmapped = (e.source_paths ?? [])
+              .map((sp) => sp.path)
+              .filter((p) => !used.has(p) && !shown.has(p))
+            if (unmapped.length === 0) return null
+            return (
+              <div className="small muted" style={{ marginTop: 6 }}>
+                <span style={{ color: 'var(--warn)' }}>
+                  {unmapped.length} source field{unmapped.length > 1 ? 's' : ''} not
+                  mapped to any golden field:
+                </span>{' '}
+                {unmapped.map((p, i) => (
+                  <span key={p} className="mono">
+                    {p}
+                    {i < unmapped.length - 1 ? ', ' : ''}
+                  </span>
+                ))}
+                . These extra fields are part of this shape, so a source file
+                with different extra fields is a different shape with its own
+                approval.
+              </div>
+            )
+          })()}
         </div>
       ))}
       </div>

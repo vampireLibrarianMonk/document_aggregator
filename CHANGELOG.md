@@ -20,6 +20,17 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **Download all (ZIP)** button. Tests in `test_export_all.py`.
 
 ### Fixed
+- **Approval cards now show unmapped source fields, so look-alike shapes are
+  distinguishable.** Two shapes could display an identical mapped-field table
+  (e.g. project-7 `L8_conflicting_candidates` vs `clean_catalog`, both showing
+  the same 8 golden→source rows) while actually being different shapes —
+  `L8` carries two extra source fields (`title`, `metascore`) that are not
+  mapped to any golden field. The card only rendered the `mapped` rows, hiding
+  exactly the fields that distinguish the shapes, so two separate approvals
+  looked wrongly identical. The card now lists the source fields present in the
+  shape but not used by any mapping (data already available on the library entry
+  via `source_paths`; no backend change), explaining why it is a separate
+  approval. Test: `unmappedSourceFields.test.tsx`.
 - **Approval-card copy now matches the verified replay/drift model.** The
   in-app text claimed an approved shape&apos;s future files "convert
   automatically, with no more prompts" and that shapes are approved
