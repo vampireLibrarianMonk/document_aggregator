@@ -56,3 +56,10 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 pythonpath = ["backend"]
+# Opt-in gates (alpha-loop ladder, async regimes) are SLOW and bounded; they are
+# deselected by default so the normal suite stays fast. Run them explicitly with
+#   pytest -m opt_in
+markers = [
+    "opt_in: slow, on-demand gates (alpha-loop + async regimes); deselected by default",
+]
+addopts = "-m 'not opt_in'"
