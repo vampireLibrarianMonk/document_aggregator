@@ -86,19 +86,29 @@ Compose reads.
 | `WORKER_CONCURRENCY` | `2` | worker threads (I/O-bound ops) |
 | `BEDROCK_ENABLED` | `false` | optional model tier; no-op offline |
 
+### How the worker runs (not per-job)
+
+The `worker` is a **long-lived pool**, not a container-per-job: each worker runs
+a persistent `claim → run → complete → claim next` loop against the shared
+queue, so one worker handles many jobs over its lifetime and the expensive
+startup cost (loading the embedding model, importing the stack) is paid **once**
+at container start — never per job. Jobs are pulled off the SQLite queue; they
+never spawn containers.
+
 ### Scaling the worker across cores
 
 CPU-bound ops scale with worker **processes** (threads are GIL-bound). Two ways:
 
-- Set `WORKER_PROCESSES` on the `worker` service (int or `auto` = cgroup cores−1).
+- Set `WORKER_PROCESSES` on the `worker` service (int or `auto` = cgroup cores−1)
+  — N worker processes inside one container.
 - Or scale the service to multiple containers:
 
 ```bash
-docker compose up --scale worker=4
+docker compose up -d --scale worker=4
 ```
 
-Either is safe: the SQLite job claim is process-safe (verified no double-claim
-across processes).
+Either is safe: the SQLite job claim is transactional (`BEGIN IMMEDIATE` + WAL)
+and verified to never double-claim a job across processes **or** containers.
 
 ## AWS credentials (optional Bedrock tier)
 

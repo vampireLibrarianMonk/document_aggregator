@@ -152,9 +152,14 @@ Heavy work runs through a job queue (`app/jobs/`):
 - `POST /jobs {op, payload}` enqueues; `GET /jobs/{id}` polls (returns
   `worker_id` + live `progress`); `GET /jobs` counts.
 - Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`, `batch_align`.
-- The worker (`worker_main.py`) drains the shared-volume SQLite queue. The claim
-  is transactional (`BEGIN IMMEDIATE` + WAL) and verified safe across threads
-  **and** processes (no double-claim). The queue interface is Postgres-ready.
+- The worker (`worker_main.py`) is a **long-lived pool**, *not* a
+  container/process per job: each worker runs a persistent
+  `claim → run → complete → claim next` loop (`Worker.run_forever`), so one
+  worker handles many jobs and the heavy startup cost (embedding model load,
+  imports) is paid once — never per job. It drains the shared-volume SQLite
+  queue; the claim is transactional (`BEGIN IMMEDIATE` + WAL) and verified safe
+  across threads **and** processes (no double-claim). The queue interface is
+  Postgres-ready.
 
 ### Scaling the worker (measured)
 
