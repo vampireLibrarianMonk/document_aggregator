@@ -39,10 +39,14 @@ def _joined_from_tokens(tokens) -> str:
 
 def infer_mapping_batched(source: SourceProfile, target: TargetSchema) -> Mapping:
     """Precompute all fuzzy distances with cdist, install a matrix-lookup fuzzy
-    scorer, then run the standard grounding loop. Falls back transparently if
-    rapidfuzz is unavailable."""
-    from rapidfuzz.distance import Levenshtein
-    from rapidfuzz.process import cdist
+    scorer, then run the standard grounding loop. Falls back transparently to the
+    production infer_mapping if rapidfuzz is unavailable (optional bench dep)."""
+    try:
+        from rapidfuzz.distance import Levenshtein
+        from rapidfuzz.process import cdist
+    except ImportError:
+        from app.json_alignment.mapping import infer_mapping
+        return infer_mapping(source, target)
 
     FMIN, FMAX, BLOCK = M._FUZZY_MIN, M._FUZZY_MAX, M._FUZZY_WORD_BLOCKLIST
 

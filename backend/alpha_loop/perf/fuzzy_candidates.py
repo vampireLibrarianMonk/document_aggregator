@@ -225,10 +225,26 @@ def cascade_cached(mapping_mod) -> Callable:
 # prefilters, then rapidfuzz only for survivors).
 # --------------------------------------------------------------------------
 
+_RAPIDFUZZ_HINT = (
+    "rapidfuzz is an OPTIONAL bench dependency (not required by production). "
+    "Install it to run the rapidfuzz variants:  pip install rapidfuzz"
+)
+
+
+def _require_rapidfuzz():
+    """Import rapidfuzz.distance.Levenshtein or raise a clear, actionable error.
+    Keeps the variants importable without the dep; only CALLING them needs it."""
+    try:
+        from rapidfuzz.distance import Levenshtein
+        return Levenshtein
+    except ImportError as e:  # pragma: no cover - env-dependent
+        raise ImportError(_RAPIDFUZZ_HINT) from e
+
+
 def rapidfuzz_plain(mapping_mod) -> Callable:
     """Swap the DP for rapidfuzz's C++ Levenshtein with score_cutoff=budget."""
     FMIN, FMAX, BLOCK = _preamble(mapping_mod)
-    from rapidfuzz.distance import Levenshtein
+    Levenshtein = _require_rapidfuzz()
 
     def f(s_name, tgt):
         if not s_name or not tgt.tokens:
@@ -254,7 +270,7 @@ def rapidfuzz_cascade(mapping_mod) -> Callable:
     """Our cheap memoized prefilters (len -> presence popcount -> bigram) then
     rapidfuzz's C++ DP only for survivors. Best of both worlds."""
     FMIN, FMAX, BLOCK = _preamble(mapping_mod)
-    from rapidfuzz.distance import Levenshtein
+    Levenshtein = _require_rapidfuzz()
     sig: dict[str, tuple[int, frozenset]] = {}
 
     def _sig(s: str):

@@ -1,0 +1,9 @@
+# Optional dependencies for the alpha_loop performance BENCH only.
+# NOT required by production (the app and its tests never import these). They
+# enable the rapidfuzz C++/SIMD comparison variants in alpha_loop/perf/. The
+# production matcher is pure-Python and zero-dependency by design (air-gap
+# posture); rapidfuzz is only a research/benchmark accelerator.
+#
+#   pip install -r backend/requirements-bench.txt
+#
+rapidfuzz==3.10.1
