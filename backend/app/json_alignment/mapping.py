@@ -207,6 +207,50 @@ def _levenshtein(a: str, b: str) -> int:
     return prev[-1]
 
 
+def _bigrams(s: str) -> frozenset[str]:
+    """Character-bigram set of a string (a 1-char string maps to {itself}).
+
+    Used as a cheap, SOUND lower bound on edit distance: a single edit changes
+    at most 2 bigrams, so two strings within `d` edits share at least
+    (bigrams_in_longer - 2d) bigrams. If they share fewer, their distance MUST
+    exceed d — so we can skip the full DP. Never prunes a real match."""
+    return frozenset(s[i:i + 2] for i in range(len(s) - 1)) if len(s) > 1 else frozenset((s,))
+
+
+def _banded_levenshtein(a: str, b: str, max_dist: int) -> int:
+    """Edit distance with early exit: returns the TRUE distance when it is
+    <= max_dist, else returns max_dist + 1. The fuzzy tier only ever asks
+    'is dist <= budget?', so this is behavior-identical for that question while
+    skipping the rest of the DP once the band is provably exceeded. The band
+    restricts each row to the diagonal +-max_dist, so cost is O(len*max_dist)."""
+    if a == b:
+        return 0
+    la, lb = len(a), len(b)
+    if abs(la - lb) > max_dist:
+        return max_dist + 1
+    if not a:
+        return lb
+    if not b:
+        return la
+    INF = max_dist + 1
+    prev = list(range(lb + 1))
+    for i, ca in enumerate(a, 1):
+        lo = max(1, i - max_dist)
+        hi = min(lb, i + max_dist)
+        cur = [INF] * (lb + 1)
+        cur[0] = i
+        row_min = i
+        for j in range(lo, hi + 1):
+            v = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != b[j - 1]))
+            cur[j] = v
+            if v < row_min:
+                row_min = v
+        if row_min > max_dist:
+            return INF
+        prev = cur
+    return prev[-1] if prev[-1] <= max_dist else INF
+
+
 # Common standalone English words that happen to sit within one edit of a SHORT
 # golden name (e.g. 'game'/'fame'/'tame' vs 'name'; 'date'/'rate' vs ...). A real
 # source shipping such a bare field is almost never a typo of the golden name, so
@@ -268,7 +312,17 @@ def _fuzzy_score(s_name: set[str], tgt: TargetField) -> float:
     if abs(len(s_joined) - len(t_joined)) > 2:
         return 0.0
     budget = max(1, len(t_joined) // 4)
-    dist = _levenshtein(s_joined, t_joined)
+    # Cheap SOUND prefilter before the DP: a single edit changes at most 2
+    # bigrams, so if the two strings share fewer than (bigrams_in_longer -
+    # 2*budget) bigrams, their distance MUST exceed budget — skip the DP. Then a
+    # banded early-exit DP returns the exact distance only when it is <= budget.
+    # Both are provable lower bounds, so the <=budget verdict (and the score) is
+    # identical to the full DP; this only avoids wasted work on far pairs.
+    sb, tb = _bigrams(s_joined), _bigrams(t_joined)
+    max_bg = len(sb) if len(sb) > len(tb) else len(tb)
+    if len(sb & tb) < max_bg - 2 * budget:
+        return 0.0
+    dist = _banded_levenshtein(s_joined, t_joined, budget)
     if dist == 0 or dist > budget:
         # dist==0 is an exact/normalized match already handled upstream; a true
         # 0 here would mean the higher tiers didn't fire, so leave it to overlap.
@@ -781,6 +835,66 @@ def _score_candidate(sf: FieldStat, tgt: TargetField) -> tuple[float, str]:
     return 0.0, "abstain"
 
 
+class _CandidateIndex:
+    """Index over source fields so `infer_mapping` scores only POSSIBLY-nonzero
+    candidates per target instead of every pair. Built once per batch.
+
+    A candidate can score > 0 in `_score_candidate` only via one of:
+      exact/normalized  -> source token-set equals the target token-set
+      alias             -> source token-set equals a declared alias's tokens
+      synonym           -> source token-set equals a curated synonym's tokens
+      overlap/desc      -> shares >= 1 token with the target name OR description
+      fuzzy             -> joined-name length within +-2 AND bigram overlap could
+                           allow dist <= budget (same sound bound the fuzzy tier
+                           uses)
+    The union of these is a superset of every candidate that could matter, so
+    the produced mapping is identical to the full-scan version."""
+
+    def __init__(self, src_fields) -> None:
+        from collections import defaultdict
+        self.by_path = {sf.path: sf for sf in src_fields}
+        self.token_set: dict[frozenset, list] = defaultdict(list)
+        self.by_token: dict[str, set] = defaultdict(set)
+        self.by_len_bg: dict[int, list] = defaultdict(list)
+        self._joined: dict[str, str] = {}
+        self._bg: dict[str, frozenset] = {}
+        for sf in src_fields:
+            self.token_set[frozenset(sf.tokens)].append(sf.path)
+            for tok in set(sf.tokens) | set(sf.desc_tokens):
+                self.by_token[tok].add(sf.path)
+            j = "".join(sorted(sf.tokens))
+            self._joined[sf.path] = j
+            self._bg[sf.path] = _bigrams(j)
+            self.by_len_bg[len(j)].append(sf.path)
+
+    def candidates_for(self, tgt) -> list:
+        paths: set = set()
+        paths.update(self.token_set.get(frozenset(tgt.tokens), []))
+        for alias in tgt.aliases:
+            at = name_tokens(str(alias))
+            if at:
+                paths.update(self.token_set.get(frozenset(at), []))
+        for syn in _SYNONYMS.get(tgt.name, ()):
+            paths.update(self.token_set.get(frozenset((syn,)), []))
+        for tok in set(tgt.tokens) | set(tgt.desc_tokens):
+            paths.update(self.by_token.get(tok, set()))
+        # fuzzy window: length +-2 AND bigram-bound (same sound lower bound as
+        # _fuzzy_score), so same-length but bigram-disjoint fields are not pulled
+        # in just to score 0.
+        tj = "".join(sorted(tgt.tokens))
+        tbg = _bigrams(tj)
+        budget = max(1, len(tj) // 4)
+        for length in range(len(tj) - 2, len(tj) + 3):
+            for p in self.by_len_bg.get(length, ()):
+                if p in paths:
+                    continue
+                sbg = self._bg[p]
+                max_bg = len(sbg) if len(sbg) > len(tbg) else len(tbg)
+                if len(sbg & tbg) >= max_bg - 2 * budget:
+                    paths.add(p)
+        return [self.by_path[p] for p in paths]
+
+
 def infer_mapping(source: SourceProfile, target: TargetSchema) -> Mapping:
     """Infer a deterministic source->target mapping, abstaining when unsure.
 
@@ -791,10 +905,16 @@ def infer_mapping(source: SourceProfile, target: TargetSchema) -> Mapping:
     out: list[FieldMapping] = []
 
     sf_by_path = {sf.path: sf for sf in src_fields}
+    # Candidate index: instead of scoring every (source x target) pair
+    # (O(width^2)), score only the source fields that COULD score > 0 for a
+    # target, found via indexes built once over the sources. Every pruned pair
+    # would have scored 0.0 in _score_candidate, so the result is identical; the
+    # win is large on wide schemas. See _CandidateIndex.
+    index = _CandidateIndex(src_fields)
 
     for tgt in target.fields:
         scored: list[tuple[float, str, str]] = []  # (score, method, source_path)
-        for sf in src_fields:
+        for sf in index.candidates_for(tgt):
             score, method = _score_candidate(sf, tgt)
             if score > 0.0:
                 scored.append((score, method, sf.path))
