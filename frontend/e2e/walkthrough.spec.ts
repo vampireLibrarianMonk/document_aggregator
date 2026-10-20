@@ -250,10 +250,10 @@ test('06 needs-review field is filled via the map-to remap', async ({ page }) =>
   await remapSelect.selectOption(optValue as string)
 
   // After the remap, the propagation status line reports records now conforming.
-  // Copy: "Your one mapping replays across this shape's records: N of M record(s)
-  // now fully conform."
+  // Copy: "Your fix was applied to this shape's records: N of M record(s) now
+  // fully match the golden schema. Other shapes are not affected."
   const propagation = page.locator('[role="status"]', {
-    hasText: /record\(s\) now fully\s+conform/i,
+    hasText: /record\(s\) now fully\s+match the golden schema/i,
   })
   await expect(propagation).toBeVisible({ timeout: 15_000 })
   const propText = await propagation.innerText()

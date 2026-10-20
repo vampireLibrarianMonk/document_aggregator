@@ -886,13 +886,12 @@ export function ApprovalCards({ project, library, onApproved }: {
         <i> Rejected shapes</i> below.
       </p>
       <p className="small" style={{ margin: '0 0 8px', color: 'var(--warn)' }}>
-        Each shape is a distinct field layout, approved <b>independently</b>:
-        approving (or rejecting) one shape never changes another, because a
-        different layout needs its own sign-off. (A fix <i>within</i> a shape —
-        e.g. a field remap below — does apply to all of <i>that</i> shape&apos;s
-        records; that is replay within one shape, not across shapes.)
+        Each shape has its own set of fields, and you approve or reject each one
+        on its own. Approving or rejecting one shape never changes another. When
+        you fix a field inside a shape, that fix applies to all of that
+        shape&apos;s records, but it does not touch any other shape.
         {provisional.length > 1 &&
-          ` ${provisional.length} shapes are awaiting approval; approve or reject each one below.`}
+          ` ${provisional.length} shapes are waiting for you. Approve or reject each one below.`}
       </p>
       {/* Scrollable list of shape cards: with many distinct shapes awaiting
           approval the stack gets tall, so cap it and scroll the cards while the
@@ -1034,14 +1033,15 @@ export function ApprovalCards({ project, library, onApproved }: {
           )}
           {propagation[e.profile_id]?.available && (
             <p className="small" style={{ margin: '2px 0 0', color: 'var(--ok)' }} role="status">
-              Your one mapping replays across <b>this shape&apos;s</b> records:{' '}
+              Your fix was applied to this shape&apos;s records:{' '}
               <b>{propagation[e.profile_id].conformant}</b> of{' '}
-              {propagation[e.profile_id].sampled} record(s) now fully conform
+              {propagation[e.profile_id].sampled} record(s) now fully match the
+              golden schema
               {propagation[e.profile_id].needs_review > 0 &&
                 ` (${propagation[e.profile_id].needs_review} still need review)`}
               {propagation[e.profile_id].total > propagation[e.profile_id].sampled &&
-                ` — sampled ${propagation[e.profile_id].sampled} of ${propagation[e.profile_id].total}`}
-              . (Other shapes are unaffected.)
+                ` (checked ${propagation[e.profile_id].sampled} of ${propagation[e.profile_id].total})`}
+              . Other shapes are not affected.
             </p>
           )}
           <div className="row" style={{ marginTop: 6, justifyContent: 'space-between' }}>
