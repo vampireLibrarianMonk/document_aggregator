@@ -554,15 +554,14 @@ def _export_basename(project_name: str) -> str:
     return f"{slug}_{stamp}"
 
 
-@app.get("/projects/{project_id}/export-formats")
-def export_formats(project_id: str) -> dict:
-    """Which corrected-report download formats to offer. Rule: if the user
-    uploaded their first-attempt as a specific office format (DOCX or PPTX), only
-    that office format is offered (not the other), so a DOCX source doesn't
+def _offered_formats(project_id: str) -> list[str]:
+    """The canonical list of export formats to offer for a project. Rule: if the
+    user uploaded their first-attempt as a specific office format (DOCX or PPTX),
+    only that office format is offered (not the other), so a DOCX source doesn't
     offer a PPTX download and vice versa. JSON/Markdown/PDF are always offered
     (format-neutral deliverables). When no office first-attempt was uploaded
-    (corpus-only generation), all formats are offered."""
-    _resolve_project(project_id)
+    (corpus-only generation), all formats are offered. Shared by the
+    export-formats listing and the export-all bundle so they never diverge."""
     office = {"docx": False, "pptx": False}
     for r in store.list_records(project_id):
         kind = getattr(r.kind, "value", r.kind)
@@ -581,9 +580,102 @@ def export_formats(project_id: str) -> dict:
     else:
         # No office source, or both present: offer every format.
         formats = [*always, "docx", "pptx"]
-    # Stable canonical order for the UI.
+    # Stable canonical order.
     order = ["json", "markdown", "docx", "pptx", "pdf"]
-    return {"formats": [f for f in order if f in formats]}
+    return [f for f in order if f in formats]
+
+
+@app.get("/projects/{project_id}/export-all")
+def export_all(
+    project_id: str,
+    kind: str = "corrected",
+    mode: str = "draft",
+) -> Response:
+    """Bundle every offered export format into one ZIP download.
+
+    Reuses the same per-format exporters and the same format list the UI offers
+    (`_offered_formats`), so the archive contains exactly the formats the single
+    download buttons would produce. The report is rendered once and each format
+    is serialized from it. A format whose optional dependency is missing (e.g.
+    reportlab for PDF) is skipped and noted in a MANIFEST.txt rather than failing
+    the whole bundle. The corrected markdown export is itself a ZIP (markdown +
+    figures/); it is nested as-is so its embedded images are preserved.
+    """
+    import io
+    import zipfile
+    from datetime import datetime, timezone
+
+    from . import exporters, project
+
+    proj = _resolve_project(project_id)
+    if mode not in ("draft", "template"):
+        raise HTTPException(400, "mode must be 'draft' or 'template'")
+
+    want_corrected = kind == "corrected" and project.has_correction_pipeline(project_id)
+    try:
+        if want_corrected:
+            report = project.run_reconciliation(mode=mode, project_id=project_id)
+            figures_dir = settings.resolve_project_data_dir(project_id) / "corpus" / "figures"
+            fig = figures_dir if figures_dir.is_dir() else None
+            formats = _offered_formats(project_id)
+
+            def render(fmt: str) -> tuple[bytes, str, str]:
+                return exporters.export_corrected_report(report, fmt, figures_dir=fig)
+        else:
+            report = build_report(project_id)
+            formats = ["json", "markdown", "docx", "pptx", "pdf"]
+
+            def render(fmt: str) -> tuple[bytes, str, str]:
+                return export_report(report, fmt)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(400, str(exc))
+
+    basename = _export_basename(proj.name or project_id)
+    buf = io.BytesIO()
+    included: list[str] = []
+    skipped: list[str] = []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fmt in formats:
+            try:
+                data, _media, filename = render(fmt)
+            except (ValueError, RuntimeError) as exc:
+                # Optional-dependency or render failure for one format: skip it,
+                # note it, keep the rest of the bundle. (No silent swallow.)
+                _log.warning("export-all: skipping format %s: %s", fmt, exc)
+                skipped.append(f"{fmt}: {exc}")
+                continue
+            ext = filename.rsplit(".", 1)[-1] if "." in filename else fmt
+            zf.writestr(f"{basename}.{ext}", data)
+            included.append(f"{basename}.{ext}")
+        manifest = [
+            "Document Aggregation Platform export bundle",
+            f"project: {proj.name or project_id}",
+            f"kind: {'corrected' if want_corrected else 'aggregated'}"
+            + (f" (mode={mode})" if want_corrected else ""),
+            f"generated: {datetime.now(timezone.utc).isoformat()}",
+            "",
+            "included:",
+            *[f"  - {n}" for n in included],
+        ]
+        if skipped:
+            manifest += ["", "skipped (optional dependency or render error):",
+                         *[f"  - {s}" for s in skipped]]
+        zf.writestr("MANIFEST.txt", "\n".join(manifest) + "\n")
+
+    download_name = f"{basename}_all.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
+
+
+@app.get("/projects/{project_id}/export-formats")
+def export_formats(project_id: str) -> dict:
+    """Which corrected-report download formats to offer. See `_offered_formats`
+    for the rule."""
+    _resolve_project(project_id)
+    return {"formats": _offered_formats(project_id)}
 
 
 @app.get("/projects/{project_id}/corrected-report")

@@ -209,6 +209,18 @@ export const api = {
     return `${BASE}/projects/${projectId}/export?${qs.toString()}`
   },
 
+  /** URL for the ZIP bundle containing every offered format in one download. */
+  exportAllUrl(
+    projectId: string,
+    opts: { kind?: 'corrected' | 'aggregated'; mode?: 'draft' | 'template' } = {},
+  ): string {
+    const qs = new URLSearchParams()
+    if (opts.kind) qs.set('kind', opts.kind)
+    if (opts.mode) qs.set('mode', opts.mode)
+    const q = qs.toString()
+    return `${BASE}/projects/${projectId}/export-all${q ? `?${q}` : ''}`
+  },
+
   exportFormats(projectId: string): Promise<{ formats: ExportFormat[] }> {
     return fetch(`${BASE}/projects/${projectId}/export-formats`).then((r) =>
       json<{ formats: ExportFormat[] }>(r),

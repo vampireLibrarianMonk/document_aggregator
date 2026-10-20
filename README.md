@@ -435,7 +435,8 @@ depends on them.
   notes; sentiment is auto-classified.
 - **Search** — hybrid lexical + vector retrieval with per-hit provenance.
 - **Report & Export** — the assembled intermediate report with one-click export
-  to JSON / Markdown / DOCX / PPTX / PDF.
+  to JSON / Markdown / DOCX / PPTX / PDF, or **Download all (ZIP)** to get every
+  offered format bundled into one archive (with a MANIFEST).
 
 ## Configuration
 

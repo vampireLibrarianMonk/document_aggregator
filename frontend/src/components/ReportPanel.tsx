@@ -107,6 +107,14 @@ export function ReportPanel({ projectId }: { projectId: string }) {
               <button className="btn">{f === 'markdown' ? 'MARKDOWN (ZIP)' : f.toUpperCase()}</button>
             </a>
           ))}
+          <a href={api.exportAllUrl(projectId, { kind: 'corrected', mode })} download>
+            <button
+              className="btn"
+              title="Download every format above bundled into a single ZIP archive."
+            >
+              DOWNLOAD ALL (ZIP)
+            </button>
+          </a>
         </div>
         <div className="small muted" style={{ marginTop: 6 }} role="status" aria-live="polite">
           This is the Correction Pipeline&apos;s output: every value grounded in your
@@ -202,6 +210,14 @@ function AggregatedReport(
               <button className="btn">{f === 'markdown' ? 'MARKDOWN (ZIP)' : f.toUpperCase()}</button>
             </a>
           ))}
+          <a href={api.exportAllUrl(projectId, { kind: 'aggregated' })} download>
+            <button
+              className="btn"
+              title="Download every format above bundled into a single ZIP archive."
+            >
+              DOWNLOAD ALL (ZIP)
+            </button>
+          </a>
         </div>
         <div className="small muted" style={{ marginTop: 6 }} role="status" aria-live="polite">
           <b>Refresh</b> re-aggregates to pick up documents or supplementals you

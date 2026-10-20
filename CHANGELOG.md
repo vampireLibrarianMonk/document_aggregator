@@ -6,6 +6,19 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Download all (ZIP) on Report & Export.** A new
+  `GET /projects/{id}/export-all` endpoint bundles every offered export format
+  into a single ZIP (one entry per format, each named with the deterministic
+  `<project-slug>_<UTC-stamp>` basename, plus a `MANIFEST.txt`). It reuses the
+  existing per-format exporters and the same offered-format list as the
+  single-download buttons (refactored into a shared `_offered_formats` helper so
+  the two never diverge), rendering the report once. A format whose optional
+  dependency is missing (e.g. reportlab for PDF) is skipped and recorded in the
+  manifest rather than failing the whole bundle (no silent swallow). Wired into
+  both the corrected and aggregated Report & Export panels as a
+  **Download all (ZIP)** button. Tests in `test_export_all.py`.
+
 ### Fixed
 - **Approval-card copy now matches the verified replay/drift model.** The
   in-app text claimed an approved shape&apos;s future files "convert
