@@ -314,12 +314,18 @@ test('07 accept a value for platform then undo (server-confirmed)', async ({ pag
 test('08 golden schema CRUD: add/remove learned accepted values', async ({ page }) => {
   await openGolden(page)
 
-  // The Accepted values editor renders once a schema is saved (it is, seeded).
-  // Match the panel heading <strong> exactly (the project name option also
-  // contains the words "accepted values", so a substring match is ambiguous).
-  await expect(
-    page.locator('strong').filter({ hasText: /^Accepted values$/ }),
-  ).toBeVisible({ timeout: 15_000 })
+  // The Accepted values editor lives in a COLLAPSIBLE section (collapsed by
+  // default). Its header <strong> is always visible, but the table (and the
+  // platform row) only render when the section is expanded. Click the header
+  // button to expand it if needed before locating rows.
+  const acceptedHeader = page.locator('button', {
+    has: page.locator('strong').filter({ hasText: /^Accepted values$/ }),
+  }).first()
+  await expect(acceptedHeader).toBeVisible({ timeout: 15_000 })
+  if ((await acceptedHeader.getAttribute('aria-expanded')) === 'false') {
+    await acceptedHeader.click()
+  }
+  await expect(acceptedHeader).toHaveAttribute('aria-expanded', 'true')
 
   // The platform row: built-in chips are the schema taxonomy; add learned values.
   const platformRow = page.locator('tr', {
