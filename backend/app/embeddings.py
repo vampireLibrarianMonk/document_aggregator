@@ -58,7 +58,11 @@ class HashingEmbeddingProvider:
     def embed(self, text: str) -> list[float]:
         vec = [0.0] * self.dim
         for tok in tokenize(text):
-            h = int(hashlib.md5(tok.encode("utf-8")).hexdigest(), 16)
+            # MD5 here is a NON-SECURITY hash: it maps a token to a vector
+            # bucket + sign for the deterministic hashing embedder. usedforsecurity
+            # =False documents that intent and keeps it working on FIPS-mode hosts
+            # (where MD5-for-security is disabled).
+            h = int(hashlib.md5(tok.encode("utf-8"), usedforsecurity=False).hexdigest(), 16)
             idx = h % self.dim
             sign = 1.0 if (h >> 8) & 1 else -1.0
             vec[idx] += sign

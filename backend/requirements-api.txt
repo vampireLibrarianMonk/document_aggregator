@@ -7,15 +7,24 @@
 # build time so the image is fully offline.
 
 # Core API
-fastapi==0.115.2
+# fastapi 0.153 / starlette 1.7 pin up from 0.115 / 0.40 to clear multiple
+# starlette CVEs (Range-header DoS CVE-2025-62727, StaticFiles SSRF/NTLM
+# CVE-2026-48818, form-limit DoS CVE-2026-54283). starlette is pinned
+# explicitly (not just via fastapi) so the floor is auditable.
+fastapi==0.153.0
+starlette==1.7.0
 uvicorn[standard]==0.30.6
 pydantic==2.9.2
-python-multipart==0.0.12
+# python-multipart 0.0.32: clears the 0.0.12 path-traversal arbitrary-file-write
+# (CVE-2026-24486) + several form-parsing DoS CVEs — directly on the upload path.
+python-multipart==0.0.32
 
 # Document parsers/exporters + vector-layout geometry (all light)
 python-docx==1.1.2
 python-pptx==1.0.2
-pypdf==5.0.1
+# pypdf 6.x: clears ~16 DoS CVEs in 5.0.1 (crafted-PDF parsing) — the untrusted
+# upload surface. API-compatible for our use (parsers import/exercise verified).
+pypdf==6.21.1
 reportlab==4.2.2
 Pillow>=10.4.0
 pdfplumber==0.11.10

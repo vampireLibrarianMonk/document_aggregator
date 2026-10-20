@@ -6,6 +6,25 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+- **Dependency CVE remediation (upload/HTTP attack surface).** Upgraded
+  `python-multipart` 0.0.12 → 0.0.32 (clears a path-traversal arbitrary-file-write,
+  CVE-2026-24486, plus form-parsing DoS CVEs), `pypdf` 5.0.1 → 6.21.1 (clears
+  ~16 crafted-PDF DoS CVEs on the untrusted-upload path), and `fastapi` 0.115.2
+  → 0.153.0 with `starlette` pinned explicitly to 1.7.0 (clears Range-header DoS
+  CVE-2025-62727, StaticFiles SSRF/NTLM CVE-2026-48818, form-limit DoS
+  CVE-2026-54283). Behavior-neutral — full suite (670 passed) unchanged.
+- **Code security.** Marked the deterministic embedder's MD5 bucket hash
+  `usedforsecurity=False` (non-security use; also FIPS-safe) — clears the sole
+  bandit high-severity finding. Verified the two LibreOffice `subprocess` calls
+  use argument lists (no shell) with controlled inputs.
+- **Expanded pre-commit scanning** across code, dependency, and container
+  vectors: added bandit (python code), pip-audit (python dep CVEs), hadolint
+  (Dockerfile hardening), and `npm audit --omit=dev` (frontend prod deps) to
+  `.pre-commit-config.yaml`, alongside the existing gitleaks/ruff/mypy/oxlint.
+  Container image CVE scanning (trivy) and the full SBOM are documented as
+  on-demand gates in `SBOM.md`.
+
 ## [0.6.0] - 2026-10-20
 
 ### Added

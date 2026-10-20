@@ -38,13 +38,14 @@ worker Dockerfile additionally installs CPU `torch`).
 
 | Component | Version | License | Purpose |
 |-----------|---------|---------|---------|
-| fastapi | 0.115.2 | MIT | HTTP API framework |
+| fastapi | 0.153.0 | MIT | HTTP API framework |
+| starlette | 1.7.0 | BSD-3-Clause | ASGI toolkit (fastapi dep; pinned explicitly for CVE floor) |
 | uvicorn[standard] | 0.30.6 | BSD-3-Clause | ASGI server |
 | pydantic | 2.9.2 | MIT | models / validation |
-| python-multipart | 0.0.12 | Apache-2.0 | multipart form parsing (uploads) |
+| python-multipart | 0.0.32 | Apache-2.0 | multipart form parsing (uploads) |
 | python-docx | 1.1.2 | MIT | DOCX parse/build |
 | python-pptx | 1.0.2 | MIT | PPTX parse/build |
-| pypdf | 5.0.1 | BSD-3-Clause | PDF parsing |
+| pypdf | 6.21.1 | BSD-3-Clause | PDF parsing |
 | reportlab | 4.2.2 | BSD-3-Clause | PDF export |
 | Pillow | ≥10.4.0 | MIT-CMU (HPND) | image handling |
 | pdfplumber | 0.11.10 | MIT | PDF geometry extraction (layout tier) |
@@ -123,6 +124,33 @@ From `frontend/package.json` (`dependencies`); resolved versions in
 python scripts/generate_sbom.py
 # the generated sbom.cdx.json validates against the CycloneDX 1.5 schema
 ```
+
+## Vulnerability scanning
+
+The pre-commit config (`.pre-commit-config.yaml`) scans these vectors on commit:
+
+| Vector | Tool (hook) |
+|--------|-------------|
+| Secrets | gitleaks + detect-private-key |
+| Python code security | bandit |
+| Python dependency CVEs | pip-audit (`requirements-api.txt`) |
+| Dockerfile hardening | hadolint |
+| Frontend production-dep CVEs | `npm audit --omit=dev` |
+| Lint / type / format | ruff, mypy, oxlint |
+
+Run on demand (too heavy for a hook):
+
+```bash
+# container image CVEs (OS + baked packages)
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy image --severity HIGH,CRITICAL document_aggregator-api:latest
+```
+
+Last full scan (0.6.0): production Python + frontend deps report **no known
+vulnerabilities** after upgrading fastapi/starlette/pypdf/python-multipart off
+CVE-affected versions; bandit reports **0 high/medium** (the sole high, an
+MD5 bucket hash in the deterministic embedder, is marked `usedforsecurity=False`).
+Dev-only frontend toolchain advisories (vite/vitest) do not reach the built app.
 
 Review this document whenever a direct dependency is added, removed, or version-
 bumped; regenerate `sbom.cdx.json` for the full transitive closure.

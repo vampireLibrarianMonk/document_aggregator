@@ -41,6 +41,30 @@ repos:
     hooks:
       - id: gitleaks
 
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        name: bandit (python code security)
+        args: ["-ll", "-r", "backend/app"]
+        pass_filenames: false
+
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.7.3
+    hooks:
+      - id: pip-audit
+        name: pip-audit (python dependency CVEs)
+        # Scan the production dependency set; fails on a known CVE with a fix.
+        args: ["-r", "backend/requirements-api.txt"]
+        pass_filenames: false
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint
+        name: hadolint (Dockerfile hardening)
+        files: '(^|/)Dockerfile[^/]*$'
+
   - repo: local
     hooks:
       - id: oxlint
@@ -50,3 +74,20 @@ repos:
         files: ^frontend/src/.*\.(ts|tsx)$
         pass_filenames: true
         types: [file]
+
+      - id: npm-audit
+        name: npm audit (frontend production deps)
+        language: system
+        # Only the SHIPPED deps (--omit=dev); dev-toolchain advisories are
+        # tracked separately and never reach the built app.
+        entry: bash -c 'cd frontend && npm audit --omit=dev --audit-level=high'
+        files: ^frontend/package(-lock)?\.json$
+        pass_filenames: false
+
+# --------------------------------------------------------------------------
+# NOT wired as hooks (too heavy / need built artifacts) — run on demand:
+#   container image CVEs:  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+#                            aquasec/trivy image --severity HIGH,CRITICAL <image>
+#   full transitive SBOM:  python scripts/generate_sbom.py
+# See SBOM.md and deploy/DOCKER.md.
+# --------------------------------------------------------------------------
