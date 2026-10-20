@@ -91,13 +91,13 @@ describe('ApprovalCards — unmapped source fields distinguish look-alike shapes
       <ApprovalCards project={project} library={libraryWithLookalikeShapes()} onApproved={vi.fn()} />,
     )
     await waitFor(() => expect(getByText(/not\s+mapped to any golden field/i)).toBeTruthy())
-    // The L8 shape's extra fields are named (each rendered in its own span,
-    // the non-last one carries a trailing comma, so match by substring).
-    expect(getByText((_t, el) => el?.textContent === 'title, ')).toBeTruthy()
-    expect(getByText((_t, el) => el?.textContent === 'metascore')).toBeTruthy()
-    // Exactly ONE of the two cards shows the unmapped note (clean_catalog does not).
-    const notes = container.querySelectorAll('span')
-    const noteCount = Array.from(notes).filter((n) =>
+    // The L8 shape's extra fields are each listed (as <li> items, exact text).
+    expect(getByText('title')).toBeTruthy()
+    expect(getByText('metascore')).toBeTruthy()
+    // Exactly ONE of the two cards shows the unmapped-fields <summary>
+    // (clean_catalog maps all its fields, so it shows none).
+    const summaries = container.querySelectorAll('summary')
+    const noteCount = Array.from(summaries).filter((n) =>
       /source field.*not\s+mapped to any golden field/i.test(n.textContent ?? ''),
     ).length
     expect(noteCount).toBe(1)
@@ -112,5 +112,19 @@ describe('ApprovalCards — unmapped source fields distinguish look-alike shapes
       <ApprovalCards project={project} library={lib} onApproved={vi.fn()} />,
     )
     expect(queryByText(/not\s+mapped to any golden field/i)).toBeNull()
+  })
+
+  it('starts the list collapsed when there are many (7+) unmapped fields', async () => {
+    // Long lists would dominate the card, so the <details> starts closed.
+    const lib = libraryWithLookalikeShapes()
+    const many = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((p) => ({ path: p, type: 'string' }))
+    lib.entries = [{ ...lib.entries[0], source_paths: [...lib.entries[0].source_paths, ...many] }]
+    lib.provisional = ['game__shape_L8']
+    const { container } = render(
+      <ApprovalCards project={project} library={lib} onApproved={vi.fn()} />,
+    )
+    const details = container.querySelector('details.small') as HTMLDetailsElement | null
+    expect(details).not.toBeNull()
+    expect(details?.open).toBe(false) // 7 unmapped -> collapsed by default
   })
 })

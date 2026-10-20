@@ -1169,21 +1169,30 @@ export function ApprovalCards({ project, library, onApproved }: {
               .filter((p) => !used.has(p) && !shown.has(p))
             if (unmapped.length === 0) return null
             return (
-              <div className="small muted" style={{ marginTop: 6 }}>
-                <span style={{ color: 'var(--warn)' }}>
+              <details className="small" style={{ marginTop: 6 }} open={unmapped.length <= 6}>
+                <summary style={{ color: 'var(--warn)', cursor: 'pointer' }}>
                   {unmapped.length} source field{unmapped.length > 1 ? 's' : ''} not
-                  mapped to any golden field:
-                </span>{' '}
-                {unmapped.map((p, i) => (
-                  <span key={p} className="mono">
-                    {p}
-                    {i < unmapped.length - 1 ? ', ' : ''}
-                  </span>
-                ))}
-                . These extra fields are part of this shape, so a source file
-                with different extra fields is a different shape with its own
-                approval.
-              </div>
+                  mapped to any golden field
+                </summary>
+                <ul
+                  style={{
+                    maxHeight: 160,
+                    overflowY: 'auto',
+                    overscrollBehavior: 'contain',
+                    margin: '4px 0 0',
+                    paddingLeft: 18,
+                    listStyle: 'disc',
+                  }}
+                >
+                  {unmapped.map((p) => (
+                    <li key={p} className="mono">{p}</li>
+                  ))}
+                </ul>
+                <p className="muted" style={{ margin: '4px 0 0' }}>
+                  These extra fields are part of this shape, so a source file with
+                  different extra fields is a different shape with its own approval.
+                </p>
+              </details>
             )
           })()}
         </div>
