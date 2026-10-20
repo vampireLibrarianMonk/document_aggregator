@@ -757,10 +757,16 @@ def job_status(job_id: str) -> dict:
 
 
 @app.get("/jobs")
-def job_counts() -> dict:
+def job_counts(project_id: str | None = None) -> dict:
+    """Queue tallies by job state. With `project_id`, scope to that project only
+    (the UI passes the active project so the Workers & queue panel shows this
+    project's work, not every project's lifetime total). Without it, the global
+    tally across all projects is returned (back-compat)."""
     from .jobs.runtime import get_queue
 
-    return {"counts": get_queue().counts()}
+    q = get_queue()
+    counts = q.counts_for_project(project_id) if project_id else q.counts()
+    return {"counts": counts}
 
 
 # --------------------------------------------------------------------------

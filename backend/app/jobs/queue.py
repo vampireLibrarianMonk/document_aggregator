@@ -53,6 +53,7 @@ class JobQueue(Protocol):
     def set_progress(self, job_id: str, done: int, total: int) -> None: ...
     def get(self, job_id: str) -> Job | None: ...
     def counts(self) -> dict[str, int]: ...
+    def counts_for_project(self, project_id: str) -> dict[str, int]: ...
 
 
 _SCHEMA = """
@@ -174,6 +175,19 @@ class SqliteJobQueue:
 
     def counts(self) -> dict[str, int]:
         rows = self._conn().execute("SELECT state, COUNT(*) n FROM jobs GROUP BY state").fetchall()
+        return {r["state"]: r["n"] for r in rows}
+
+    def counts_for_project(self, project_id: str) -> dict[str, int]:
+        """Job-state tallies for ONE project only, so the UI's queue panel shows
+        the active project's work rather than every project's lifetime total.
+        Filters on the project_id carried in each job's payload JSON (no schema
+        column needed; works for existing rows). Jobs with no project_id in
+        their payload (if any) are naturally excluded."""
+        rows = self._conn().execute(
+            "SELECT state, COUNT(*) n FROM jobs "
+            "WHERE json_extract(payload, '$.project_id') = ? GROUP BY state",
+            (project_id,),
+        ).fetchall()
         return {r["state"]: r["n"] for r in rows}
 
     @staticmethod

@@ -68,4 +68,11 @@ describe('WorkerQueuePanel', () => {
     const { findByText } = render(<WorkerQueuePanel activeJob={active} />)
     await findByText(/boom/)
   })
+
+  it('scopes the counts poll to the active project (no cross-project bleedover)', async () => {
+    getJobCounts.mockResolvedValue({ counts: { completed: 1 } })
+    const active = job({ state: 'processing', worker_id: 'w1' })
+    render(<WorkerQueuePanel activeJob={active} projectId="proj_42" />)
+    await waitFor(() => expect(getJobCounts).toHaveBeenCalledWith('proj_42'))
+  })
 })

@@ -607,8 +607,11 @@ export const api = {
   },
 
   /** Live queue tallies by job state (GET /jobs). Drives the worker/queue
-   *  visibility panel; absent keys mean a zero count for that state. */
-  getJobCounts(): Promise<{ counts: JobCounts }> {
-    return fetch(`${BASE}/jobs`).then((r) => json<{ counts: JobCounts }>(r))
+   *  visibility panel; absent keys mean a zero count for that state. Pass a
+   *  projectId to scope the tallies to that project only (no cross-project
+   *  bleedover); omit it for the global tally. */
+  getJobCounts(projectId?: string): Promise<{ counts: JobCounts }> {
+    const qs = projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''
+    return fetch(`${BASE}/jobs${qs}`).then((r) => json<{ counts: JobCounts }>(r))
   },
 }

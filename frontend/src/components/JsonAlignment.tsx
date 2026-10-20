@@ -1299,7 +1299,10 @@ const JOB_STATE_LABELS: Record<string, string> = {
  *  running. This is how the UI reveals whether async workers are actually in
  *  play: a job stuck "pending" with no "processing" and no worker id means no
  *  worker is draining the queue. Exported for unit testing. */
-export function WorkerQueuePanel({ activeJob }: { activeJob: JobStatus | null }) {
+export function WorkerQueuePanel({ activeJob, projectId }: {
+  activeJob: JobStatus | null
+  projectId?: string
+}) {
   const [counts, setCounts] = useState<JobCounts | null>(null)
   const [open, setOpen] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -1316,7 +1319,7 @@ export function WorkerQueuePanel({ activeJob }: { activeJob: JobStatus | null })
     }
     let cancelled = false
     const tick = () => {
-      api.getJobCounts()
+      api.getJobCounts(projectId)
         .then((r) => { if (!cancelled) { setCounts(r.counts); setErr(null) } })
         .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : String(e)) })
         .finally(() => { if (!cancelled) timer.current = window.setTimeout(tick, 1000) })
@@ -1326,7 +1329,7 @@ export function WorkerQueuePanel({ activeJob }: { activeJob: JobStatus | null })
       cancelled = true
       if (timer.current) window.clearTimeout(timer.current)
     }
-  }, [open, activeJob])
+  }, [open, activeJob, projectId])
 
   // Order the state chips deterministically; only non-zero states are shown.
   const order: (keyof JobCounts)[] = ['pending', 'processing', 'retryable', 'completed', 'failed']
@@ -1605,7 +1608,7 @@ export function BatchConvertPanel({ project }: { project: Project }) {
         {/* Fuller worker/queue visibility: a dropdown below the batch pane that
             polls the shared job queue and shows the active batch job's detail,
             including which worker claimed it (or that none has). */}
-        <WorkerQueuePanel activeJob={activeJob} />
+        <WorkerQueuePanel activeJob={activeJob} projectId={project.id} />
       </div>
     </div>
   )

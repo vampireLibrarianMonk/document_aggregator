@@ -45,6 +45,17 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **Download all (ZIP)** button. Tests in `test_export_all.py`.
 
 ### Fixed
+- **Workers & queue panel is now scoped to the active project (no cross-project
+  bleedover).** The panel read `GET /jobs`, whose tallies are a lifetime global
+  count across every project in the shared queue — so a project with one batch
+  could show e.g. `Completed: 67` (all projects' jobs ever). Added
+  `SqliteJobQueue.counts_for_project(project_id)` (filters on the project_id in
+  each job's payload via `json_extract`, so no schema column or migration is
+  needed and existing rows work), an optional `?project_id=` on `GET /jobs`
+  (omitted = global, back-compat), and threaded the active `project.id` through
+  `WorkerQueuePanel` → `getJobCounts`. The panel now shows only the current
+  project's jobs. Tests: `test_job_counts_scoped.py` (queue + endpoint) and a
+  `WorkerQueuePanel` scoping assertion.
 - **Approval cards now show unmapped source fields, so look-alike shapes are
   distinguishable.** Two shapes could display an identical mapped-field table
   (e.g. project-7 `L8_conflicting_candidates` vs `clean_catalog`, both showing
