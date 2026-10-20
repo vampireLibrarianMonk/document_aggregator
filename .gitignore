@@ -63,6 +63,8 @@ new_spec/
 
 # ---- Kiro session operation logs (tooling-generated; not source) ----
 .kiro/operations-*
+# Dated session logs (same tooling-generated kind, bare-date filename).
+.kiro/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]
 
 # Generated SBOM artifact (reproducible on request; manual SBOM.md is committed)
 sbom.cdx.json
