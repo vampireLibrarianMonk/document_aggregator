@@ -46,10 +46,18 @@ def registered_ops() -> list[str]:
 
 class Worker:
     def __init__(self, queue: JobQueue, worker_id: str | None = None,
-                 idle_sleep: float = 0.05) -> None:
+                 idle_sleep: float = 0.05, *, min_idle_sleep: float = 0.005) -> None:
         self.queue = queue
         self.worker_id = worker_id or f"worker-{os.getpid()}"
+        # `idle_sleep` is the MAXIMUM backoff when persistently idle (keeps CPU
+        # near-zero on an empty queue). `min_idle_sleep` is the initial poll
+        # interval right after work, so a job that arrives soon after another is
+        # picked up quickly (low latency). The sleep grows from min->max as idle
+        # cycles accumulate, then resets to min on the next claimed job. This
+        # drops the single-job pickup floor from ~50ms to ~5ms under load while
+        # NOT busy-spinning on a long-idle queue.
         self.idle_sleep = idle_sleep
+        self.min_idle_sleep = min(min_idle_sleep, idle_sleep)
         self._stop = False
         self.processed = 0
 
@@ -58,15 +66,19 @@ class Worker:
 
     def run_forever(self, max_idle_cycles: int | None = None) -> None:
         idle = 0
+        sleep = self.min_idle_sleep
         while not self._stop:
             job = self.queue.claim(self.worker_id)
             if job is None:
                 idle += 1
                 if max_idle_cycles is not None and idle >= max_idle_cycles:
                     return
-                time.sleep(self.idle_sleep)
+                time.sleep(sleep)
+                # exponential backoff toward the idle_sleep cap
+                sleep = min(self.idle_sleep, sleep * 2)
                 continue
             idle = 0
+            sleep = self.min_idle_sleep  # reset: next job picked up fast
             self._run_job(job)
 
     def run_once(self) -> bool:
