@@ -96,9 +96,13 @@ class SqliteJobQueue:
         conn = getattr(self._local, "conn", None)
         if conn is None:
             conn = sqlite3.connect(self.db_path, timeout=30, isolation_level=None)
+            # Set busy_timeout FIRST so the WAL journal-mode switch (which takes
+            # an exclusive lock) waits for a concurrent opener instead of raising
+            # 'database is locked' — matters when several worker processes open a
+            # cold DB simultaneously at startup.
+            conn.execute("PRAGMA busy_timeout=30000;")
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous=NORMAL;")
-            conn.execute("PRAGMA busy_timeout=30000;")
             conn.row_factory = sqlite3.Row
             self._local.conn = conn
         return conn
