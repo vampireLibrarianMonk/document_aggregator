@@ -51,28 +51,6 @@ def test_expanded_fault_isolation_and_backpressure():
     assert bp["bounded"], bp
 
 
-def test_alpha_loop_matcher_oracle_smoke():
-    """A fast in-process smoke of the alpha-loop correctness oracle: the
-    production matcher recovers the clean (identity) shape fully with zero false
-    matches — the loop's stage-0 invariant, run without the live stack."""
-    import json
-
-    from app.json_alignment.pipeline import run_alignment
-
-    schema = json.loads(
-        (BACKEND.parent / "sample_docs" / "project" / "7" / "golden"
-         / "target_schema.json").read_text())
-    # clean record: keys == golden names
-    rec = {"name": "Portal", "releaseYear": "2007", "developer": "Valve",
-           "publisher": "Valve", "platform": "Windows PC", "genres": ["Puzzle"],
-           "criticScore": 90, "ESRB": "T"}
-    res = run_alignment([rec], schema)
-    mapped = res.mapping.mapped()
-    # all 8 golden fields recovered to their identical source key, zero fabrication
-    real = {"name", "releaseYear", "developer", "publisher", "platform",
-            "genres", "criticScore", "ESRB"}
-    assert set(mapped) >= real - {"genres"} or "genres" in mapped or True
-    assert all(v for v in mapped.values())  # no empty targets
-    # no mapped source path is fabricated
-    for src in mapped.values():
-        assert src.replace("[]", "") in {k for k in rec}
+# NOTE: the alpha-loop MATCHER ladder (all 12 benign->hostile stages + the
+# zero-false-match invariant) lives in its own module, test_alpha_ladder.py,
+# to keep this file focused on the ASYNC/worker regimes. Both are opt_in.
