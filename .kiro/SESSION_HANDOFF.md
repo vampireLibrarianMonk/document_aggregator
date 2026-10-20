@@ -383,3 +383,24 @@ PRODUCTION RECOMMENDATIONS (not yet applied; need go-ahead):
   2. (architectural) run N worker_main.py PROCESSES (or scale Docker 'worker'
      service) for CPU-bound throughput; keep WORKER_CONCURRENCY threads for I/O.
      Reuse available_cores()/worker_count() cgroup budget.
+
+## PROMOTIONS TO PRODUCTION — DONE (all 3, full-suite gated)
+
+Baseline before: 650 passed / 24 skipped. After all three: identical. No regressions.
+
+1. ec323f1 — adaptive worker idle backoff (app/jobs/worker.py). Single-job
+   pickup latency 50ms -> 5ms; backs off to 50ms cap when idle (near-zero idle
+   CPU). Behavior-neutral.
+2. f0255eb — tight-index + bigram fuzzy in PRODUCTION mapping.py (_fuzzy_score
+   bigram prefilter + banded DP; infer_mapping _CandidateIndex). ~21x at width
+   400 (10,000ms -> 470ms); 2.5-5x even on the 8-field game schema. Identical
+   mappings (239 alignment/frontier tests + full suite). Zero deps.
+3. 6d44a3c — process-based worker scaling (worker_main.py WORKER_PROCESSES, with
+   supervisor + restart) + a cold-start SQLite WAL lock-race fix (queue.py:
+   busy_timeout before WAL; parent inits DB once). CPU ops now scale to cores.
+
+Apparatus (alpha_loop/) retained as the research + regression bench.
+
+STATUS: alpha-loop ladder exhausted (12 stages, zero false matches), async deep
+dive complete, all optimizations promoted to production and gated. Clean stopping
+point. Stack (API/worker) is NOT running — restart per the top of this file.
