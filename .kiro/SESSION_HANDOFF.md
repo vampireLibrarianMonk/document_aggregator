@@ -347,3 +347,39 @@ THE INVARIANT THAT HELD EVERYWHERE: zero false_matches across all 12 stages.
 The matcher never fabricated a mapping; it abstained/deferred whenever unsure.
 Cascade (per-shape approval) + replay (zero re-prompt) verified wherever a shape
 was approved.
+
+## Async deep dive — COMPLETE (the biggest lever + structured regime)
+
+The "~200ms floor" was a MEASUREMENT ARTIFACT: the client wait_for_job poll_s=0.2.
+True queue roundtrip is ~0.17ms. Tools added (all bounded/hang-proof):
+  backend/alpha_loop/async_regime.py    (thread baseline + invariants)
+  backend/alpha_loop/proc_worker.py     (process scaling proof)
+  backend/alpha_loop/async_expanded.py  (edge regimes)
+
+Findings:
+  - Per-hop latency: enqueue 37-97us, full roundtrip ~0.17ms. No queue-side floor.
+  - Single-job latency floor = Worker.idle_sleep (~50ms). Lever: lower idle_sleep.
+  - Observed client latency = poll_s (200ms). Lever: lower the poll interval.
+  - Claim safety: zero double-claims across THREADS and PROCESSES (BEGIN
+    IMMEDIATE + WAL correct). ~4600 jobs/s.
+  - CPU scaling: THREADS flat (GIL: 1.0/1.02/0.92x); PROCESSES ~linear to
+    physical cores (1.0/1.98/3.35x, plateau 4->8 = hyperthreads).
+  - I/O scaling: THREADS scale near-perfectly (1.98/3.91/7.33x) — GIL released.
+  - Contention (tiny jobs): processes REGRESS (1.0/0.77/0.58x) — claim-lock +
+    coordination overhead > work. Don't over-parallelize tiny jobs; batch them.
+  - Fault isolation: a crashing op fails only its own job; siblings keep
+    draining; queue not corrupted. PASS.
+  - Backpressure: fixed pool keeps queue depth BOUNDED under sustained producer.
+
+DECISION RULE (the deliverable):
+  CPU-bound ops (reconcile/align)  -> scale with worker PROCESSES
+  I/O-bound ops                    -> scale with threads (WORKER_CONCURRENCY)
+  tiny jobs                        -> batch, don't fan out
+  interactive latency              -> lower poll_s (client) + idle_sleep (worker)
+
+PRODUCTION RECOMMENDATIONS (not yet applied; need go-ahead):
+  1. (trivial/safe) lower client poll_s 0.2 -> ~0.03 and Worker.idle_sleep
+     0.05 -> ~0.01 for snappier interactive jobs.
+  2. (architectural) run N worker_main.py PROCESSES (or scale Docker 'worker'
+     service) for CPU-bound throughput; keep WORKER_CONCURRENCY threads for I/O.
+     Reuse available_cores()/worker_count() cgroup budget.
