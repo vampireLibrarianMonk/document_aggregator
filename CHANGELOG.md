@@ -21,6 +21,17 @@ adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   documented the dev-toolchain install in the Developer Guide.
 
 ### Added
+- **E2E coverage for shape-card contents and the worker/queue dropdown.** Two
+  new modular Playwright specs close real-browser gaps the existing suite did
+  not reach: `shapeCard.spec.ts` (3 flows) asserts a provisional approval
+  card's **field-mapping table** and the **unmapped-source-fields listbox**
+  (the collapsible `<details>` that distinguishes look-alike shapes; driven with
+  `cascade_base.json`'s 13 extra fields, incl. the collapsed-when-long
+  behavior), and `workerQueue.spec.ts` (2 flows) drives the **Workers & queue**
+  dropdown (`WorkerQueuePanel`) in a real browser — present/expandable with
+  `Queue:` tallies, and reflecting an active batch without falsely reporting a
+  stalled worker. Previously the card's contents and the queue dropdown were
+  only unit-tested with mocks. E2E inventory in `frontend/e2e/README.md` updated.
 - **Download all (ZIP) on Report & Export.** A new
   `GET /projects/{id}/export-all` endpoint bundles every offered export format
   into a single ZIP (one entry per format, each named with the deterministic
