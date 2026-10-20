@@ -149,11 +149,29 @@ enriched with `title`/`file`/`width`/`height`/`align`.
 
 Heavy work runs through a job queue (`app/jobs/`):
 
-- `POST /jobs {op, payload}` enqueues; `GET /jobs/{id}` polls; `GET /jobs` counts.
-- Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`.
-- The worker (`worker_main.py`) drains the shared-volume SQLite queue;
-  `WORKER_CONCURRENCY` sets the thread count. The queue interface is
-  Postgres-ready.
+- `POST /jobs {op, payload}` enqueues; `GET /jobs/{id}` polls (returns
+  `worker_id` + live `progress`); `GET /jobs` counts.
+- Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`, `batch_align`.
+- The worker (`worker_main.py`) drains the shared-volume SQLite queue. The claim
+  is transactional (`BEGIN IMMEDIATE` + WAL) and verified safe across threads
+  **and** processes (no double-claim). The queue interface is Postgres-ready.
+
+### Scaling the worker (measured)
+
+Two independent axes — pick by workload type:
+
+- `WORKER_PROCESSES` (default 1; int or `auto` = cgroup-aware cores−1): worker
+  **processes**. Use for **CPU-bound** ops (reconcile/align) — Python threads are
+  GIL-bound (measured flat for CPU work); processes scale ~linearly to physical
+  cores. A supervisor restarts a child that exits unexpectedly.
+- `WORKER_CONCURRENCY` (default 1): threads **per** process. Use for
+  **I/O-bound** ops (the GIL is released on I/O; measured ~linear).
+
+Rule of thumb: CPU-bound → processes, I/O-bound → threads, tiny jobs → batch
+them (coordination overhead can exceed the work). The worker's single-job pickup
+latency uses an adaptive idle backoff (~5 ms under load, backing off to a 50 ms
+cap when idle). See `backend/alpha_loop/async_regime.py` /
+`proc_worker.py` / `async_expanded.py` for the bounded measurement harnesses.
 
 ## Testing regime
 
@@ -269,16 +287,26 @@ The a11y audit and the e2e suite share one static-server-with-`/api`-proxy
 
 | Gate | Command | Automatic? |
 |---|---|---|
-| Lint / format / types / secrets / oxlint | `pre-commit run --all-files` | **Yes** (every commit) |
+| Lint / format / types + security (secrets, bandit, pip-audit, hadolint, npm-audit) | `pre-commit run --all-files` | **Yes** (every commit) |
 | Backend suite | `pytest backend/tests` | On demand (run before every push) |
+| Opt-in gates (alpha-loop ladder + async/worker regimes) | `pytest backend/tests -m opt_in` | On demand (deselected by default) |
 | Project assertions | `python backend/verify_project.py` | On demand |
 | Frontend build + lint | `npm run build` / `npm run lint` | On demand (run before every push) |
 | a11y audit | `npm run audit:a11y` | On demand (needs a served app) |
 | Browser e2e | `npm run e2e` | On demand (needs Docker + Chromium) |
+| Container image CVEs | `trivy image <image>` (via `aquasec/trivy`) | On demand |
 
 Before a push, the minimum bar is: backend suite green, `verify_project.py`
 green, `npm run build` clean, and `pre-commit run --all-files` clean. Run the
 a11y + e2e gates whenever you touch the frontend or any route the guides quote.
+
+The **opt-in gates** (`pytest -m opt_in`, deselected by default so the normal
+suite stays fast) lock in behavior proven interactively: the full 12-stage
+JSON→golden adversarial ladder (`test_alpha_ladder.py` — zero false matches at
+every stage, modular per-stage expectation table) and the async/worker regimes
+(`test_opt_in_gates.py` — claim safety, process scaling, fault isolation,
+backpressure). The indexed-matcher equivalence (`test_matcher_index_equivalence.py`)
+and process-worker guards (`test_process_worker.py`) run in the normal suite.
 
 ### Research & bake-offs (archived experiments)
 
@@ -317,7 +345,15 @@ keep `BEDROCK_ENABLED=false`, and run non-root under OpenShift group 0 with
 Environment variables (see `app/config.py`):
 
 - `DATA_DIR` - data root (immutable originals, canonical docs, indexes, jobs.db).
+- `LOG_LEVEL` - centralized logging level (default `INFO`; `DEBUG` surfaces the
+  expected-skip / degraded-path diagnostics). Logging is configured once in
+  `app/logging_config.py` and wired at both entry points (API startup +
+  `worker_main`); module code only does `logging.getLogger(__name__)` and emits.
+  **No exception is ever swallowed silently** — handlers log at `debug` (expected
+  skips) or `warning`/`exception` with `exc_info=True` (degraded optional
+  capabilities) before continuing.
 - `EMBEDDING_BACKEND` - `auto` | `sentence-transformers` | `hashing`
   (compose defaults to `hashing` with `HF_HUB_OFFLINE`/`TRANSFORMERS_OFFLINE=1`).
-- `WORKER_CONCURRENCY` - worker thread count.
+- `WORKER_PROCESSES` - worker process count (CPU-bound ops; `auto` = cores−1).
+- `WORKER_CONCURRENCY` - worker thread count per process (I/O-bound ops).
 - `BEDROCK_ENABLED` - optional cloud feedback interpreter; off by default.

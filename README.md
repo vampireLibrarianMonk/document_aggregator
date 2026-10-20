@@ -359,8 +359,12 @@ Heavy work runs through a job queue (`app/jobs/`), so the API stays responsive:
 
 Ops: `reconcile`, `converge`, `render_geometry`, `pipeline`, `batch_align` (the
 mass JSON→golden conversion). The worker (`backend/worker_main.py`) processes
-them; `WORKER_CONCURRENCY` sets thread count, and the batch op additionally
-self-limits to cgroup-aware cores − 1 (`JSON_ALIGNMENT_MAX_WORKERS` overrides).
+them. Two scaling axes (measured): `WORKER_PROCESSES` runs N worker **processes**
+for CPU-bound ops (`auto` = cgroup-aware cores − 1; processes beat threads for
+CPU work, which is GIL-bound), and `WORKER_CONCURRENCY` sets threads **per**
+process for I/O-bound ops. The batch op additionally self-limits to cgroup-aware
+cores − 1 (`JSON_ALIGNMENT_MAX_WORKERS` overrides). See
+[`deploy/LOCAL.md`](deploy/LOCAL.md) for the worker-mode guidance.
 
 Correction endpoints are **project-scoped** (a project IS a correction project
 in the unified model), under `/projects/{project_id}/...`:
