@@ -886,8 +886,11 @@ export function ApprovalCards({ project, library, onApproved }: {
         <i> Rejected shapes</i> below.
       </p>
       <p className="small" style={{ margin: '0 0 8px', color: 'var(--warn)' }}>
-        Each shape is approved <b>independently</b> — approving one does{' '}
-        <b>not</b> cascade to the others.
+        Each shape is a distinct field layout, approved <b>independently</b>:
+        approving (or rejecting) one shape never changes another, because a
+        different layout needs its own sign-off. (A fix <i>within</i> a shape —
+        e.g. a field remap below — does apply to all of <i>that</i> shape&apos;s
+        records; that is replay within one shape, not across shapes.)
         {provisional.length > 1 &&
           ` ${provisional.length} shapes are awaiting approval; approve or reject each one below.`}
       </p>
@@ -1031,14 +1034,14 @@ export function ApprovalCards({ project, library, onApproved }: {
           )}
           {propagation[e.profile_id]?.available && (
             <p className="small" style={{ margin: '2px 0 0', color: 'var(--ok)' }} role="status">
-              After your mapping, <b>{propagation[e.profile_id].conformant}</b> of{' '}
-              {propagation[e.profile_id].sampled} record(s) in this shape now fully
-              conform
+              Your one mapping replays across <b>this shape&apos;s</b> records:{' '}
+              <b>{propagation[e.profile_id].conformant}</b> of{' '}
+              {propagation[e.profile_id].sampled} record(s) now fully conform
               {propagation[e.profile_id].needs_review > 0 &&
                 ` (${propagation[e.profile_id].needs_review} still need review)`}
               {propagation[e.profile_id].total > propagation[e.profile_id].sampled &&
                 ` — sampled ${propagation[e.profile_id].sampled} of ${propagation[e.profile_id].total}`}
-              .
+              . (Other shapes are unaffected.)
             </p>
           )}
           <div className="row" style={{ marginTop: 6, justifyContent: 'space-between' }}>
